@@ -2295,7 +2295,6 @@ class CursesOutput(object):
             self.next_y = start_y + prefix_y
             return
         candrop = [name for name in fields if name not in to_hide and not noautohide.get(name, False)]
-        # logger.error('candrop = {0} to_hide={1} noautohide={2} fields={3}'.format(candrop, to_hide, noautohide, fields))
         layout = self.new_layout_x(start_x + prefix_x, width, fields, to_hide, candrop)
         for offset_y, (row, status) in enumerate(zip(rows, statuses)):
             status_rest = self._invisible_fields_status(layout, status)
@@ -2315,7 +2314,7 @@ class CursesOutput(object):
                                     COLALIGN.ca_none) if not append_column_headers else COLALIGN.ca_left)
                 w = layout[field]['width']
                 text = (str(row[field])[:w - 3] + '...' if layout[field].get('truncate', False) and w
-                        > self.MIN_ELLIPSIS_FIELD_LENGTH else str(row[field])[:w])
+                        > self.MIN_ELLIPSIS_FIELD_LENGTH and w < len(str(row[field])) else str(row[field]))
                 text = self._align_field(text, w, column_alignment, types.get(field, COLTYPES.ct_string))
                 color_fields = self.color_text(status[field], highlights[field], text)
                 for f in color_fields:

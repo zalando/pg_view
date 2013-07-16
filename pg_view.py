@@ -418,6 +418,9 @@ class StatCollector(object):
             ln = ' ' * (ln_len - 2)
         return '{0}----{1}----\n'.format(ln, block_title)
 
+    def ncurses_set_prefix(new_prefix):
+        self.ncurses_custom_fields['prefix'] = new_prefix
+
     def cook_row(self, row, header, method):
         cooked_vals = []
         if not self.cook_function.get(method):

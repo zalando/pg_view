@@ -2313,14 +2313,19 @@ class CursesOutput(object):
                 column_alignment = (align.get(field,
                                     COLALIGN.ca_none) if not append_column_headers else COLALIGN.ca_left)
                 w = layout[field]['width']
-                text = (str(row[field])[:w - 3] + '...' if layout[field].get('truncate', False) and w
-                        > self.MIN_ELLIPSIS_FIELD_LENGTH and w < len(str(row[field])) else str(row[field]))
+                # now check if we need to add ellipsis to indicate that the value has been truncated.
+                # we don't do this if the value is less than a certain length or when the column is marked as
+                # containing truncated values, but the actual value is not truncated.
+                if layout[field].get('truncate', False) and w > self.MIN_ELLIPSIS_FIELD_LENGTH and w < len(str(row[field])):
+                    text = str(row[field])[:w - 3] + '...'
+                else:
+                    text = str(row[field])[:w]
                 text = self._align_field(text, w, column_alignment, types.get(field, COLTYPES.ct_string))
                 color_fields = self.color_text(status[field], highlights[field], text)
                 for f in color_fields:
                     if f['start'] + layout[field]['start'] + f['width'] > self.screen_x:
-                        logger.error('word {0} ending X coordinate {1} is higher than the screen X coordidante {2}'.format(f['word'
-                                     ], f['start'] + layout[field]['start'] + f['width'], self.screen_x - 1))
+                        logger.warning('word {0} ending X coordinate {1} is higher than the screen X coordinate {2}'.format(
+                            f['word'], f['start'] + layout[field]['start'] + f['width'], self.screen_x - 1))
                     self.screen.addnstr(start_y + offset_y + prefix_y + header, layout[field]['start'] + f['start'],
                                         f['word'], f['width'], f['color'])
         self.next_y = start_y + offset_y + prefix_y + header + 1
@@ -2363,7 +2368,6 @@ class CursesOutput(object):
             can be hidden, if they are not important (determined at column defintion) and
             if we don't have enough space for them.
         """
-
         layout = {}
         # get only the columns that are not hidden
         col_remaining = [name for name in colnames if not name in colhidden]
@@ -2401,14 +2405,14 @@ class CursesOutput(object):
                     # truncate it to the length that fits the screen
                     oldwidth = layout[name]['width']
                     layout[name]['truncate'] = True
-                    layout[name]['width'] = layout[name]['width'] - (layout[name]['start'] + w - self.screen_x)
+                    layout[name]['width'] = self.screen_x - layout[name]['start']
                 # oops, we ran across the screen boundary
                 # all the columns after this one should be dropped
                 break
         return layout
 
-    
 # some utility functions
+
 
 def read_configuration(config_file_name):
     # read PostgreSQL connection options

@@ -2458,14 +2458,14 @@ def read_postmaster_pid(work_directory):
 
 # execution starts here
 
-def loop(collectors, output_method):
+def loop(collectors, groups, output_method):
     if output_method == OUTPUT_METHOD.curses:
-        curses.wrapper(do_loop, output_method, collectors)
+        curses.wrapper(do_loop, groups, output_method, collectors)
     else:
-        do_loop(None, output_method, collectors)
+        do_loop(None, groups, output_method, collectors)
 
 
-def do_loop(screen, output_method, collectors):
+def do_loop(screen, groups, output_method, collectors):
     """ Display output (or pass it through to ncurses) """
 
     output = None
@@ -2515,7 +2515,6 @@ def do_loop(screen, output_method, collectors):
         if options.clear_screen or output_method == OUTPUT_METHOD.curses:
             output.refresh()
         time.sleep(TICK_LENGTH)
-
 
 def is_postgres_process(pid):
     # read /proc/stat, check for the PostgreSQL string
@@ -2867,16 +2866,21 @@ if __name__ == '__main__':
             sys.exit(1)
 
         collectors = []
+        groups = {}
         collectors.append(HostStatCollector())
         collectors.append(SystemStatCollector())
         collectors.append(MemoryStatCollector())
         for cl in clusters:
-            collectors.append(PartitionStatCollector(cl['name'], cl['ver'], cl['wd']))
-            collectors.append(PgstatCollector(cl['pgcon'], cl['pid'], cl['name'], cl['ver']))
+            part = PartitionStatCollector(cl['name'], cl['ver'], cl['wd'])
+            pg = PgstatCollector(cl['pgcon'], cl['pid'], cl['name'], cl['ver'])
+            groupname = cl['wd']
+            groups[groupname] = {'pg': pg, 'partitions': part}
+            collectors.append(part)
+            collectors.append(pg)
 
         # we don't want to mix diagnostics messages with useful output, so we log the former into a file.
         logger.removeHandler(log_stderr)
-        loop(collectors, output_method)
+        loop(collectors, groups, output_method)
         logger.addHandler(log_stderr)
     except KeyboardInterrupt:
         print 'Interrupted by user'

@@ -2295,7 +2295,7 @@ class CursesOutput(object):
             self.next_y = start_y + prefix_y
             return
         candrop = [name for name in fields if name not in to_hide and not noautohide.get(name, False)]
-        layout = self.new_layout_x(start_x + prefix_x, width, fields, to_hide, candrop)
+        layout = self.layout_x(start_x + prefix_x, width, fields, to_hide, candrop)
         for offset_y, (row, status) in enumerate(zip(rows, statuses)):
             status_rest = self._invisible_fields_status(layout, status)
             if status_rest != COLSTATUS.cs_ok:
@@ -2358,7 +2358,7 @@ class CursesOutput(object):
                         return COLSTATUS.cs_critical
         return highest_status
 
-    def new_layout_x(self, xstart, colwidth, colnames, colhidden, colcandrop):
+    def layout_x(self, xstart, colwidth, colnames, colhidden, colcandrop):
         """ Figure out width and X start position for each column. Some of the columns
             can be hidden, if they are not important (determined at column defintion) and
             if we don't have enough space for them.
@@ -2407,137 +2407,7 @@ class CursesOutput(object):
                 break
         return layout
 
-    def layout_x(
-        self,
-        scale,
-        ystart,
-        xstart,
-        yend,
-        xend,
-        width,
-        fields,
-        to_hide=[],
-        noautohide={},
-    ):
-        """ Determine the optimal width and x start position for the fields,
-            given the current screen dimensions. Some columns might be omitted
-            from the output altogether. If so, the prio will determine whether we
-            will omit columns in order of their output or in order of their priority.
-        """
-
-        layout = {}
-        current_x = xstart
-
-        if xstart > self.screen_x - 1 or ystart > self.screen_y - 1 or xstart > xend or ystart > yend:
-            # basic sanity check
-            return {}
-        width_total = xend - xstart
-        # calculate the ratio of each field to the total width
-        result_width = self._calculate_fields_width(scale, width_total, width, fields, to_hide, noautohide)
-        for f in fields:
-            if not f in result_width:
-                continue
-            layout[f] = {'start': int(current_x), 'width': int(result_width[f])}
-            current_x += result_width[f] + 1
-        return layout
-
-    @staticmethod
-    def _calculate_fields_width(scale, width_total, width, fields, to_hide, noautohide):
-        """ Decide which fields to display based on their widths and priorities
-            and return the list of width values for 'visible' fields.
-        """
-
-        columns_allocated = False
-        dropped = to_hide[:]
-        truncated = {}
-        while not columns_allocated:
-
-            per_field = {}
-            fields_total = len(fields) - len(dropped)
-            columns_allocated = True
-            if fields_total <= 0:
-                break
-
-            # if we can't fit even the smallest field - bail out
-            if width_total < min(width.values()):
-                break
-
-            # for N fields_total we need n-1 spaces
-            width_effective = width_total - fields_total + 1
-            # total width of all fields (not counting between-fields spaces)
-            width_fields = CursesOutput._calculate_total_fields_width(width, fields, dropped)
-            if not scale and width_effective > width_fields:
-                width_effective = width_fields + 1
-            if width_effective < 0:
-                width_effective = 0
-            ratios = dict((x, float(width[x]) / width_fields) for x in width if x not in dropped)
-
-            # calculate the width of each field if we assume the same width and layout them uniformely.
-            for f in reversed(fields):
-                if columns_allocated is False:
-                    break
-                if f in dropped:
-                    continue
-                # amount we can allocate on a screen for this field
-                per_field[f] = math.floor(ratios[f] * width_effective)
-                # check if we can fit this value to screen
-                if per_field[f] < width[f]:
-                    columns_allocated = False
-                    # if this field is a non-priority - just drop it and re-calculate the rest
-                    # also drop it if it's just bigger than the available screen
-                    if noautohide.get(f, False) is False:
-                        dropped.append(f)
-                        break
-                    to_drop = []
-                    # if width is higher than half of the screen size, but not less than a threshold,
-                    # decrease it to the half of the threshold.
-                    if width[f] > width_effective / 2 and width[f] > CursesOutput.MIN_TRUNCATE_FIELD_LENGTH \
-                        and width_effective >= 2:
-                        width[f] = width_effective / 2
-                    # otherwise try to drop some other non-priority field
-                    if width_effective == 0:
-                        ratio_missing = width_total
-                    else:
-                        ratio_missing = float(width[f] - per_field[f]) / width_effective
-                    # calculate non-priority fields left
-                    non_prio_left = ((x, width[x]) for x in fields if (x not in noautohide or noautohide[x] is False)
-                        and x not in dropped)
-                    # Sort them by their width, widest first
-                    non_prio_left = sorted(non_prio_left, key=itemgetter(1), reverse=True)
-                    for varname, varwidth in non_prio_left:
-                        to_drop.append(varname)
-                        ratio_missing -= ratios[f]
-                        if ratio_missing <= 0:
-                            break
-                    # if we managed to fit the essential field to screen by removing non-essential ones - proceed.
-                    if ratio_missing <= 0:
-                        dropped.extend(to_drop)
-                    else:
-                        # if the priority field still doesn't fit the screen, but is long enough to consider
-                        # truncating it - just leave the part that fits the screen.
-                        if CursesOutput.MIN_TRUNCATE_FIELD_LENGTH <= width[f] or truncated.get(f, False) and not len(f) \
-                            > width[f] and per_field[f] > 0:
-                            if len(to_drop) > 0:
-                                dropped.extend(to_drop)
-                            width[f] = per_field[f]
-                            truncated[f] = True
-                        else:
-                            dropped.append(f)
-                            truncated[f] = False
-                    break
-        # at this moment, either all columns were allocated, or we have an empty list of columns to display.
-        return per_field
-
-    @staticmethod
-    def _calculate_total_fields_width(width, fields, dropped):
-        result = 0
-        for f in fields:
-            if f in dropped:
-                continue
-            result = result + width[f]
-        return result
-
-
+    
 # some utility functions
 
 def read_configuration(config_file_name):

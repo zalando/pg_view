@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-__appname__ = 'pgview'
+__appname__ = 'pg_view'
 __version__ = '1.0.1'
 __author__ = 'Oleksii Kliukin <oleksii.kliukin@zalando.de>'
 
@@ -88,7 +88,7 @@ parser.add_option('-o', '--output-method', help='send output to the following so
                   default=OUTPUT_METHOD.curses, dest='output_method')
 parser.add_option('-V', '--use-version', help='version of the instance to monitor (in case it can\'t be autodetected)',
                   action='store', dest='version', type='float')
-parser.add_option('-l', '--log-file', help='direct log output to the file', action='store', default='pgwatch2.log',
+parser.add_option('-l', '--log-file', help='direct log output to the file', action='store', default='pg_view.log',
                   dest='log_file')
 parser.add_option('-R', '--reset-output', help='clear screen after each tick', action='store_true', default=False,
                   dest='clear_screen')
@@ -2215,7 +2215,7 @@ class CursesOutput(object):
 
     def help(self):
         y = 0
-        self.print_text(y, 0, 'pgview {0} - a monitor for PostgreSQL related system statistics'.format(__version__),
+        self.print_text(y, 0, '{0} {1} - a monitor for PostgreSQL related system statistics'.format(__appname__, __version__),
                         self.COLOR_NORMAL | curses.A_BOLD)
         y += 2
         self.print_text(y, 0, 'The following hotkeys are supported:')

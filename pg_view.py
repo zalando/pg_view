@@ -2510,6 +2510,7 @@ def do_loop(screen, output_method, collectors):
                 st.refresh()
             if st.needs_diffs() and not freeze:
                 st.diff()
+        for st in collectors:
             output.display(st.output(output_method))
         if options.clear_screen or output_method == OUTPUT_METHOD.curses:
             output.refresh()

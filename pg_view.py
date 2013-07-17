@@ -399,21 +399,6 @@ class StatCollector(object):
     def ident(self):
         return str(self.__class__).lower().split('.')[1].split('statcollector')[0]
 
-    def visual_ident(self):
-        ident_string = self.ident()
-        ident_list = ident_string.split()
-
-        if len(ident_list) == 2:
-            block_title = ident_list[0]
-            version_title = ident_list[1]
-        else:
-            block_title = ident_list[0]
-            version_title = '()'
-
-        ln = version_title
-        ln_len = len(ln)
-        return '{0}----{1}----\n'.format(ln, block_title)
-
     def ncurses_set_prefix(self, new_prefix):
         self.ncurses_custom_fields['prefix'] = new_prefix
 
@@ -1239,12 +1224,6 @@ class PgstatCollector(StatCollector):
         cur.close()
         return ret
 
-    def visual_ident(self):
-        common_ident = super(self.__class__, self).visual_ident().rstrip('\n')
-        connections_unit = (' connections' if self.show_units else '')
-        return '{0} ({1}/{2}){3}\n'.format(common_ident, self.active_connections, self.total_connections,
-                                           connections_unit)
-
     def ncurses_produce_prefix(self):
         return "{1} {0} database connections: {2} total, {3} active\n".format(
              self.dbver, self.dbname, self.total_connections, self.active_connections)
@@ -1587,7 +1566,7 @@ class PartitionStatCollector(StatCollector):
             {'out': 'path', 'pos': 10},
         ]
         self.ncurses_custom_fields = {'header': True}
-        self.ncurses_custom_fields['prefix'] = self.visual_ident()
+        self.ncurses_custom_fields['prefix'] = None
 
         self.postinit()
 

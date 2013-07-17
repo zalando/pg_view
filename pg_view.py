@@ -1250,7 +1250,7 @@ class PgstatCollector(StatCollector):
                                            connections_unit)
 
     def ncurses_produce_prefix(self):
-        return "({1} {0}) database connections: {2} total, {3} active\n".format(
+        return "{1} {0} database connections: {2} total, {3} active\n".format(
              self.dbver, self.dbname, self.total_connections, self.active_connections)
 
     def diff(self):

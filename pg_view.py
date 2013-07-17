@@ -2049,14 +2049,16 @@ class CursesOutput(object):
             curses.init_pair(1, -1, -1)
             curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_BLUE)
             curses.init_pair(3, curses.COLOR_WHITE, curses.COLOR_RED)
-            curses.init_pair(4, curses.COLOR_WHITE, curses.COLOR_GREEN)
-            curses.init_pair(5, curses.COLOR_WHITE, curses.COLOR_CYAN)
+            curses.init_pair(4, -1, curses.COLOR_GREEN)
+            curses.init_pair(5, curses.COLOR_GREEN, -1)
+            curses.init_pair(6, curses.COLOR_WHITE, curses.COLOR_CYAN)
 
             self.COLOR_NORMAL = curses.color_pair(1)
             self.COLOR_WARNING = curses.color_pair(2)
             self.COLOR_CRITICAL = curses.color_pair(3)
             self.COLOR_HIGHLIGHT = curses.color_pair(4)
-            self.COLOR_MENU = curses.color_pair(5)
+            self.COLOR_INVERSE_HIGHLIGHT = curses.color_pair(5)
+            self.COLOR_MENU = curses.color_pair(6)
         else:
             self.is_color_supported = False
 
@@ -2279,17 +2281,11 @@ class CursesOutput(object):
 
         # calculate non-overlapping y y_start coordinate
         if prefix:
-            # if prefix has a () braces - highlight everything inside
-            m = re.match(r'(.*?)\((.*?)\)(.*)$', prefix)
-            g = (m.groups() if m else ())
-            if len(g) < 3:
-                self.screen.addnstr(start_y, start_x, str(prefix), len(str(prefix)))
+            if prefix_newline:
+                color = self.COLOR_INVERSE_HIGHLIGHT
             else:
-                curx = start_x
-                for i, part in enumerate(g):
-                    color = (self.COLOR_HIGHLIGHT if i == 1 else self.COLOR_NORMAL)
-                    self.screen.addnstr(start_y, curx, str(part), len(str(part)), color)
-                    curx += len(str(part))
+                color = self.COLOR_NORMAL
+            self.screen.addnstr(start_y, start_x, str(prefix), len(str(prefix)), color)
 
         if len(rows) == 0:
             self.next_y = start_y + prefix_y

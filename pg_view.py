@@ -2306,9 +2306,8 @@ class CursesOutput(object):
                     # output header value
                     text = self._align_field(field, layout[field]['width'], align.get(field, COLALIGN.ca_none),
                                              types.get(field, COLTYPES.ct_string))
-                    # effective_width = min((self.screen_y - layout[field]['start']), layout[field]['width'])
                     self.screen.addnstr(start_y + offset_y + prefix_y, layout[field]['start'], text,
-                                        layout[field]['width'])
+                                        layout[field]['width'], self.COLOR_NORMAL|curses.A_BOLD)
                 # calculate colors and alignment for the data value
                 column_alignment = (align.get(field,
                                     COLALIGN.ca_none) if not append_column_headers else COLALIGN.ca_left)

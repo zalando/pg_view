@@ -1045,8 +1045,8 @@ class PgstatCollector(StatCollector):
             },
         ]
 
-        self.ncurses_custom_fields = {'scale': False, 'header': True, 'header_highlight': False}
-        self.ncurses_custom_fields['prefix'] = self.visual_ident()
+        self.ncurses_custom_fields = {'scale': False, 'header': True, 'header_highlight': True}
+        self.ncurses_custom_fields['prefix'] = None
 
         self.postinit()
 
@@ -1058,8 +1058,6 @@ class PgstatCollector(StatCollector):
             self.pids = []
         self.pids = [int(x) for x in result[1].split()]
 
-    def _ncurses_update_prefix(self):
-        self.ncurses_custom_fields['prefix'] = self.visual_ident()
 
     def check_ps_state(self, row, col):
         if row[self.output_column_positions[col['out']]] == col.get('warning', ''):
@@ -1251,6 +1249,10 @@ class PgstatCollector(StatCollector):
         return '{0} ({1}/{2}){3}\n'.format(common_ident, self.active_connections, self.total_connections,
                                            connections_unit)
 
+    def ncurses_produce_prefix(self):
+        return "({1} {0}) database connections: {2} total, {3} active\n".format(
+             self.dbver, self.dbname, self.total_connections, self.active_connections)
+
     def diff(self):
         """ we only diff backend processes if new one is not idle and use pid to identify processes """
 
@@ -1272,7 +1274,6 @@ class PgstatCollector(StatCollector):
         self.rows_diff.sort(key=itemgetter('xact_start'))
 
     def output(self, method):
-        self._ncurses_update_prefix()
         return super(self.__class__, self).output(method, before_string='PostgreSQL processes:', after_string='\n')
 
 
@@ -2505,11 +2506,19 @@ def do_loop(screen, groups, output_method, collectors):
                 st.refresh()
             if st.needs_diffs() and not freeze:
                 st.diff()
+        if output_method == OUTPUT_METHOD.curses:
+            process_groups(groups)
         for st in collectors:
             output.display(st.output(output_method))
         if options.clear_screen or output_method == OUTPUT_METHOD.curses:
             output.refresh()
         time.sleep(TICK_LENGTH)
+
+def process_groups(groups):
+    for name in groups:
+        part = groups[name]['partitions']
+        pg = groups[name]['pg']
+        part.ncurses_set_prefix(pg.ncurses_produce_prefix())
 
 def is_postgres_process(pid):
     # read /proc/stat, check for the PostgreSQL string

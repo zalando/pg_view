@@ -1248,10 +1248,6 @@ class PgstatCollector(StatCollector):
         return '{0} ({1}/{2}){3}\n'.format(common_ident, self.active_connections, self.total_connections,
                                            connections_unit)
 
-    def ncurses_produce_prefix(self):
-        return "(PostgreSQL {0} database {1}) connections: {2} total, {3} active\n".format(
-             self.dbver, self.dbname, self.total_connections, self.active_connections)
-
     def diff(self):
         """ we only diff backend processes if new one is not idle and use pid to identify processes """
 

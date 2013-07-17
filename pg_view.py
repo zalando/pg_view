@@ -1128,9 +1128,6 @@ class PgstatCollector(StatCollector):
         for pid in self.pids:
             if pid == self.connection_pid:
                 continue
-            # skip idle backend processes
-            if pid in stat_data and stat_data[pid]['query'] == 'idle':
-                continue
             result_row = {}
             # for each pid, get hash row from /proc/
             proc_data = self._read_proc(pid)
@@ -1251,12 +1248,16 @@ class PgstatCollector(StatCollector):
         return '{0} ({1}/{2}){3}\n'.format(common_ident, self.active_connections, self.total_connections,
                                            connections_unit)
 
+    def ncurses_produce_prefix(self):
+        return "(PostgreSQL {0} database {1}) connections: {2} total, {3} active\n".format(
+             self.dbver, self.dbname, self.total_connections, self.active_connections)
+
     def diff(self):
         """ we only diff backend processes if new one is not idle and use pid to identify processes """
 
         self.rows_diff = []
         for cur in self.rows_cur:
-            if 'current_query' not in cur or cur['current_query'] != 'idle':
+            if 'query' not in cur or cur['query'] != 'idle':
                 # look for the previous row corresponding to the current one
                 for x in self.rows_prev:
                     if x['pid'] == cur['pid']:

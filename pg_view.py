@@ -148,8 +148,6 @@ class StatCollector(object):
     NCURSES_CUSTOM_OUTPUT_FIELDS = [
         'header',
         'prefix',
-        'scale',
-        'header_highlight',
         'append_column_headers',
     ]
 
@@ -414,8 +412,6 @@ class StatCollector(object):
 
         ln = version_title
         ln_len = len(ln)
-        if not self.ncurses_custom_fields.get('header_highlight', False):
-            ln = ' ' * (ln_len - 2)
         return '{0}----{1}----\n'.format(ln, block_title)
 
     def ncurses_set_prefix(self, new_prefix):
@@ -1045,7 +1041,7 @@ class PgstatCollector(StatCollector):
             },
         ]
 
-        self.ncurses_custom_fields = {'scale': False, 'header': True, 'header_highlight': True}
+        self.ncurses_custom_fields = {'header': True}
         self.ncurses_custom_fields['prefix'] = None
 
         self.postinit()
@@ -1420,11 +1416,9 @@ class SystemStatCollector(StatCollector):
         self.current_total_cpu_time = 0
         self.cpu_time_diff = 0
         self.ncurses_custom_fields = {
-            'scale': False,
             'header': False,
             'prefix': 'sys: ',
-            'append_column_headers': True,
-            'header_highlight': False,
+            'append_column_headers': True
         }
 
         self.postinit()
@@ -1592,7 +1586,7 @@ class PartitionStatCollector(StatCollector):
             },
             {'out': 'path', 'pos': 10},
         ]
-        self.ncurses_custom_fields = {'scale': False, 'header': True, 'header_highlight': True}
+        self.ncurses_custom_fields = {'header': True}
         self.ncurses_custom_fields['prefix'] = self.visual_ident()
 
         self.postinit()
@@ -1798,11 +1792,9 @@ class MemoryStatCollector(StatCollector):
         ]
 
         self.ncurses_custom_fields = {
-            'scale': False,
             'header': False,
             'prefix': 'mem: ',
             'append_column_headers': True,
-            'header_highlight': False,
         }
 
         self.postinit()
@@ -1903,11 +1895,9 @@ class HostStatCollector(StatCollector):
         ]
 
         self.ncurses_custom_fields = {
-            'scale': False,
             'header': False,
             'prefix': None,
-            'append_column_headers': False,
-            'header_highlight': True,
+            'append_column_headers': False
         }
 
         self.postinit()
@@ -2250,9 +2240,7 @@ class CursesOutput(object):
         align = self.data[collector]['align']
         noautohide = self.data[collector]['noautohide']
         header = self.data[collector].get('header', False) or False
-        header_highlight = self.data[collector].get('header_highlight', False) or False
         prefix = self.data[collector]['prefix']
-        scale = self.data[collector]['scale']
         append_column_headers = self.data[collector].get('append_column_headers', False)
         highlights = self.data[collector]['highlights']
         to_hide = self.data[collector]['hide']

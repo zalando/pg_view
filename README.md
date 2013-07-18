@@ -23,6 +23,10 @@ The program queries system /process information files once every tick (by defaul
 runs some external programs, like df or du to get filesystem information. The latter might put an extra
 load on a disk subsystem.
 
+Screenshot
+-----------
+![Screenshot](https://raw.github.com/zalando/pg_view/master/images/pg_view_screenshot.png "pg_view screenshot")
+
 Usage
 -----
 see `python pg_view --help`

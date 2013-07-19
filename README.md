@@ -57,7 +57,7 @@ Below is the description of some of the options:
     [`/proc/memstat`](http://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/Documentation/filesystems/proc.txt)
 
 * partitions:
-	* type`: 		 either containing database data (data) or WAL (xlog)
+	* type: 		 either containing database data (data) or WAL (xlog)
 	* fill: 		 the rate of adding new data to the corresponding directory (`/data` or `/pg_xlog`).
 	* until_full:  the time until the current partition will run out of space if we only consider writes
 				 to the corresponding data directory (`/data` or `/pg_xlog`). This column is only shown

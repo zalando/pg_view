@@ -2259,7 +2259,7 @@ class CursesOutput(object):
                 # now check if we need to add ellipsis to indicate that the value has been truncated.
                 # we don't do this if the value is less than a certain length or when the column is marked as
                 # containing truncated values, but the actual value is not truncated.
-                if layout[field].get('truncate', False) and w > self.MIN_ELLIPSIS_FIELD_LENGTH 
+                if layout[field].get('truncate', False) and w > self.MIN_ELLIPSIS_FIELD_LENGTH \
                     and w < len(str(row[field])):
                     text = str(row[field])[:w - 3] + '...'
                 else:

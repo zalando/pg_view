@@ -2054,7 +2054,10 @@ class CursesOutput(object):
         self.update_screen_metrics()
         if not self.show_help:
             for collector in self.output_order:
-                self.show_collector_data(collector)
+                if self.next_y < self.screen_y - 2:
+                    self.show_collector_data(collector)
+                else:
+                    break
         else:
             self.help()
         # show clock if possible
@@ -2214,64 +2217,41 @@ class CursesOutput(object):
 
         rows = self.data[collector]['rows']
         statuses = self.data[collector]['statuses']
-        width = self.data[collector]['w']
-        fields = self._get_fields_sorted_by_position(collector)
         align = self.data[collector]['align']
-        noautohide = self.data[collector]['noautohide']
         header = self.data[collector].get('header', False) or False
         prefix = self.data[collector]['prefix']
         append_column_headers = self.data[collector].get('append_column_headers', False)
         highlights = self.data[collector]['highlights']
-        to_hide = self.data[collector]['hide']
         types = self.data[collector]['types']
+
         start_x = 1
-        start_y = self.next_y
-        offset_y = 0
 
-        prefix_x = prefix_y = 0
-        if prefix:
-            prefix_newline = prefix[-1] == '\n'
-            prefix_len = len(prefix)
-            # truncate the prefix if it doesn't fit the screen
-            if prefix_len >= self.screen_x and prefix_newline:
-                prefix = prefix[:max(self.screen_x - 1, 0)]
-            elif prefix_len >= self.screen_x / 5 and not prefix_newline:
-                prefix = None
-
-            if prefix_newline:
-                prefix_y = 1
-            else:
-                prefix_x = (prefix_len if prefix else 0)
+        prefix_mod = self.display_prefix(collector, header)
+        if prefix_mod < 0:
+            self.next_y += 1
+        else:
+            start_x += prefix_mod
 
         # if the block doesn't fit to screen - just return
-        if start_y + header + 1 + prefix_y + len(rows) > self.screen_y:
+        if self.next_y + header + 1 > self.screen_y - 1 or len(rows) == 0:
             return
 
-        # calculate non-overlapping y y_start coordinate
-        if prefix:
-            if prefix_newline:
-                color = self.COLOR_INVERSE_HIGHLIGHT
-            else:
-                color = self.COLOR_NORMAL
-            self.screen.addnstr(start_y, start_x, str(prefix), len(str(prefix)), color)
+        # calculate X layout
+        layout = self.calculate_fields_position(collector, start_x)
 
-        if len(rows) == 0:
-            self.next_y = start_y + prefix_y
-            return
-        candrop = [name for name in fields if name not in to_hide and not noautohide.get(name, False)]
-        layout = self.layout_x(start_x + prefix_x, width, fields, to_hide, candrop)
-        for offset_y, (row, status) in enumerate(zip(rows, statuses)):
-            status_rest = self._invisible_fields_status(layout, status)
-            if status_rest != COLSTATUS.cs_ok:
-                color_rest = self._status_to_color(status_rest, False)
-                self.screen.addch(start_y + offset_y + prefix_y + header, start_x - 1, ' ', color_rest)
+        if header:
+            self.display_header(layout, align, types)
+            self.next_y += 1
+
+        for i, (row, status) in enumerate(zip(rows, statuses)):
+            # if no more rows fit the screen - show '...' instead of the last row that fits
+            if self.next_y > self.screen_y - 3 and i != len(rows) - 1:
+                for field in layout:
+                    self.print_text(self.screen_y - 2, layout[field]['start'], '.' * layout[field]['width'])
+                    self.next_y += 1
+                break
+            self.show_status_of_invisible_fields(layout, status, 0)
             for field in layout:
-                if header and offset_y == 0:
-                    # output header value
-                    text = self._align_field(field, layout[field]['width'], align.get(field, COLALIGN.ca_none),
-                                             types.get(field, COLTYPES.ct_string))
-                    self.screen.addnstr(start_y + offset_y + prefix_y, layout[field]['start'], text,
-                                        layout[field]['width'], self.COLOR_NORMAL|curses.A_BOLD)
                 # calculate colors and alignment for the data value
                 column_alignment = (align.get(field,
                                     COLALIGN.ca_none) if not append_column_headers else COLALIGN.ca_left)
@@ -2279,19 +2259,64 @@ class CursesOutput(object):
                 # now check if we need to add ellipsis to indicate that the value has been truncated.
                 # we don't do this if the value is less than a certain length or when the column is marked as
                 # containing truncated values, but the actual value is not truncated.
-                if layout[field].get('truncate', False) and w > self.MIN_ELLIPSIS_FIELD_LENGTH and w < len(str(row[field])):
+                if layout[field].get('truncate', False) and w > self.MIN_ELLIPSIS_FIELD_LENGTH 
+                    and w < len(str(row[field])):
                     text = str(row[field])[:w - 3] + '...'
                 else:
                     text = str(row[field])[:w]
                 text = self._align_field(text, w, column_alignment, types.get(field, COLTYPES.ct_string))
                 color_fields = self.color_text(status[field], highlights[field], text)
                 for f in color_fields:
-                    if f['start'] + layout[field]['start'] + f['width'] > self.screen_x:
-                        logger.warning('word {0} ending X coordinate {1} is higher than the screen X coordinate {2}'.format(
-                            f['word'], f['start'] + layout[field]['start'] + f['width'], self.screen_x - 1))
-                    self.screen.addnstr(start_y + offset_y + prefix_y + header, layout[field]['start'] + f['start'],
+                    self.screen.addnstr(self.next_y, layout[field]['start'] + f['start'],
                                         f['word'], f['width'], f['color'])
-        self.next_y = start_y + offset_y + prefix_y + header + 1
+            self.next_y += 1
+
+    def display_prefix(self, collector, header):
+        prefix = self.data[collector]['prefix']
+        if prefix:
+            prefix_len = len(prefix)
+            prefix_newline = prefix[-1] == '\n'
+            # truncate the prefix if it doesn't fit the screen
+            if prefix_len >= self.screen_x and prefix_newline:
+                prefix = prefix[:max(self.screen_x - 1, 0)]
+            elif prefix_len >= self.screen_x / 5 and not prefix_newline:
+                return 0
+
+            color = self.COLOR_INVERSE_HIGHLIGHT if prefix_newline else self.COLOR_NORMAL
+
+            self.screen.addnstr(self.next_y, 1, str(prefix), len(str(prefix)), color)
+            if prefix_newline:
+                return -1
+            else:
+                return prefix_len
+        else:
+            return 0
+
+    def display_header(self, layout, align, types):
+        for field in layout:
+            text = self._align_field(field, layout[field]['width'], align.get(field, COLALIGN.ca_none),
+                                             types.get(field, COLTYPES.ct_string))
+            self.screen.addnstr(self.next_y, layout[field]['start'], text,
+                                layout[field]['width'], self.COLOR_NORMAL|curses.A_BOLD)
+
+    def calculate_fields_position(self, collector, xstart):
+        width = self.data[collector]['w']
+        fields = self._get_fields_sorted_by_position(collector)
+        to_hide = self.data[collector]['hide']
+        noautohide = self.data[collector]['noautohide']
+        candrop = [name for name in fields if name not in to_hide and not noautohide.get(name, False)]
+        return self.layout_x(xstart, width, fields, to_hide, candrop)
+
+
+    def show_status_of_invisible_fields(self, layout, status, xstart):
+        """
+            Show red/blue bar to the left of the screen representing the most critical
+            status of the fields that are now shown.
+        """
+        status_rest = self._invisible_fields_status(layout, status)
+        if status_rest != COLSTATUS.cs_ok:
+            color_rest = self._status_to_color(status_rest, False)
+            self.screen.addch(self.next_y, 0, ' ', color_rest)
 
     @staticmethod
     def _align_field(text, width, align, typ):

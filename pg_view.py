@@ -2568,7 +2568,7 @@ def get_all_postmasters():
         if len(stat_fields) < STAT_FIELD_START_TIME + 1 or stat_fields[STAT_FIELD_PROCESS_NAME] != '(postgres)' \
             or stat_fields[STAT_FIELD_STATE] == 'Z':
             if stat_fields[STAT_FIELD_STATE] == 'Z':
-                logger.error('zombie process {0}'.format(pid))
+                logger.warning('zombie process {0}'.format(pid))
             if len(stat_fields) < STAT_FIELD_START_TIME + 1:
                 logger.error('{0} output is too short'.format(stat_file_name))
             continue
@@ -2653,7 +2653,7 @@ def detect_postgres_version(work_directory):
     return version
 
 
-def detect_db_connection_arguments(work_directory):
+def detect_db_connection_arguments(work_directory, version):
     """
         Try to detect database connection arguments from the postmaster.pid
         We do this by first extracting useful information from postmaster.pid,
@@ -2665,7 +2665,6 @@ def detect_db_connection_arguments(work_directory):
     fp = None
     # get database version first, it will determine how much we can extract from
     # the postmaster.pid
-    version = detect_postgres_version(work_directory)
     if version is None:
         version = 9.0
     # now when we have version try getting useful information from postmaster.pid
@@ -2750,6 +2749,7 @@ def detect_db_connection_arguments(work_directory):
     # complain
     if not (args.get('port') and (args.get('host') or args.get('socket_directory'))):
         logger.error('failed to autodetect connection parameters for the database at {0}'.format(work_directory))
+        logger.error('you can specify connection parameters in the configuration file (-C option)')
         return None
     return args
 
@@ -2834,7 +2834,7 @@ if __name__ == '__main__':
                 if user_dbver is not None and dbver != user_dbver:
                     continue
             try:
-                conndata = detect_db_connection_arguments(result_work_dir)
+                conndata = detect_db_connection_arguments(result_work_dir, dbver)
                 if conndata is None:
                     logger.error('Skipping the database {0}/{1}, unable to detect connection options'.format(dbname,
                                  dbver))

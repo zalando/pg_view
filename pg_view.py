@@ -2644,9 +2644,9 @@ def detect_postgres_version(work_directory):
         val = fp.read().strip()
         if val is not None and len(val) == 3:
             version = float(val)
-    except:
+    except Exception, e:
         # if we failed to read a file - assume version 9.0
-        logger.error('failed to read {0}'.format(VERSION_FILE))
+        logger.warning('could not read from the PG_VERSION: {0}'.format(e))
         version = None
     finally:
         fp and fp.close()
@@ -2667,89 +2667,93 @@ def detect_db_connection_arguments(work_directory, version):
     # the postmaster.pid
     if version is None:
         version = 9.0
-    # now when we have version try getting useful information from postmaster.pid
-    # we can obtain host, port and socket directory path
-    try:
-        fp = open(PID_FILE, 'rU')
-        lines = fp.readlines()
-        for no, l in enumerate(lines):
-            if no == 0:
-                args['pid'] = (int(l.strip()) if l else None)
-            if no == 1:
-                args['data_dir'] = (l.strip() if l else None)
-            if no == 2:
-                if version >= 9.1:
-                    args['start_time'] = (l.strip() if l else None)
-                else:
-                    args['shmem_key'] = (l.strip().split() if l else None)
-            if version >= 9.1:
-                if no == 3:
-                    args['port'] = (int(l.strip()) if l else None)
-                if no == 4:
-                    args['socket_directory'] = (l.strip() if l else None)
-                if no == 5:
-                    args['host'] = (l.strip() if l else None)
-                if no == 6:
-                    args['shmem_key'] = (l.strip().split() if l else None)
-    except:
-        logger.error('failed to read {0}'.format(PID_FILE))
-        fp and fp.close()
-    # at the moment, we probably have some of the data, and might need to fill out the rest.
-    # check if we do have a port, get if from postgresql.conf if not.
-    if version < 9.1:
-        conf_file = '{0}/postgresql.conf'.format(work_directory)
-        # pre-compile some regular expresisons
-        regexes = {}
-        regexes['port'] = re.compile('^\s*port\s*=\s*(\d+)\s*$')
-        regexes['host'] = re.compile('^\s*host\s*=\s*(\d+)\s*$')
-        regexes['socket_directory'] = re.compile('^\s*unix_socket_directory\s*=\s*(\S+)\s*$')
 
-        # try to read parameters from PostgreSQL.conf
+    # try to access the socket directory
+    if not os.access(work_directory, os.R_OK|os.X_OK):
+        logger.warning("could not read from PostgreSQL cluster directory {0}: permission denied".format(work_directory))
+    else:
+        # now when we have version try getting useful information from postmaster.pid
+        # we can obtain host, port and socket directory path
         try:
-            fp = open(conf_file, 'rU')
-            content = fp.readlines()
-            # now parse it and get the port, socket directory and listen address
-            for l in content:
-                l = l.strip()
-                # ignore lines with comments
-                if re.match('^\s+#', l):
-                    continue
-                for keys in regexes:
-                    m = re.match(regexes[keys], l)
-                    if m:
-                        args[keys] = m.group(1).strip("'")
-                        break
-        except:
-            logger.error('failed to read {0}'.format(conf_file))
-        finally:
-            if fp is not None:
-                fp.close()
-        # now it's time to fill-in defaults
-        if args.get('port') is None:
-            args['port'] = 5432
-        else:
-            args['port'] = int(args['port'])
-        if args.get('host') is not None:
-            if args['host'] == '*':
-                args['host'] = '127.0.0.1'
+            fp = open(PID_FILE, 'rU')
+            lines = fp.readlines()
+            for no, l in enumerate(lines):
+                if no == 0:
+                    args['pid'] = (int(l.strip()) if l else None)
+                if no == 1:
+                    args['data_dir'] = (l.strip() if l else None)
+                if no == 2:
+                    if version >= 9.1:
+                        args['start_time'] = (l.strip() if l else None)
+                    else:
+                        args['shmem_key'] = (l.strip().split() if l else None)
+                if version >= 9.1:
+                    if no == 3:
+                        args['port'] = (int(l.strip()) if l else None)
+                    if no == 4:
+                        args['socket_directory'] = (l.strip() if l else None)
+                    if no == 5:
+                        args['host'] = (l.strip() if l else None)
+                    if no == 6:
+                        args['shmem_key'] = (l.strip().split() if l else None)
+        except Exception, e:
+            logger.warning('could not read pid file: {0}'.format(e))
+            fp and fp.close()
+        # at the moment, we probably have some of the data, and might need to fill out the rest.
+        # check if we do have a port, get if from postgresql.conf if not.
+        if version < 9.1:
+            conf_file = '{0}/postgresql.conf'.format(work_directory)
+            # pre-compile some regular expresisons
+            regexes = {}
+            regexes['port'] = re.compile('^\s*port\s*=\s*(\d+)\s*$')
+            regexes['host'] = re.compile('^\s*host\s*=\s*(\d+)\s*$')
+            regexes['socket_directory'] = re.compile('^\s*unix_socket_directory\s*=\s*(\S+)\s*$')
+
+            # try to read parameters from PostgreSQL.conf
+            try:
+                fp = open(conf_file, 'rU')
+                content = fp.readlines()
+                # now parse it and get the port, socket directory and listen address
+                for l in content:
+                    l = l.strip()
+                    # ignore lines with comments
+                    if re.match('^\s+#', l):
+                        continue
+                    for keys in regexes:
+                        m = re.match(regexes[keys], l)
+                        if m:
+                            args[keys] = m.group(1).strip("'")
+                            break
+            except Exception, e:
+                logger.warning('could not read configuration file: {0}'.format(e))
+            finally:
+                if fp is not None:
+                    fp.close()
+            # now it's time to fill-in defaults
+            if args.get('port') is None:
+                args['port'] = 5432
             else:
-                # get only the first addr
-                args['host'] = args['host'].split(',')[0]
-        elif args.get('socket_directory') is None:
-            # we don't have the listen address and the socket directory
-            # try to guess the socket directory here
-            # first, check for the data dir and the data dir upper directory
-            for path in work_directory, os.path.split(work_directory)[0]:
-                port = detect_db_port(work_directory)
-                if port != -1:
-                    args['port'] = port
-                    args['socket_directory'] = path
-                    break
+                args['port'] = int(args['port'])
+            if args.get('host') is not None:
+                if args['host'] == '*':
+                    args['host'] = '127.0.0.1'
+                else:
+                    # get only the first addr
+                    args['host'] = args['host'].split(',')[0]
+            elif args.get('socket_directory') is None:
+                # we don't have the listen address and the socket directory
+                # try to guess the socket directory here
+                # first, check for the data dir and the data dir upper directory
+                for path in work_directory, os.path.split(work_directory)[0]:
+                    port = detect_db_port(work_directory)
+                    if port != -1:
+                        args['port'] = port
+                        args['socket_directory'] = path
+                        break
     # if we still don't have port and listen_address or unix_socket_directory
     # complain
     if not (args.get('port') and (args.get('host') or args.get('socket_directory'))):
-        logger.error('failed to autodetect connection parameters for the database at {0}'.format(work_directory))
-        logger.error('you can specify connection parameters in the configuration file (-C option)')
+        logger.error('unable to detect connection parameters for the PostgreSQL cluster at {0}'.format(work_directory))
         return None
     return args
 
@@ -2836,8 +2840,6 @@ if __name__ == '__main__':
             try:
                 conndata = detect_db_connection_arguments(result_work_dir, dbver)
                 if conndata is None:
-                    logger.error('Skipping the database {0}/{1}, unable to detect connection options'.format(dbname,
-                                 dbver))
                     continue
                 if conndata.get('socket_directory'):
                     host = conndata['socket_directory']
@@ -2859,6 +2861,7 @@ if __name__ == '__main__':
     try:
         if len(clusters) == 0:
             logger.error('No suitable PostgreSQL instances detected, exiting...')
+            logger.error('hint: use -v for details, or specify connection parameters manually in the configuration file (-C)')
             sys.exit(1)
 
         collectors = []

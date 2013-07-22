@@ -45,10 +45,10 @@ those arguments manually using the configuration file supplied with -C option. T
 one or more sections, containing key = value pairs. Each section's title represents a database name, and
 the key - value pairs should contain connection parameters. The valid keys are:
 
-`host`:             hostname or ip address of the database server
-`port`:             the port the database server listsens on
-`socket_directory`: the directory containing the unix socket file
-`user`:             database role name
+* `host`:             hostname or ip address of the database server
+* `port`:             the port the database server listsens on
+* `socket_directory`: the directory containing the unix socket file
+* `user`:             database role name
 
 The special 'DEFAULT' contains the parameters that apply for every database if the corresponding parameter
 is missing from the database-specific section. For instance:

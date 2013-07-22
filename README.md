@@ -57,7 +57,7 @@ is missing from the database-specific section. For instance:
     port=5435
     
     [testdb]
-     host=localhost
+    host=localhost
     
     [testdb2]
     unix_socket_directory=/tmp/test

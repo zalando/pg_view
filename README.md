@@ -23,6 +23,10 @@ The program queries system /process information files once every tick (by defaul
 runs some external programs, like df or du to get filesystem information. The latter might put an extra
 load on a disk subsystem.
 
+Screenshot
+-----------
+![Screenshot](https://raw.github.com/zalando/pg_view/master/images/pg_view_screenshot.png "pg_view screenshot")
+
 Connection arguments
 --------------------
 
@@ -41,32 +45,28 @@ those arguments manually using the configuration file supplied with -C option. T
 one or more sections, containing key = value pairs. Each section's title represents a database name, and
 the key - value pairs should contain connection parameters. The valid keys are:
 
-'host':             hostname or ip address of the database server
-'port':             the port the database server listsens on
-'socket_directory': the directory containing the unix socket file
-'user':             database role name
+`host`:             hostname or ip address of the database server
+`port`:             the port the database server listsens on
+`socket_directory`: the directory containing the unix socket file
+`user`:             database role name
 
 The special 'DEFAULT' contains the parameters that apply for every database if the corresponding parameter
 is missing from the database-specific section. For instance:
 
-[DEFAULT]
-port=5435
-
-[testdb]
-host=localhost
-
-[testdb2]
-unix_socket_directory=/tmp/test
-
-[testdb3]
-host=192.168.1.0
-port=5433
+    [DEFAULT]
+    port=5435
+    
+    [testdb]
+     host=localhost
+    
+    [testdb2]
+    unix_socket_directory=/tmp/test
+    
+    [testdb3]
+    host=192.168.1.0
+    port=5433
 
 The application will try to connect to both testdb and testdb2 using port 5435 upon reading this file, while testdb3 will be reached using port 5433.
-
-Screenshot
------------
-![Screenshot](https://raw.github.com/zalando/pg_view/master/images/pg_view_screenshot.png "pg_view screenshot")
 
 Usage
 -----

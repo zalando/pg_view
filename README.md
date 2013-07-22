@@ -98,34 +98,34 @@ Below is the description of some of the options:
     [`/proc/memstat`](http://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/Documentation/filesystems/proc.txt)
 
 * partitions:
-	* type: 		 either containing database data (data) or WAL (xlog)
-	* fill: 		 the rate of adding new data to the corresponding directory (`/data` or `/pg_xlog`).
-	* until_full:  the time until the current partition will run out of space if we only consider writes
+	* `type`: 		 either containing database data (data) or WAL (xlog)
+	* `fill`: 		 the rate of adding new data to the corresponding directory (`/data` or `/pg_xlog`).
+	* `until_full`:  the time until the current partition will run out of space if we only consider writes
 				 to the corresponding data directory (`/data` or `/pg_xlog`). This column is only shown
 				 during the warning (3h) or critical (1h) conditions. This column only considers momentary
 				 writes, so if a single process writes 100MB/s on a partition with remaining 100GB left for
 				 only 2 seconds, it will show a critial status during those 2 seconds.
-	* total, left,
-	* read, write: the amount of space total, free, read and write rate (MB/s) on a partition. Note that write
-				 rate is different from fill rate: it considers the whole partition, not only Postgres
-				 directories and shows data modifications, i.e deletion of files at the rate of 10MB/s will
-				 be shown as a positive write rate.
-	* path_size:	 size of the corresponding PostgreSQL directory.
+	* `total`, `left`, `read`, `write`: the amount of space total, free, read and write rate (MB/s) on a partition. Note that write rate is different from fill rate: it considers the whole partition, not only Postgres directories and shows data modifications, i.e deletion of files at the rate of 10MB/s will be shown as a positive write rate.
+	* `path_size`:	 size of the corresponding PostgreSQL directory.
 
 * postgres processes:
-	* type:		 either a system process (autovacuum launcher, logger, archiver, etc) or a process that
+	* `type`:		 either a system process (autovacuum launcher, logger, archiver, etc) or a process that
 				 executes queries (backend or autovacuum). By default, only user processes are shown (press
 				 's' to show all of them) in curses mode, and all in the console one.
-	* s:			 process state (`R` - 'running', `S` - 'sleeping', `D` - 'uninterruptable sleep', see `man ps`
+	* `s`:			 process state (`R` - 'running', `S` - 'sleeping', `D` - 'uninterruptable sleep', see `man ps`
 				 for more details).
-	* utime,
-	* stime,
-	* guest:		 consumption of CPU resources by process. Since PostgreSQL backends can't use more than one
+	* `utime`,
+	* `stime`,
+	* `guest`:		 consumption of CPU resources by process. Since PostgreSQL backends can't use more than one
 				 CPU, the percentage of a single CPU time is shown here.
-	* read/write:  amount of data read or written from the partition (in MB/s).
-	* age:		 time from the process start
-	* db:			 the database the process runs on
-	* query:		 the query the process executes.
+	* `read`, `write`:  amount of data read or written from the partition (in MB/s).
+	* `age`:		 time from the process start
+	* `db`:			 the database the process runs on
+	* `query`:		 the query the process executes.
 
 
-Hotkeys: when in ncurses mode, press 'h' to see hotkeys.
+Hotkeys:
+* `f`: instantly freeze the output. Press `f` for the second time to resume.
+* `u`: toggle display of measurement units.
+* `a`: auto-hide some of the fields from the PostgreSQL output. Currently, if this option is turned to on, the following fields can be hidden to leave space for the remaining ones: `type`, `s`, `utime`, `stime`, `guest`
+* `h`: show the help screen

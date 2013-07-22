@@ -23,6 +23,47 @@ The program queries system /process information files once every tick (by defaul
 runs some external programs, like df or du to get filesystem information. The latter might put an extra
 load on a disk subsystem.
 
+Connection arguments
+--------------------
+
+By default, pg_view tries to autodetect all PostgreSQL clusters running on the host it's running at. To achieve
+this it performs the following steps:
+
+* read /proc/ filesystem and detect pid files for the postmaster processes
+* get the working directories from the command-line options of the postmaster processes
+* get to the working directories and read PG_VERSION for PostgreSQL verions. If we can't, assume 9.0
+* if version is 9.1 or above, read connection arguments from postmaster.pid
+* if version is 9.0 (or below, although we never checked it on anything below 9.0), read postgresql.conf.
+* if we can't get either the port/host or port/socket_directory pair, bail out.
+
+If the program is unable to detect connection arguments using the algorithm above it's possible to specify
+those arguments manually using the configuration file supplied with -C option. This file should consist of
+one or more sections, containing key = value pairs. Each section's title represents a database name, and
+the key - value pairs should contain connection parameters. The valid keys are:
+
+'host':             hostname or ip address of the database server
+'port':             the port the database server listsens on
+'socket_directory': the directory containing the unix socket file
+'user':             database role name
+
+The special 'DEFAULT' contains the parameters that apply for every database if the corresponding parameter
+is missing from the database-specific section. For instance:
+
+[DEFAULT]
+port=5435
+
+[testdb]
+host=localhost
+
+[testdb2]
+unix_socket_directory=/tmp/test
+
+[testdb3]
+host=192.168.1.0
+port=5433
+
+The application will try to connect to both testdb and testdb2 using port 5435 upon reading this file, while testdb3 will be reached using port 5433.
+
 Screenshot
 -----------
 ![Screenshot](https://raw.github.com/zalando/pg_view/master/images/pg_view_screenshot.png "pg_view screenshot")

@@ -10,12 +10,10 @@ import os.path
 import re
 import stat
 import sys
-import signal
-import math
 import logging
 from optparse import OptionParser
 import ConfigParser
-from operator import itemgetter, attrgetter
+from operator import itemgetter
 from datetime import datetime, timedelta
 from numbers import Number
 from multiprocessing import cpu_count  # for then number of cpus
@@ -2219,7 +2217,7 @@ class CursesOutput(object):
         statuses = self.data[collector]['statuses']
         align = self.data[collector]['align']
         header = self.data[collector].get('header', False) or False
-        prefix = self.data[collector]['prefix']
+        # prefix = self.data[collector]['prefix']
         append_column_headers = self.data[collector].get('append_column_headers', False)
         highlights = self.data[collector]['highlights']
         types = self.data[collector]['types']
@@ -2391,7 +2389,6 @@ class CursesOutput(object):
                     del layout[name]
                 else:
                     # truncate it to the length that fits the screen
-                    oldwidth = layout[name]['width']
                     layout[name]['truncate'] = True
                     layout[name]['width'] = self.screen_x - layout[name]['start']
                 # oops, we ran across the screen boundary
@@ -2767,7 +2764,7 @@ def connect_with_connection_arguments(dbname, args):
     # sanity check
     if not (args.get('port') and (args.get('host') or args.get('socket_directory'))):
         missing = ('port' if not args.get('port') else 'host or socket_directory')
-        log.error('Not all required connection arguments ({0}) are specified for the database {1}, skipping it'.format(missing,
+        logger.error('Not all required connection arguments ({0}) are specified for the database {1}, skipping it'.format(missing,
                   dbname))
         return None
 

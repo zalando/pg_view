@@ -2217,7 +2217,6 @@ class CursesOutput(object):
         statuses = self.data[collector]['statuses']
         align = self.data[collector]['align']
         header = self.data[collector].get('header', False) or False
-        # prefix = self.data[collector]['prefix']
         append_column_headers = self.data[collector].get('append_column_headers', False)
         highlights = self.data[collector]['highlights']
         types = self.data[collector]['types']

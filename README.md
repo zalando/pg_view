@@ -15,7 +15,7 @@ Requirements
 
 Linux 2.6, python 2.6, psycopg2, curses
 
-The tool assumes an ability to connect to the PostgreSQL via the local socket path with the user postgres and no password (or the password set in .pgpass).
+By default pg_view assumes it's able to connect to the local PostgreSQL instance with the user postgres and no password. On some systems it might be necessary to change your pg_hba.conf or set the password in .pgpass. A different user name can be specified in the configuration file, although specifying that file (with -C) turns off autodetection of connection parameters and available databases.
 
 How it works:
 

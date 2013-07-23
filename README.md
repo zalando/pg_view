@@ -132,3 +132,8 @@ Hotkeys:
 * `u`: toggle display of measurement units.
 * `a`: auto-hide some of the fields from the PostgreSQL output. Currently, if this option is turned to on, the following fields can be hidden to leave space for the remaining ones: `type`, `s`, `utime`, `stime`, `guest`
 * `h`: show the help screen
+
+License
+-------
+
+[Apache 2.0](http://www.apache.org/licenses/LICENSE-2.0)

@@ -2496,9 +2496,14 @@ def do_loop(screen, groups, output_method, collectors):
                 st.diff()
         if output_method == OUTPUT_METHOD.curses:
             process_groups(groups)
+        # in the non-curses cases display actually shows the data and refresh
+        # clears the screen, so we need to refresh before display to clear the old data.
+        if options.clear_screen and output_method != OUTPUT_METHOD.curses:
+            output.refresh()
         for st in collectors:
             output.display(st.output(output_method))
-        if options.clear_screen or output_method == OUTPUT_METHOD.curses:
+        # in the curses case, refresh shows the data queued by display
+        if output_method == OUTPUT_METHOD.curses:
             output.refresh()
         time.sleep(TICK_LENGTH)
 

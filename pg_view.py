@@ -24,7 +24,7 @@ import time
 import traceback
 import json
 try:
-    import psycopg2 as pg
+    import psycopg2
     import psycopg2.extras
 except ImportError:
     print 'Unable to import psycopg2 module, please, install it (python-psycopg2). Can not continue'
@@ -395,7 +395,7 @@ class StatCollector(object):
         self._do_refresh(None)
 
     def ident(self):
-        return str(self.__class__).lower().split('.')[1].split('statcollector')[0]
+        return str(self.__class__).lower().split('.')[-1].split('statcollector')[0]
 
     def ncurses_set_prefix(self, new_prefix):
         self.ncurses_custom_fields['prefix'] = new_prefix
@@ -2778,7 +2778,7 @@ def connect_with_connection_arguments(dbname, args):
     user = args.get('user', 'postgres')
     # establish a new connection
     try:
-        pgcon = pg.connect('host={0} port={1} user={2}'.format(host, port, user))
+        pgcon = psycopg2.connect('host={0} port={1} user={2}'.format(host, port, user))
     except Exception, e:
         logger.error('failed to establish connection to {0} on port {1} user {2}'.format(host, port, user))
         logger.error('PostgreSQL exception: {0}'.format(e))
@@ -2808,7 +2808,7 @@ def connect_with_connection_arguments(dbname, args):
     return result
 
 
-if __name__ == '__main__':
+def main():
     user_dbname = options.instance
     user_dbver = options.version
     clusters = []
@@ -2847,7 +2847,7 @@ if __name__ == '__main__':
                 else:
                     host = conndata['host']
                 port = conndata['port']
-                pgcon = pg.connect('host={0} port={1} user=postgres'.format(host, port))
+                pgcon = psycopg2.connect('host={0} port={1} user=postgres'.format(host, port))
             except Exception, e:
                 logger.error('PostgreSQL exception {0}'.format(e))
                 pgcon = None
@@ -2892,3 +2892,6 @@ if __name__ == '__main__':
         for cl in clusters:
             'pgcon' in cl and cl['pgcon'] and cl['pgcon'].close()
         sys.exit(0)
+
+if __name__ == '__main__':
+    main()

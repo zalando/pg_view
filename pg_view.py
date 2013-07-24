@@ -2414,7 +2414,7 @@ def read_configuration(config_file_name):
     # get through all defined databases
     for section in config.sections():
         config_data[section] = {}
-        for argname in 'port', 'host', 'socket_directory', 'user':
+        for argname in 'port', 'host', 'socket_directory', 'user', 'dbname':
             try:
                 val = config.get(section, argname)
             except ConfigParser.NoOptionError:
@@ -2779,11 +2779,13 @@ def connect_with_connection_arguments(dbname, args):
     port = args['port']
     host = (args['socket_directory'] if use_socket else args['host'])
     user = args.get('user', 'postgres')
+    # the db is the actual database we connect to, while dbname is the name of the postgres cluster
+    db = args.get('dbname', 'postgres')
     # establish a new connection
     try:
-        pgcon = psycopg2.connect('host={0} port={1} user={2} dbname=postgres'.format(host, port, user))
+        pgcon = psycopg2.connect('host={0} port={1} user={2} dbname={3}'.format(host, port, user, db))
     except Exception, e:
-        logger.error('failed to establish connection to {0} on port {1} user {2}'.format(host, port, user))
+        logger.error('failed to establish connection to {0} on port {1} user {2} database {3}'.format(host, port, user, dbname))
         logger.error('PostgreSQL exception: {0}'.format(e))
         return None
     # get the database version from the pgcon properties

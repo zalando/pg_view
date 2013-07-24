@@ -43,7 +43,7 @@ this it performs the following steps:
 If the program is unable to detect connection arguments using the algorithm above it's possible to specify
 those arguments manually using the configuration file supplied with -C option. This file should consist of
 one or more sections, containing key = value pairs. Each section's title represents a database cluster name,
-this name is only used to for display purposes (since pg_view gather global statistics, it always tries to connect to the postgres database, which should exist on every cluster), and the key - value pairs should contain connection parameters. The valid keys are:
+this name is only used to for display purposes (the actual name of the DB to connect to can be specified by the dbname parameter and is 'postgres' by default), and the key - value pairs should contain connection parameters. The valid keys are:
 
 * `host`:             hostname or ip address of the database server
 * `port`:             the port the database server listsens on
@@ -65,8 +65,9 @@ is missing from the database-specific section. For instance:
     [testdb3]
     host=192.168.1.0
     port=5433
+    dbname=test
 
-The application will try to connect to both testdb and testdb2 clusters using port 5435 (database postgres) upon reading this file, while testdb3 will be reached using port 5433.
+The application will try to connect to both testdb and testdb2 clusters using port 5435 (database postgres) upon reading this file, while testdb3 will be reached using port 5433 and database name 'test'.
 
 Finally, if the auto-detection code works for you, it's possible to select only a single database by specifying
 the database instance name (in most cases mathes the last component of $PGDATA) with `-i` command-line option. If there are more thana single instance with the same name - you can additionally specify the required PG version with `-V`.

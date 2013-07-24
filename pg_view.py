@@ -2867,7 +2867,7 @@ def main():
     try:
         if len(clusters) == 0:
             logger.error('No suitable PostgreSQL instances detected, exiting...')
-            logger.error('hint: use -v for details, or specify connection parameters manually in the configuration file (-C)')
+            logger.error('hint: use -v for details, or specify connection parameters manually in the configuration file (-c)')
             sys.exit(1)
 
         collectors = []

@@ -15,7 +15,7 @@ Requirements
 
 Linux 2.6, python 2.6, psycopg2, curses
 
-By default pg_view assumes it's able to connect to the local PostgreSQL instance with the user postgres and no password. On some systems it might be necessary to change your pg_hba.conf or set the password in .pgpass. A different user name can be specified in the configuration file, although specifying that file (with -C) turns off autodetection of connection parameters and available databases.
+By default pg_view assumes it's able to connect to the local PostgreSQL instance with the user postgres and no password. On some systems it might be necessary to change your pg_hba.conf or set the password in .pgpass. A different user name can be specified in the configuration file, although specifying that file (with -c) turns off autodetection of connection parameters and available databases.
 
 How it works:
 
@@ -41,7 +41,7 @@ this it performs the following steps:
 * if we can't get either the port/host or port/socket_directory pair, bail out.
 
 If the program is unable to detect connection arguments using the algorithm above it's possible to specify
-those arguments manually using the configuration file supplied with -C option. This file should consist of
+those arguments manually using the configuration file supplied with -c option. This file should consist of
 one or more sections, containing key = value pairs. Each section's title represents a database cluster name,
 this name is only used to for display purposes (the actual name of the DB to connect to can be specified by the dbname parameter and is 'postgres' by default), and the key - value pairs should contain connection parameters. The valid keys are:
 

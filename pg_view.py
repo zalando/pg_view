@@ -4,6 +4,7 @@
 __appname__ = 'pg_view'
 __version__ = '1.0.1'
 __author__ = 'Oleksii Kliukin <oleksii.kliukin@zalando.de>'
+__license__ = "Apache 2.0"
 
 import os
 import os.path
@@ -2190,6 +2191,8 @@ class CursesOutput(object):
         y = 0
         self.print_text(y, 0, '{0} {1} - a monitor for PostgreSQL related system statistics'.format(__appname__, __version__),
                         self.COLOR_NORMAL | curses.A_BOLD)
+        y+=1
+        self.print_text(y, 0, 'Distributed under the terms of {0} license'.format(__license__))
         y += 2
         self.print_text(y, 0, 'The following hotkeys are supported:')
         y += 1

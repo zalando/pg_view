@@ -2781,7 +2781,7 @@ def connect_with_connection_arguments(dbname, args):
     user = args.get('user', 'postgres')
     # establish a new connection
     try:
-        pgcon = psycopg2.connect('host={0} port={1} user={2}'.format(host, port, user))
+        pgcon = psycopg2.connect('host={0} port={1} user={2} dbname=postgres'.format(host, port, user))
     except Exception, e:
         logger.error('failed to establish connection to {0} on port {1} user {2}'.format(host, port, user))
         logger.error('PostgreSQL exception: {0}'.format(e))
@@ -2826,7 +2826,7 @@ def main():
             if conndata:
                 clusters.append(conndata)
             else:
-                logger.error('failed to acquire details about the database {0}, the server will be skipped'.format(dbname))
+                logger.error('failed to acquire details about the database cluster {0}, the server will be skipped'.format(dbname))
     else:
 
         # do autodetection
@@ -2850,7 +2850,7 @@ def main():
                 else:
                     host = conndata['host']
                 port = conndata['port']
-                pgcon = psycopg2.connect('host={0} port={1} user=postgres'.format(host, port))
+                pgcon = psycopg2.connect('host={0} port={1} user=postgres dbname=postgres'.format(host, port))
             except Exception, e:
                 logger.error('PostgreSQL exception {0}'.format(e))
                 pgcon = None

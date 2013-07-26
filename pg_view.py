@@ -1429,11 +1429,12 @@ class SystemStatCollector(StatCollector):
             fp = open(SystemStatCollector.PROC_STAT_FILENAME, 'rU')
             # split /proc/stat into the name - value pairs
             for line in fp:
-                elements = line.split()
+                elements = line.strip().split()
                 if len(elements) > 2:
                     raw_result[elements[0]] = elements[1:]
-                else:
+                elif len(elements) > 1:
                     raw_result[elements[0]] = elements[1]
+                # otherwise, the line is probably empty or bogus and should be skipped
             result = self._transform_input(raw_result)
         except IOError:
             logger.error('Unable to read {0}, global data will be unavailable', SystemStatCollector.PROC_STAT_FILENAME)

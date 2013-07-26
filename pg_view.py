@@ -880,6 +880,7 @@ class PgstatCollector(StatCollector):
         self.rows_diff_output = []
         # figure out our backend pid
         self.connection_pid = pgcon.get_backend_pid()
+        self.max_connections = self._get_max_connections()
         self.dbname = dbname
         self.dbver = dbver
         self.filter_aux_processes = True
@@ -1164,6 +1165,14 @@ class PgstatCollector(StatCollector):
         result['type'] = self._get_pstype(result['cmdline'])
         return result
 
+    def _get_max_connections(self):
+        """ Read max connections from the database """
+        cur = self.pgcon.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute('show max_connections')
+        result = cur.fetchone()
+        cur.close()
+        return int(result.get('max_connections', 0))
+
     def _read_pg_stat_activity(self):
         """ Read data from pg_stat_activity """
 
@@ -1224,8 +1233,8 @@ class PgstatCollector(StatCollector):
         return ret
 
     def ncurses_produce_prefix(self):
-        return "{1} {0} database connections: {2} total, {3} active\n".format(
-             self.dbver, self.dbname, self.total_connections, self.active_connections)
+        return "{1} {0} database connections: {2} of {4} allocated, {3} active\n".format(
+             self.dbver, self.dbname, self.total_connections, self.active_connections, self.max_connections)
 
     def diff(self):
         """ we only diff backend processes if new one is not idle and use pid to identify processes """

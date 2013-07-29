@@ -2019,7 +2019,11 @@ class CursesOutput(object):
     def _init_display(self):
         """ Various ncurses initialization calls """
 
-        curses.curs_set(0)  # make the cursor invisible
+        if hasattr(curses, 'curs_set'):
+            try:
+                curses.curs_set(0)  # make the cursor invisible
+            except:
+                pass
         self.screen.nodelay(1)  # disable delay when waiting for keyboard input
 
         # initialize colors

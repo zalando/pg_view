@@ -83,8 +83,6 @@ The tool supports 3 output methods:
 * console (`-o console`)
 * json (`-o json`).
 
-For the explanation of the output, please, look at the preview.jpeg file (showing the ncurses output).
-
 Below is the description of some of the options:
 * system:
 	* `iowait`: the percent of the CPU resources waiting on I/O

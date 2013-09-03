@@ -896,8 +896,8 @@ class PgstatCollector(StatCollector):
             {'out': 'starttime', 'in': 21, 'fn': long},
             {'out': 'vsize', 'in': 22, 'fn': int},
             {'out': 'rss', 'in': 23, 'fn': int},
-            {'out': 'delayacct_blkio_ticks', 'in': 41, 'fn': long},
-            {'out': 'guest_time', 'in': 42, 'fn': StatCollector.ticks_to_seconds},
+            {'out': 'delayacct_blkio_ticks', 'in': 41, 'fn': long, 'optional': True},
+            {'out': 'guest_time', 'in': 42, 'fn': StatCollector.ticks_to_seconds, 'optional': True},
         ]
 
         self.transform_dict_data = [{'out': 'read_bytes', 'fn': int, 'optional': True}, {'out': 'write_bytes',

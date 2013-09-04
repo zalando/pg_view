@@ -1803,9 +1803,15 @@ class MemoryStatCollector(StatCollector):
         try:
             fp = open(MemoryStatCollector.MEMORY_STAT_FILE, 'rU')
             for l in fp:
-                vals = l.strip().rstrip(' kB').split()
-                if len(vals) == 2:
-                    name, val = vals
+                vals = l.strip().split()
+                if len(vals) >= 2:
+                    name, val = vals[:2]
+                    # if we have units of measurement different from kB - transform the result
+                    if len(vals) == 3 and vals[2] in ('mB', 'gB'):
+                        if vals[2] == 'mB':
+                            val = val + '0' * 3
+                        if vals[2] == 'gB':
+                            val = val + '0' * 6
                     if len(str(name)) > 1:
                         result[str(name)[:-1]] = val
                     else:

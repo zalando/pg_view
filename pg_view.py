@@ -426,15 +426,14 @@ class StatCollector(object):
         val = raw_val
         # change the None output to ''
         if raw_val is None:
-            val = ''
-        elif str(raw_val) == 'True':
+            return ''
+        if str(raw_val) == 'True':
             val = 'T'
         elif str(raw_val) == 'False':
             val = 'F'
         if output_data.get('maxw', 0) > 0 and len(str(val)) > output_data['maxw']:
              # if the value is higher than maximum allowed width - trim it byt removing chars from the middle
             val = self._trim_text_middle(val, output_data['maxw'])
-        # currently we only support appending values to the header
         if self.ncurses_custom_fields.get('append_column_headers') or output_data.get('column_header',
                 COHEADER.ch_default) == COHEADER.ch_prepend:
             val = '{0}|{1}'.format(attname, val)

@@ -1038,7 +1038,6 @@ class PgstatCollector(StatCollector):
             self.pids = []
         self.pids = [int(x) for x in result[1].split()]
 
-
     def check_ps_state(self, row, col):
         if row[self.output_column_positions[col['out']]] == col.get('warning', ''):
             return {0: COLSTATUS.cs_warning}
@@ -1066,22 +1065,24 @@ class PgstatCollector(StatCollector):
         return '{0} ({1}/{2})'.format('postgres', self.dbname, self.dbver)
 
     @staticmethod
-    def _get_pstype(cmdline):
+    def _get_psinfo(cmdline):
         """ gets PostgreSQL process type from the command-line."""
 
         pstype = 'unknown'
+        psactivity = ''
         if cmdline is not None and len(cmdline) > 0:
             # postgres: stats collector process
-            m = re.match(r'postgres:\s+(.*)\s+process', cmdline)
+            m = re.match(r'postgres:\s+(.*)\s+process\s*(.*)$', cmdline)
             if m:
                 pstype = m.group(1)
+                psactivity = m.group(2)
             else:
                 if re.match(r'postgres:.*', cmdline):
                     # assume it's a backend process
                     pstype = 'backend'
         if pstype == 'autovacuum worker':
             pstype = 'autovacuum'
-        return pstype
+        return pstype, psactivity
 
     @staticmethod
     def _is_auxiliary_process(pstype):
@@ -1161,7 +1162,7 @@ class PgstatCollector(StatCollector):
             result.update(self._transform_input(raw_result.get(cat, ({} if cat == 'io' else []))))
         # generated columns
         result['cmdline'] = raw_result.get('cmd', None)
-        result['type'] = self._get_pstype(result['cmdline'])
+        result['type'], result['query'] = self._get_psinfo(result['cmdline'])
         return result
 
     def _get_max_connections(self):
@@ -1179,7 +1180,6 @@ class PgstatCollector(StatCollector):
 
         # the pg_stat_activity format has been changed to 9.2, avoiding ambigiuous meanings for some columns.
         # since it makes more sense then the previous layout, we 'cast' the former versions to 9.2.
-
         if self.dbver < 9.2:
             cur.execute("""
                 SELECT datname,

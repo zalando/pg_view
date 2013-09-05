@@ -1689,7 +1689,7 @@ class MemoryStatCollector(StatCollector):
         self.transform_dict_data = [
             {'in': 'MemTotal', 'out': 'total', 'fn': int},
             {'in': 'MemFree', 'out': 'free', 'fn': int},
-            {'in': 'Buffers', 'out': 'buffers', 'fn': int},
+            {'in': 'Buffers', 'out': 'buffers', 'fn': int, 'optional': True},
             {'in': 'Cached', 'out': 'cached', 'fn': int},
             {'in': 'Dirty', 'out': 'dirty', 'fn': int},
             {

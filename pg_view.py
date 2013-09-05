@@ -1566,7 +1566,7 @@ class PartitionStatCollector(StatCollector):
             },
             {
                 'out': 'path_size',
-                'fn': self.sectors_pretty_print,
+                'fn': self.kb_pretty_print,
                 'pos': 9,
                 'noautohide': True,
                 'align': COLALIGN.ca_right,

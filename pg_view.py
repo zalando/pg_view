@@ -60,6 +60,7 @@ freeze = False
 filter_aux = True
 autohide_fields = False
 display_units = False
+notrim = False
 
 
 # validation functions for OUTPUT_METHOD
@@ -163,6 +164,7 @@ class StatCollector(object):
         self.produce_diffs = produce_diffs
         self.show_units = False
         self.ignore_autohide = True
+        self.notrim = False
 
         # transformation data
         self.transform_dict_data = {}  # data to transform a dictionary input to the stat row
@@ -185,6 +187,9 @@ class StatCollector(object):
 
     def set_ignore_autohide(self, new_status):
         self.ignore_autohide = new_status
+
+    def set_notrim(self, val):
+        self.notrim = val
 
     def _calculate_output_column_positions(self):
         result = {}
@@ -431,7 +436,7 @@ class StatCollector(object):
             val = 'T'
         elif str(raw_val) == 'False':
             val = 'F'
-        if output_data.get('maxw', 0) > 0 and len(str(val)) > output_data['maxw']:
+        if output_data.get('maxw', 0) > 0 and not self.notrim and len(str(val)) > output_data['maxw']:
              # if the value is higher than maximum allowed width - trim it byt removing chars from the middle
             val = self._trim_text_middle(val, output_data['maxw'])
         if self.ncurses_custom_fields.get('append_column_headers') or output_data.get('column_header',
@@ -1179,7 +1184,7 @@ class PgstatCollector(StatCollector):
         cur = self.pgcon.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
         # the pg_stat_activity format has been changed to 9.2, avoiding ambigiuous meanings for some columns.
-        # since it makes more sense then the previous layout, we 'cast' the former versions to 9.2.
+        # since it makes more sense then the previous layout, we 'cast' the former versions to 9.2
         if self.dbver < 9.2:
             cur.execute("""
                 SELECT datname,
@@ -2112,6 +2117,7 @@ class CursesOutput(object):
         global freeze
         global filter_aux
         global autohide_fields
+        global notrim
         # only show help if we have enough screen real estate
         if self.next_y > self.screen_y - 1:
             pass
@@ -2127,6 +2133,9 @@ class CursesOutput(object):
         next_x = self.print_text(self.screen_y - 1, next_x, '<a>', self.COLOR_NORMAL)
         next_x = self.print_text(self.screen_y - 1, next_x, 'Autohide fields   ',
                                  (self.COLOR_MENU if not autohide_fields else self.COLOR_CRITICAL))
+        next_x = self.print_text(self.screen_y - 1, next_x, '<t>', self.COLOR_NORMAL)
+        next_x = self.print_text(self.screen_y - 1, next_x, 'No trim   ',
+                                 (self.COLOR_MENU if not notrim else self.COLOR_CRITICAL))
         next_x = self.print_text(self.screen_y - 1, next_x, '<h>', self.COLOR_NORMAL)
         next_x = self.print_text(self.screen_y - 1, next_x, 'Help   ',
                                  (self.COLOR_MENU if not self.show_help else self.COLOR_CRITICAL))
@@ -2226,6 +2235,9 @@ class CursesOutput(object):
         y += 1
         x = self.print_text(y, 5, 'w: ', self.COLOR_NORMAL | curses.A_BOLD)
         self.print_text(y, x, 'avoid hiding non-essential attributes')
+        y += 1
+        x = self.print_text(y, 5, 't: ', self.COLOR_NORMAL | curses.A_BOLD)
+        self.print_text(y, x, 'avoid trimming attributes in the middle (user and database names)')
         y += 2
         self.print_text(y, 0, "Press 'h' to exit this screen")
 
@@ -2479,6 +2491,7 @@ def do_loop(screen, groups, output_method, collectors):
     global freeze
     global filter_aux
     global autohide_fields
+    global notrim
 
     if output_method == OUTPUT_METHOD.curses:
         if screen is None:
@@ -2507,8 +2520,11 @@ def do_loop(screen, groups, output_method, collectors):
                     output.toggle_help()
                 if c == ord('a'):
                     autohide_fields = autohide_fields is False
+                if c == ord('t'):
+                    notrim = (notrim is False)
             st.set_units_display(display_units)
             st.set_ignore_autohide(not autohide_fields)
+            st.set_notrim(notrim)
             if isinstance(st, PgstatCollector):
                 st.set_aux_processes_filter(filter_aux)
             st.tick()

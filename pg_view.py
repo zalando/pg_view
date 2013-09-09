@@ -1665,7 +1665,7 @@ class PartitionStatCollector(StatCollector):
 
     def get_du_data(self):
         result = {PartitionStatCollector.DATA_NAME: [], PartitionStatCollector.XLOG_NAME: []}
-        ret = self.exec_command_with_output('du -B {0} -s {1} {1}/pg_xlog/'.format(PartitionStatCollector.BLOCK_SIZE,
+        ret = self.exec_command_with_output("""du -B {0} --exclude='lost+found' -x -s {1} {1}/pg_xlog/""".format(PartitionStatCollector.BLOCK_SIZE,
                                             self.work_directory))
         if ret[0] != 0 or ret[1] is None:
             logger.error('Unable to read free space information for the pg_xlog and data directories for the database\

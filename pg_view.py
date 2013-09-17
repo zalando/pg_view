@@ -1450,7 +1450,7 @@ class SystemStatCollector(StatCollector):
                 # otherwise, the line is probably empty or bogus and should be skipped
             result = self._transform_input(raw_result)
         except IOError:
-            logger.error('Unable to read {0}, global data will be unavailable', SystemStatCollector.PROC_STAT_FILENAME)
+            logger.error('Unable to read {0}, global data will be unavailable'.format(SystemStatCollector.PROC_STAT_FILENAME))
         return result
 
     def _cpu_time_diff(self, colname, cur, prev):
@@ -1634,7 +1634,7 @@ class PartitionStatCollector(StatCollector):
                 result[PartitionStatCollector.DATA_NAME] = output[1].split()
                 result[PartitionStatCollector.XLOG_NAME] = output[2].split()
             else:
-                logger.error('df output looks truncated'.format(output))
+                logger.error('df output looks truncated: {0}'.format(output))
         return result
 
     def get_io_data(self, pnames):
@@ -1657,7 +1657,7 @@ class PartitionStatCollector(StatCollector):
                 if found == total:
                     break
         except:
-            logger.error('Unable to read {0}', PartitionStatCollector.DISK_STAT_FILE)
+            logger.error('Unable to read {0}'.format(PartitionStatCollector.DISK_STAT_FILE))
             result = {}
         finally:
             fp and fp.close()
@@ -1676,7 +1676,7 @@ class PartitionStatCollector(StatCollector):
                 result['data'] = output[0].split()
                 result['xlog'] = output[1].split()
             else:
-                logger.error('du output looks truncated'.format(output))
+                logger.error('du output looks truncated: {0}'.format(output))
         return result
 
     def output(self, method):

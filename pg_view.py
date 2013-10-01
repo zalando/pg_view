@@ -2042,7 +2042,7 @@ class CursesOutput(object):
             curses.init_pair(1, -1, -1)
             curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_BLUE)
             curses.init_pair(3, curses.COLOR_WHITE, curses.COLOR_RED)
-            curses.init_pair(4, -1, curses.COLOR_GREEN)
+            curses.init_pair(4, curses.COLOR_WHITE, -1)
             curses.init_pair(5, curses.COLOR_GREEN, -1)
             curses.init_pair(6, curses.COLOR_BLACK, curses.COLOR_WHITE)
 
@@ -2164,7 +2164,7 @@ class CursesOutput(object):
         if status == COLSTATUS.cs_warning:
             return self.COLOR_WARNING
         if highlight:
-            return self.COLOR_HIGHLIGHT
+            return (self.COLOR_HIGHLIGHT | curses.A_BOLD)
         return self.COLOR_NORMAL
 
     def color_text(self, status_map, highlight, text):

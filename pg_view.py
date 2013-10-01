@@ -2044,14 +2044,15 @@ class CursesOutput(object):
             curses.init_pair(3, curses.COLOR_WHITE, curses.COLOR_RED)
             curses.init_pair(4, -1, curses.COLOR_GREEN)
             curses.init_pair(5, curses.COLOR_GREEN, -1)
-            curses.init_pair(6, curses.COLOR_WHITE, curses.COLOR_CYAN)
+            curses.init_pair(6, curses.COLOR_BLACK, curses.COLOR_WHITE)
 
             self.COLOR_NORMAL = curses.color_pair(1)
             self.COLOR_WARNING = curses.color_pair(2)
             self.COLOR_CRITICAL = curses.color_pair(3)
             self.COLOR_HIGHLIGHT = curses.color_pair(4)
             self.COLOR_INVERSE_HIGHLIGHT = curses.color_pair(5)
-            self.COLOR_MENU = curses.color_pair(6)
+            self.COLOR_MENU = curses.color_pair(2)
+            self.COLOR_MENU_SELECTED = curses.color_pair(6)
         else:
             self.is_color_supported = False
 
@@ -2112,6 +2113,13 @@ class CursesOutput(object):
         else:
             return startx
 
+    def show_help_bar_item(self, key, description, selected, x):
+        x = self.print_text(self.screen_y - 1, x, '{0}: '.format(key),
+                           (self.COLOR_MENU_SELECTED if selected else self.COLOR_MENU) | curses.A_BOLD)
+        x = self.print_text(self.screen_y - 1, x, '{0}   '.format(description),
+                            self.COLOR_MENU_SELECTED if selected else self.COLOR_MENU)
+        return x
+
     def show_help_bar(self):
         global display_units
         global freeze
@@ -2121,24 +2129,22 @@ class CursesOutput(object):
         # only show help if we have enough screen real estate
         if self.next_y > self.screen_y - 1:
             pass
-        next_x = self.print_text(self.screen_y - 1, 0, '<s>', self.COLOR_NORMAL)
-        next_x = self.print_text(self.screen_y - 1, next_x, 'System processes   ',
-                                 (self.COLOR_MENU if filter_aux else self.COLOR_CRITICAL))
-        next_x = self.print_text(self.screen_y - 1, next_x, '<f>', self.COLOR_NORMAL)
-        next_x = self.print_text(self.screen_y - 1, next_x, 'Output freeze   ',
-                                 (self.COLOR_MENU if not freeze else self.COLOR_CRITICAL))
-        next_x = self.print_text(self.screen_y - 1, next_x, '<u>', self.COLOR_NORMAL)
-        next_x = self.print_text(self.screen_y - 1, next_x, 'Measurement units   ',
-                                 (self.COLOR_MENU if not display_units else self.COLOR_CRITICAL))
-        next_x = self.print_text(self.screen_y - 1, next_x, '<a>', self.COLOR_NORMAL)
-        next_x = self.print_text(self.screen_y - 1, next_x, 'Autohide fields   ',
-                                 (self.COLOR_MENU if not autohide_fields else self.COLOR_CRITICAL))
-        next_x = self.print_text(self.screen_y - 1, next_x, '<t>', self.COLOR_NORMAL)
-        next_x = self.print_text(self.screen_y - 1, next_x, 'No trim   ',
-                                 (self.COLOR_MENU if not notrim else self.COLOR_CRITICAL))
-        next_x = self.print_text(self.screen_y - 1, next_x, '<h>', self.COLOR_NORMAL)
-        next_x = self.print_text(self.screen_y - 1, next_x, 'Help   ',
-                                 (self.COLOR_MENU if not self.show_help else self.COLOR_CRITICAL))
+
+        menu_items = (
+            ('s', 'System processes', not filter_aux),
+            ('f', 'Freeze output', freeze),
+            ('u', 'Measurement units', display_units),
+            ('a', 'Autohide fields', autohide_fields),
+            ('t', 'No trim', notrim),
+            ('h', 'Help', self.show_help)
+        )
+
+        next_x = 0
+        for item in menu_items:
+            next_x = self.show_help_bar_item(*item, x=next_x)
+
+        self.print_text(self.screen_y - 1, next_x, 'v.{}'.format(__version__).rjust(self.screen_x - next_x - 1),
+                        self.COLOR_MENU | curses.A_BOLD)
 
     def show_clock(self):
         clock_str_len = len(self.CLOCK_FORMAT)

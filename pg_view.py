@@ -2456,7 +2456,7 @@ def read_configuration(config_file_name):
     return config_data
 
 
-def read_postmaster_pid(work_directory):
+def read_postmaster_pid(work_directory, dbname):
     """ Parses the postgres directory tree and extracts the pid of the postmaster process """
 
     fp = None
@@ -2465,8 +2465,8 @@ def read_postmaster_pid(work_directory):
         pid = fp.readline().strip()
     except:
         # XXX: do not bail out in case we are collecting data for multiple PostgreSQL clusters
-        logger.error('Unable to read postmaster.pid for {name}\n HINT: \
-            make sure Postgres is running'.format(name=dbname))
+        logger.error('Unable to read postmaster.pid for {name} at {wd}\n HINT: \
+            make sure Postgres is running'.format(name=dbname, wd=work_directory))
         return None
     finally:
         if fp is not None:
@@ -2833,7 +2833,7 @@ def connect_with_connection_arguments(dbname, args):
     cur.close()
     pgcon.commit()
     # now, when we have the work directory, acquire the pid of the postmaster.
-    pid = read_postmaster_pid(work_directory)
+    pid = read_postmaster_pid(work_directory, dbname)
     if pid is None:
         logger.error('failed to read pid of the postmaster on {0}:{1}'.format(host, port))
         return None

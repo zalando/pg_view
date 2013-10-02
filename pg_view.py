@@ -2259,6 +2259,12 @@ class CursesOutput(object):
         y += 1
         x = self.print_text(y, 5, 't: ', self.COLOR_NORMAL | curses.A_BOLD)
         self.print_text(y, x, 'avoid trimming attributes in the middle (user and database names)')
+        y += 1
+        x = self.print_text(y, 5, 'r: ', self.COLOR_NORMAL | curses.A_BOLD)
+        self.print_text(y, x, 'update information as fast as possible (may cause additional load)')
+        y += 1
+        x = self.print_text(y, 5, 'q: ', self.COLOR_NORMAL | curses.A_BOLD)
+        self.print_text(y, x, 'exit program')
         y += 2
         self.print_text(y, 0, "Press 'h' to exit this screen")
 
@@ -2504,6 +2510,35 @@ def loop(collectors, groups, output_method):
         do_loop(None, groups, output_method, collectors)
 
 
+def poll_keys(screen, output):
+    global display_units
+    global freeze
+    global filter_aux
+    global autohide_fields
+    global notrim
+    global realtime
+
+    c = screen.getch()
+    if c == ord('u'):
+        display_units = display_units is False
+    if c == ord('f'):
+        freeze = freeze is False
+    if c == ord('s'):
+        filter_aux = filter_aux is False
+    if c == ord('h'):
+        output.toggle_help()
+    if c == ord('a'):
+        autohide_fields = autohide_fields is False
+    if c == ord('t'):
+        notrim = (notrim is False)
+    if c == ord('r'):
+        realtime = (realtime is False)
+    if c == ord('q'):
+        # bail out immediately
+        return False
+    return True
+
+
 def do_loop(screen, groups, output_method, collectors):
     """ Display output (or pass it through to ncurses) """
 
@@ -2532,35 +2567,22 @@ def do_loop(screen, groups, output_method, collectors):
         threads = []
         for st in collectors:
             if output_method == OUTPUT_METHOD.curses:
-                c = screen.getch()
-                if c == ord('u'):
-                    display_units = display_units is False
-                if c == ord('f'):
-                    freeze = freeze is False
-                if c == ord('s'):
-                    filter_aux = filter_aux is False
-                if c == ord('h'):
-                    output.toggle_help()
-                if c == ord('a'):
-                    autohide_fields = autohide_fields is False
-                if c == ord('t'):
-                    notrim = (notrim is False)
-                if c == ord('r'):
-                    realtime = (realtime is False)
-                if c == ord('q'):
+                if not poll_keys(screen, output):
                     # bail out immediately
                     return
             st.set_units_display(display_units)
             st.set_ignore_autohide(not autohide_fields)
             st.set_notrim(notrim)
             th = threading.Thread(target=process_single_collector, args=(st,))
-            th.daemon = True
             th.start()
             threads.append(th)
         # now wait for all threads to finish
         while True:
             alive = False
             for t in threads:
+                if output_method == OUTPUT_METHOD.curses:
+                    if not poll_keys(screen, output):
+                        return
                 if t.isAlive():
                     alive = True
                     t.join(1.0)

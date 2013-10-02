@@ -1636,7 +1636,6 @@ class PartitionStatCollector(StatCollector):
 
     def get_df_data(self):
         """ Retrive raw data from df (transformations are performed via df_list_transformation) """
-
         result = {PartitionStatCollector.DATA_NAME: [], PartitionStatCollector.XLOG_NAME: []}
         ret = self.exec_command_with_output('df -PB {0} {1} {1}/pg_xlog/'.format(PartitionStatCollector.BLOCK_SIZE,
                                             self.work_directory))
@@ -2548,10 +2547,14 @@ def do_loop(screen, groups, output_method, collectors):
                     notrim = (notrim is False)
                 if c == ord('r'):
                     realtime = (realtime is False)
+                if c == ord('q'):
+                    # bail out immediately
+                    return
             st.set_units_display(display_units)
             st.set_ignore_autohide(not autohide_fields)
             st.set_notrim(notrim)
             th = threading.Thread(target=process_single_collector, args=(st,))
+            th.daemon = True
             th.start()
             threads.append(th)
         # now wait for all threads to finish

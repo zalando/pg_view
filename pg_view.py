@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 __appname__ = 'pg_view'
-__version__ = '1.0.1'
+__version__ = '1.1.0'
 __author__ = 'Oleksii Kliukin <oleksii.kliukin@zalando.de>'
 __license__ = "Apache 2.0"
 
@@ -21,6 +21,7 @@ from multiprocessing import cpu_count  # for then number of cpus
 import platform
 import socket
 import subprocess
+import threading
 import time
 import traceback
 import json
@@ -61,6 +62,7 @@ filter_aux = True
 autohide_fields = False
 display_units = False
 notrim = False
+realtime = False
 
 
 # validation functions for OUTPUT_METHOD
@@ -1580,6 +1582,8 @@ class PartitionStatCollector(StatCollector):
         ]
         self.ncurses_custom_fields = {'header': True}
         self.ncurses_custom_fields['prefix'] = None
+        self.du_data = None
+        self.df_data = None
 
         self.postinit()
 
@@ -1595,13 +1599,23 @@ class PartitionStatCollector(StatCollector):
     def refresh(self):
         result = {}
 
-        df_out = self.get_df_data()
+        # run df and du in parallel to reduce the I/O waiting time
+        df_thread = threading.Thread(target=self.get_df_data)
+        du_thread = threading.Thread(target=self.get_du_data)
+
+        df_thread.start()
+        du_thread.start()
+
+        df_thread.join()
+
+        df_out = self.df_data
         for pname in PartitionStatCollector.DATA_NAME, PartitionStatCollector.XLOG_NAME:
             result[pname] = self._transform_input(df_out[pname], self.df_list_transformation)
 
         io_out = self.get_io_data([result[PartitionStatCollector.DATA_NAME]['dev'],
                                   result[PartitionStatCollector.XLOG_NAME]['dev']])
-        du_out = self.get_du_data()
+        du_thread.join()
+        du_out = self.du_data
 
         for pname in PartitionStatCollector.DATA_NAME, PartitionStatCollector.XLOG_NAME:
             if result[pname]['dev'] in io_out:
@@ -1635,7 +1649,7 @@ class PartitionStatCollector(StatCollector):
                 result[PartitionStatCollector.XLOG_NAME] = output[2].split()
             else:
                 logger.error('df output looks truncated: {0}'.format(output))
-        return result
+        self.df_data = result
 
     def get_io_data(self, pnames):
         """ Retrieve raw data from /proc/diskstat (transformations are perfromed via io_list_transformation)"""
@@ -1677,7 +1691,7 @@ class PartitionStatCollector(StatCollector):
                 result['xlog'] = output[1].split()
             else:
                 logger.error('du output looks truncated: {0}'.format(output))
-        return result
+        self.du_data = result
 
     def output(self, method):
         return super(self.__class__, self).output(method, before_string='PostgreSQL partitions:', after_string='\n')
@@ -2126,6 +2140,7 @@ class CursesOutput(object):
         global filter_aux
         global autohide_fields
         global notrim
+        global realtime
         # only show help if we have enough screen real estate
         if self.next_y > self.screen_y - 1:
             pass
@@ -2136,6 +2151,7 @@ class CursesOutput(object):
             ('u', 'Measurement units', display_units),
             ('a', 'Autohide fields', autohide_fields),
             ('t', 'No trim', notrim),
+            ('r', 'Realtime', realtime),
             ('h', 'Help', self.show_help)
         )
 
@@ -2498,6 +2514,7 @@ def do_loop(screen, groups, output_method, collectors):
     global filter_aux
     global autohide_fields
     global notrim
+    global realtime
 
     if output_method == OUTPUT_METHOD.curses:
         if screen is None:
@@ -2513,6 +2530,7 @@ def do_loop(screen, groups, output_method, collectors):
         output = CommonOutput()
     while 1:
         # process input:
+        threads = []
         for st in collectors:
             if output_method == OUTPUT_METHOD.curses:
                 c = screen.getch()
@@ -2528,16 +2546,24 @@ def do_loop(screen, groups, output_method, collectors):
                     autohide_fields = autohide_fields is False
                 if c == ord('t'):
                     notrim = (notrim is False)
+                if c == ord('r'):
+                    realtime = (realtime is False)
             st.set_units_display(display_units)
             st.set_ignore_autohide(not autohide_fields)
             st.set_notrim(notrim)
-            if isinstance(st, PgstatCollector):
-                st.set_aux_processes_filter(filter_aux)
-            st.tick()
-            if st.needs_refresh() and not freeze:
-                st.refresh()
-            if st.needs_diffs() and not freeze:
-                st.diff()
+            th = threading.Thread(target=process_single_collector, args=(st,))
+            th.start()
+            threads.append(th)
+        # now wait for all threads to finish
+        while True:
+            alive = False
+            for t in threads:
+                if t.isAlive():
+                    alive = True
+                    t.join(1.0)
+            if not alive:
+                break
+
         if output_method == OUTPUT_METHOD.curses:
             process_groups(groups)
         # in the non-curses cases display actually shows the data and refresh
@@ -2549,13 +2575,29 @@ def do_loop(screen, groups, output_method, collectors):
         # in the curses case, refresh shows the data queued by display
         if output_method == OUTPUT_METHOD.curses:
             output.refresh()
-        time.sleep(TICK_LENGTH)
+        if not realtime:
+            time.sleep(TICK_LENGTH)
+
+
+def process_single_collector(st):
+    """ perform all heavy-lifting for a single collector, i.e. data collection,
+        diff calculation, etc. This is meant to be run in a separate thread.
+    """
+    if isinstance(st, PgstatCollector):
+        st.set_aux_processes_filter(filter_aux)
+    st.tick()
+    if st.needs_refresh() and not freeze:
+        st.refresh()
+    if st.needs_diffs() and not freeze:
+        st.diff()
+
 
 def process_groups(groups):
     for name in groups:
         part = groups[name]['partitions']
         pg = groups[name]['pg']
         part.ncurses_set_prefix(pg.ncurses_produce_prefix())
+
 
 def is_postgres_process(pid):
     # read /proc/stat, check for the PostgreSQL string
@@ -2935,8 +2977,8 @@ def main():
     except Exception, e:
         print traceback.format_exc()
     finally:
-        for cl in clusters:
-            'pgcon' in cl and cl['pgcon'] and cl['pgcon'].close()
+        # for cl in clusters:
+        #     'pgcon' in cl and cl['pgcon'] and cl['pgcon'].close()
         sys.exit(0)
 
 if __name__ == '__main__':

@@ -1,0 +1,12 @@
+Version 1.1:
+
+- Minor changes in the UI, aiming for it to be less 
+  obtrusive.
+- Run each collector in a separate thread, improving
+  the overal performance, especially for multiple DBs.
+- Add additional controls (no-trim, realtime).
+- Lots of bugfixes.
+
+Version 1.0:
+- Initial version.
+

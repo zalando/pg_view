@@ -2158,7 +2158,7 @@ class CursesOutput(object):
         for item in menu_items:
             next_x = self.show_help_bar_item(*item, x=next_x)
 
-        self.print_text(self.screen_y - 1, next_x, 'v.{}'.format(__version__).rjust(self.screen_x - next_x - 1),
+        self.print_text(self.screen_y - 1, next_x, 'v.{0}'.format(__version__).rjust(self.screen_x - next_x - 1),
                         self.COLOR_MENU | curses.A_BOLD)
 
     def show_clock(self):

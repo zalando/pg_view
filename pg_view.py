@@ -1640,7 +1640,7 @@ class PartitionStatCollector(StatCollector):
         ret = self.exec_command_with_output('df -PB {0} {1} {1}/pg_xlog/'.format(PartitionStatCollector.BLOCK_SIZE,
                                             self.work_directory))
         if ret[0] != 0 or ret[1] is None:
-            logger.error('Unable to read data and xlog partition information for the database {0}'.format(dbname))
+            logger.error('Unable to read data and xlog partition information for the database {0}'.format(self.dbname))
         else:
             output = str(ret[1]).splitlines()
             if len(output) > 2:

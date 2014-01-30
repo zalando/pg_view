@@ -2701,11 +2701,20 @@ def get_all_postmasters():
             with open(cmd_line_file_name, 'rU') as fp:
                 cmd_line = fp.read()
                 if cmd_line:
+                    # the format is
+                    # /usr/local/bin/postgres\x00-p\x005432\x00-D\x00/data/dir\x00
                     fields = cmd_line.split('\x00')
-                    if len(fields) > 2:
-                        data_dir = fields[2]
-                        postmaster_data_dirs.append(data_dir)
-                        postmaster_pids.append(pid)
+                    data_dir_field = False
+                    # go through the fields, looking for the data dir
+                    for f in fields:
+                        if f == '-D':
+                            data_dir_field = True
+                            continue
+                        if data_dir_field:
+                            data_dir = f
+                            postmaster_data_dirs.append(data_dir)
+                            postmaster_pids.append(pid)
+                            break
     return dict(zip(postmaster_data_dirs, postmaster_pids))
 
 

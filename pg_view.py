@@ -920,7 +920,7 @@ class PgstatCollector(StatCollector):
             {'out': 'delayacct_blkio_ticks'},
             {'out': 'read_bytes'},
             {'out': 'write_bytes'},
-            {'out': 'xact_start', 'diff': False},
+            {'out': 'age', 'diff': False},
             {'out': 'datname', 'diff': False},
             {'out': 'usename', 'diff': False},
             {'out': 'waiting', 'diff': False},
@@ -994,10 +994,10 @@ class PgstatCollector(StatCollector):
             },
             {
                 'out': 'age',
-                'in': 'xact_start',
+                'in': 'age',
                 'noautohide': True,
                 'pos': 9,
-                'fn': StatCollector.delta_pretty_print,
+                'fn': StatCollector.time_pretty_print,
                 'status_fn': self.age_status_fn,
                 'align': COLALIGN.ca_right,
                 'warning': 300,
@@ -1194,7 +1194,7 @@ class PgstatCollector(StatCollector):
                        usename,
                        client_addr,
                        client_port,
-                       round(extract(epoch from xact_start)) as xact_start,
+                       (round(extract(epoch from now())) - round(extract(epoch from xact_start))) as age,
                        waiting,
                        CASE
                          WHEN current_query = '<IDLE>' THEN 'idle'
@@ -1211,7 +1211,7 @@ class PgstatCollector(StatCollector):
                        usename,
                        client_addr,
                        client_port,
-                       round(extract(epoch from xact_start)) as xact_start,
+                       (round(extract(epoch from now())) - round(extract(epoch from xact_start))) as age,
                        waiting,
                        CASE
                         WHEN state != 'active' THEN state
@@ -1260,7 +1260,7 @@ class PgstatCollector(StatCollector):
                 if candidate is not None and len(candidate) > 0:
                     self.rows_diff.append(candidate)
         # order the result rows by the start time value
-        self.rows_diff.sort(key=itemgetter('xact_start'))
+        self.rows_diff.sort(key=itemgetter('age'), reverse=True)
 
     def output(self, method):
         return super(self.__class__, self).output(method, before_string='PostgreSQL processes:', after_string='\n')

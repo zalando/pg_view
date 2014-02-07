@@ -1678,7 +1678,7 @@ class PartitionStatCollector(StatCollector):
 
     def get_du_data(self):
         result = {PartitionStatCollector.DATA_NAME: [], PartitionStatCollector.XLOG_NAME: []}
-        ret = self.exec_command_with_output("""du -B {0} --exclude='lost+found' -x -s {1} {1}/pg_xlog/""".format(PartitionStatCollector.BLOCK_SIZE,
+        ret = self.exec_command_with_output("""du -lB {0} --exclude='lost+found' -x -s {1} {1}/pg_xlog/""".format(PartitionStatCollector.BLOCK_SIZE,
                                             self.work_directory))
         if ret[0] != 0 or ret[1] is None:
             logger.error('Unable to read free space information for the pg_xlog and data directories for the database\
@@ -2702,7 +2702,7 @@ def get_all_postmasters():
                 cmd_line = fp.read()
                 if cmd_line:
                     # the format is
-                    # /usr/local/bin/postgres\x00-p\x005432\x00-D\x00/data/dir\x00
+                    # /usr/local/lsbin/postgres\x00-p\x005432\x00-D\x00/data/dir\x00
                     fields = cmd_line.split('\x00')
                     data_dir_field = False
                     # go through the fields, looking for the data dir

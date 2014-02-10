@@ -1026,6 +1026,7 @@ class PgstatCollector(StatCollector):
                 'out': 'query',
                 'pos': 12,
                 'noautohide': True,
+                'fn': self.idle_format_fn,
                 'warning': 'idle in transaction',
                 'critical': 'locked',
                 'status_fn': self.query_status_fn,
@@ -1058,6 +1059,16 @@ class PgstatCollector(StatCollector):
         if 'warning' in col and col['warning'] < age_seconds:
             return {-1: COLSTATUS.cs_warning}
         return {-1: COLSTATUS.cs_ok}
+
+    def idle_format_fn(self, text):
+        r = re.match(r'idle in transaction (\d+)', text)
+        if not r:
+            return text
+        else:
+            if self.dbver >= 9.2:
+                return 'idle in transaction for ' + StatCollector.time_pretty_print(int(r.group(1)))
+            else:
+                return 'idle in transaction ' + StatCollector.time_pretty_print(int(r.group(1))) + ' since the last query start'
 
     def query_status_fn(self, row, col):
         if row[self.output_column_positions['w']] is True:
@@ -1198,7 +1209,13 @@ class PgstatCollector(StatCollector):
                        waiting,
                        CASE
                          WHEN current_query = '<IDLE>' THEN 'idle'
-                         WHEN current_query = '<IDLE> in transaction' THEN 'idle in transaction'
+                         WHEN current_query = '<IDLE> in transaction' THEN
+                              CASE WHEN (round(extract(epoch from now())) - round(extract(epoch from xact_start))) !=
+                               (round(extract(epoch from now())) - round(extract(epoch from query_start))) THEN
+                                  'idle in transaction'||' '||(round(extract(epoch from now())) - round(extract(epoch from query_start)))
+                              ELSE
+                                  'idle in transaction'
+                              END
                          WHEN current_query = '<IDLE> in transaction (aborted)' THEN 'idle in transaction (aborted)'
                         ELSE current_query
                        END AS query
@@ -1214,10 +1231,17 @@ class PgstatCollector(StatCollector):
                        (round(extract(epoch from now())) - round(extract(epoch from xact_start))) as age,
                        waiting,
                        CASE
-                        WHEN state != 'active' THEN state
-                       ELSE query
-                       END AS query
-                  FROM pg_stat_activity WHERE pid != pg_backend_pid()
+                           WHEN state = 'idle in transaction' THEN
+                                CASE WHEN (round(extract(epoch from now())) - round(extract(epoch from state_change))) !=
+                                 (round(extract(epoch from now())) - round(extract(epoch from xact_start))) THEN
+                                    state||' '||(round(extract(epoch from now())) - round(extract(epoch from state_change)))
+                                ELSE
+                                    state
+                                END
+                        WHEN state = 'active' THEN query
+                        ELSE state
+                        END AS query
+                FROM pg_stat_activity WHERE pid != pg_backend_pid()
                 """)
         results = cur.fetchall()
         # fill in the number of total connections, including ourselves

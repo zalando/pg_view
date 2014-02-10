@@ -887,6 +887,7 @@ class PgstatCollector(StatCollector):
         # figure out our backend pid
         self.connection_pid = pgcon.get_backend_pid()
         self.max_connections = self._get_max_connections()
+        self.recovery_status = self._get_recovery_status()
         self.dbname = dbname
         self.dbver = dbver
         self.filter_aux_processes = True
@@ -1191,9 +1192,18 @@ class PgstatCollector(StatCollector):
         cur.close()
         return int(result.get('max_connections', 0))
 
+    def _get_recovery_status(self):
+        """ Determine whether the Postgres process is in recovery """
+        cur = self.pgcon.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("select case when pg_is_in_recovery() then 'standby' else 'master' end as role")
+        result = cur.fetchone()
+        cur.close()
+        return result.get('role', 'unknown')
+
     def _read_pg_stat_activity(self):
         """ Read data from pg_stat_activity """
 
+        self.recovery_status = self._get_recovery_status()
         cur = self.pgcon.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
         # the pg_stat_activity format has been changed to 9.2, avoiding ambigiuous meanings for some columns.
@@ -1263,8 +1273,8 @@ class PgstatCollector(StatCollector):
         return ret
 
     def ncurses_produce_prefix(self):
-        return "{1} {0} database connections: {2} of {4} allocated, {3} active\n".format(
-             self.dbver, self.dbname, self.total_connections, self.active_connections, self.max_connections)
+        return "{1} {0} {5} database connections: {2} of {4} allocated, {3} active\n".format(
+             self.dbver, self.dbname, self.total_connections, self.active_connections, self.max_connections, self.recovery_status)
 
     def diff(self):
         """ we only diff backend processes if new one is not idle and use pid to identify processes """

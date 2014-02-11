@@ -1215,14 +1215,13 @@ class PgstatCollector(StatCollector):
                        usename,
                        client_addr,
                        client_port,
-                       (round(extract(epoch from now())) - round(extract(epoch from xact_start))) as age,
+                       round(extract(epoch from (now() - xact_start))) as age,
                        waiting,
                        CASE
                          WHEN current_query = '<IDLE>' THEN 'idle'
                          WHEN current_query = '<IDLE> in transaction' THEN
-                              CASE WHEN (round(extract(epoch from now())) - round(extract(epoch from xact_start))) !=
-                               (round(extract(epoch from now())) - round(extract(epoch from query_start))) THEN
-                                  'idle in transaction'||' '||(round(extract(epoch from now())) - round(extract(epoch from query_start)))
+                              CASE WHEN xact_start != query_start THEN
+                                  'idle in transaction'||' '||abs(round(extract(epoch from (now() - query_start))))
                               ELSE
                                   'idle in transaction'
                               END
@@ -1238,13 +1237,12 @@ class PgstatCollector(StatCollector):
                        usename,
                        client_addr,
                        client_port,
-                       (round(extract(epoch from now())) - round(extract(epoch from xact_start))) as age,
+                       round(extract(epoch from (now() - xact_start))) as age,
                        waiting,
                        CASE
                            WHEN state = 'idle in transaction' THEN
-                                CASE WHEN (round(extract(epoch from now())) - round(extract(epoch from state_change))) !=
-                                 (round(extract(epoch from now())) - round(extract(epoch from xact_start))) THEN
-                                    state||' '||(round(extract(epoch from now())) - round(extract(epoch from state_change)))
+                                CASE WHEN xact_start != state_change THEN
+                                    state||' '||abs(round(extract(epoch from (now() - state_change))))
                                 ELSE
                                     state
                                 END

@@ -3040,6 +3040,10 @@ def main():
         print 'Interrupted by user'
         if os.stat(LOG_FILE_NAME)[stat.ST_SIZE] != 0:
             print 'Errors detected, see {0} for warnings and errors output'.format(LOG_FILE_NAME)
+    except curses.error:
+            print traceback.format_exc()
+            if 'SSH_CLIENT' in os.environ and 'SSH_TTY' not in os.environ:
+                print "Unable to initialize curses. Make sure you supply -t option (force psedo-tty allocation) to ssh"
     except Exception, e:
         print traceback.format_exc()
     finally:

@@ -1519,7 +1519,7 @@ class PartitionStatCollector(StatCollector):
         self.dbver = dbversion
         self.work_directory = work_directory
         self.df_list_transformation = [{'out': 'dev', 'in': 0, 'fn': self._dereference_dev_name}, {'out': 'space_total'
-                                       , 'in': 1, 'fn': int}, {'out': 'space_left', 'in': 3, 'fn': int}]
+                                       , 'in': 1, 'fn': int}, {'out': 'space_left', 'in': 2, 'fn': int}]
         self.io_list_transformation = [{'out': 'sectors_read', 'in': 5, 'fn': int}, {'out': 'sectors_written', 'in': 9,
                                        'fn': int}, {'out': 'await', 'in': 13, 'fn': int}]
         self.du_list_transformation = [{'out': 'path_size', 'in': 0, 'fn': int}, {'out': 'path', 'in': 1}]
@@ -1688,20 +1688,54 @@ class PartitionStatCollector(StatCollector):
                 return cur['space_left'] / (prev['path_size'] - cur['path_size'])
         return None
 
+    @staticmethod
+    def get_mount_point(pathname):
+        """Get the mount point of the filesystem containing pathname"""
+        pathname = os.path.normcase(os.path.realpath(pathname))
+        parent_device = path_device = os.stat(pathname).st_dev
+        while parent_device == path_device:
+            mount_point = pathname
+            pathname = os.path.dirname(pathname)
+            if pathname == mount_point:
+                break
+            parent_device = os.stat(pathname).st_dev
+        return mount_point
+
+    @staticmethod
+    def get_mounted_device(pathname):
+        """Get the device mounted at pathname"""
+        # uses "/proc/mounts"
+        pathname = os.path.normcase(pathname)  # might be unnecessary here
+        try:
+            with open("/proc/mounts", "r") as ifp:
+                for line in ifp:
+                    fields = line.rstrip('\n').split()
+                    # note that line above assumes that
+                    # no mount points contain whitespace
+                    if fields[1] == pathname:
+                        return fields[0]
+        except EnvironmentError:
+            pass
+        return None  # explicit
+
     def get_df_data(self):
         """ Retrive raw data from df (transformations are performed via df_list_transformation) """
+
         result = {PartitionStatCollector.DATA_NAME: [], PartitionStatCollector.XLOG_NAME: []}
-        ret = self.exec_command_with_output('df -PB {0} {1} {1}/pg_xlog/'.format(PartitionStatCollector.BLOCK_SIZE,
-                                            self.work_directory))
-        if ret[0] != 0 or ret[1] is None:
-            logger.error('Unable to read data and xlog partition information for the database {0}'.format(self.dbname))
+        # obtain the device names
+        data_dev = self.get_mounted_device(self.get_mount_point(self.work_directory))
+        xlog_dev = self.get_mounted_device(self.get_mount_point(self.work_directory+'/pg_xlog/'))
+        data_vfs = os.statvfs(self.work_directory)
+        if data_dev != xlog_dev:
+            xlog_vfs = os.statvfs(self.work_directory+'/pg_xlog/')
         else:
-            output = str(ret[1]).splitlines()
-            if len(output) > 2:
-                result[PartitionStatCollector.DATA_NAME] = output[1].split()
-                result[PartitionStatCollector.XLOG_NAME] = output[2].split()
-            else:
-                logger.error('df output looks truncated: {0}'.format(output))
+            xlog_vfs = None
+
+        result[PartitionStatCollector.DATA_NAME] = (data_dev, data_vfs.f_blocks * (data_vfs.f_bsize/PartitionStatCollector.BLOCK_SIZE), data_vfs.f_bavail * (data_vfs.f_bsize/PartitionStatCollector.BLOCK_SIZE))
+        if data_dev != xlog_dev:
+            result[PartitionStatCollector.XLOG_NAME] = (xlog_dev, xlog_vfs.f_blocks * (xlog_vfs.f_bsize/PartitionStatCollector.BLOCK_SIZE), xlog_vfs.f_bavail * (xlog_vfs.f_bsize/PartitionStatCollector.BLOCK_SIZE))
+        else:
+            result[PartitionStatCollector.XLOG_NAME] = result[PartitionStatCollector.DATA_NAME]
         self.df_data = result
 
     def get_io_data(self, pnames):
@@ -1791,7 +1825,6 @@ class PartitionStatCollector(StatCollector):
                 if mode == 0x8000:  # S_IFREG
                     size += st.st_size
         return size/block_size
-
 
     def output(self, method):
         return super(self.__class__, self).output(method, before_string='PostgreSQL partitions:', after_string='\n')

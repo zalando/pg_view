@@ -22,6 +22,7 @@ import platform
 import socket
 import subprocess
 import threading
+import Queue
 import time
 import traceback
 import json
@@ -1614,13 +1615,34 @@ class PartitionStatCollector(StatCollector):
         ]
         self.ncurses_custom_fields = {'header': True}
         self.ncurses_custom_fields['prefix'] = None
-        self.du_data = None
+        self.du_data = []
         self.df_data = None
+        self.du_thread = None
+        self.du_queue = Queue.Queue()
+        self.du_terminate_event = threading.Event()
+        self.spawn_du_thread()
 
         self.postinit()
 
+    def ___del__(self):
+        self.stop_du_thread()
+
     def ident(self):
         return '{0} ({1}/{2})'.format(super(PartitionStatCollector, self).ident(), self.dbname, self.dbver)
+
+    def spawn_du_thread(self):
+        # if for some reason we are trying to spawn more than one thread
+        self.stop_du_thread()
+        self.du_thread = threading.Thread(target=self.produce_du_data)
+        self.du_thread.start()
+
+    def stop_du_thread(self):
+        if self.du_thread is not None:
+            if self.du_thread.is_alive():
+                self.du_terminate_event.set()
+                self.du_thread.join()
+            self.du_thread = None
+            self.du_terminate_event.clear()
 
     def _dereference_dev_name(self, devname):
         result = None
@@ -1709,20 +1731,67 @@ class PartitionStatCollector(StatCollector):
         return result
 
     def get_du_data(self):
-        result = {PartitionStatCollector.DATA_NAME: [], PartitionStatCollector.XLOG_NAME: []}
-        ret = self.exec_command_with_output("""du -lB {0} --exclude='lost+found' -x -s {1} {1}/pg_xlog/""".format(PartitionStatCollector.BLOCK_SIZE,
-                                            self.work_directory))
-        if ret[0] != 0 or ret[1] is None:
-            logger.error('Unable to read free space information for the pg_xlog and data directories for the database\
-             {0}'.format(self.dbname))
-        else:
-            output = str(ret[1]).splitlines()
-            if len(output) > 1:
-                result['data'] = output[0].split()
-                result['xlog'] = output[1].split()
+        if not self.du_queue.empty():
+            result = self.du_queue.get_nowait()
+            self.du_data = result
+
+    def produce_du_data(self):
+        data_size = 0
+        xlog_size = 0
+
+        while True:
+            if self.du_terminate_event.is_set():
+                break
+            if self.du_queue.full():
+                # if the queue is full - just wait and retry
+                time.sleep(TICK_LENGTH/2.0)
+                continue
+            result = {PartitionStatCollector.DATA_NAME: [], PartitionStatCollector.XLOG_NAME: []}
+            try:
+                data_size = self.run_du(self.work_directory, self.du_terminate_event, PartitionStatCollector.BLOCK_SIZE)
+                xlog_size = self.run_du(self.work_directory+'/pg_xlog/', self.du_terminate_event, PartitionStatCollector.BLOCK_SIZE)
+            except Exception, e:
+                logger.error('Unable to read free space information for the pg_xlog and data directories for the database\
+                 {0}: {1}'.format(self.dbname, e))
             else:
-                logger.error('du output looks truncated: {0}'.format(output))
-        self.du_data = result
+                result['data'] = (str(data_size), PartitionStatCollector.DATA_NAME)
+                result['xlog'] = (str(xlog_size), PartitionStatCollector.XLOG_NAME)
+                try:
+                    self.du_queue.put(result, False)
+                except Queue.Full:
+                    # the queue is full, just do nothing
+                    pass
+            if self.du_terminate_event.is_set():
+                break
+            time.sleep(TICK_LENGTH/2.0)
+
+    @staticmethod
+    def run_du(pathname, terminate_event=None, block_size=1024, exclude=['lost+found']):
+        size = 0
+        folders = [pathname]
+        if terminate_event and terminate_event.is_set():
+            return 0
+        root_dev = os.lstat(pathname).st_dev
+        while len(folders):
+            if terminate_event and terminate_event.is_set():
+                return 0
+            c = folders.pop()
+            for e in os.listdir(c):
+                e = os.path.join(c, e)
+                st = os.lstat(e)
+                # skip data on different partition
+                if st.st_dev != root_dev:
+                    continue
+                mode = st.st_mode & 0xf000  # S_IFMT
+                if mode == 0x4000:  # S_IFDIR
+                    if e in exclude:
+                        continue
+                    folders.append(e)
+                    size += st.st_size
+                if mode == 0x8000:  # S_IFREG
+                    size += st.st_size
+        return size/block_size
+
 
     def output(self, method):
         return super(self.__class__, self).output(method, before_string='PostgreSQL partitions:', after_string='\n')
@@ -3047,6 +3116,10 @@ def main():
     except Exception, e:
         print traceback.format_exc()
     finally:
+        for c in collectors:
+            if isinstance(c, PartitionStatCollector):
+                # stop the thread that collects du information
+                c.stop_du_thread()
         # for cl in clusters:
         #     'pgcon' in cl and cl['pgcon'] and cl['pgcon'].close()
         sys.exit(0)

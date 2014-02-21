@@ -3115,14 +3115,14 @@ def main():
                     'pid': ppid,
                     'pgcon': pgcon,
                 })
+    collectors = []
+    groups = {}
     try:
         if len(clusters) == 0:
             logger.error('No suitable PostgreSQL instances detected, exiting...')
             logger.error('hint: use -v for details, or specify connection parameters manually in the configuration file (-c)')
             sys.exit(1)
 
-        collectors = []
-        groups = {}
         collectors.append(HostStatCollector())
         collectors.append(SystemStatCollector())
         collectors.append(MemoryStatCollector())

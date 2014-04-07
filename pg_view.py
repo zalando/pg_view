@@ -1812,7 +1812,11 @@ class PartitionStatCollector(StatCollector):
             c = folders.pop()
             for e in os.listdir(c):
                 e = os.path.join(c, e)
-                st = os.lstat(e)
+                try:
+                    st = os.lstat(e)
+                except os.error:
+                    # don't care about files removed while we are trying to read them.
+                    continue
                 # skip data on different partition
                 if st.st_dev != root_dev:
                     continue

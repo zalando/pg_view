@@ -1293,7 +1293,7 @@ class PgstatCollector(StatCollector):
                 if candidate is not None and len(candidate) > 0:
                     self.rows_diff.append(candidate)
         # order the result rows by the start time value
-        self.rows_diff.sort(key=itemgetter('age'), reverse=True)
+        self.rows_diff.sort(key=lambda process: process['age'] if process['age'] is not None else sys.maxint, reverse=True)
 
     def output(self, method):
         return super(self.__class__, self).output(method, before_string='PostgreSQL processes:', after_string='\n')

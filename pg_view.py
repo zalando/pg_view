@@ -11,6 +11,7 @@ import os.path
 import re
 import stat
 import sys
+import glob
 import logging
 from optparse import OptionParser
 import ConfigParser
@@ -1645,10 +1646,7 @@ class PartitionStatCollector(StatCollector):
             self.du_terminate_event.clear()
 
     def _dereference_dev_name(self, devname):
-        result = None
-        # first check that the name exists
-        result = os.path.realpath(devname)
-        return (result.replace('/dev/', '') if result else None)
+        return (devname.replace('/dev/', '') if devname else None)
 
     def refresh(self):
         result = {}
@@ -1705,6 +1703,8 @@ class PartitionStatCollector(StatCollector):
     def get_mounted_device(pathname):
         """Get the device mounted at pathname"""
         # uses "/proc/mounts"
+        raw_dev_name = None
+        dev_name = None
         pathname = os.path.normcase(pathname)  # might be unnecessary here
         try:
             with open("/proc/mounts", "r") as ifp:
@@ -1713,10 +1713,27 @@ class PartitionStatCollector(StatCollector):
                     # note that line above assumes that
                     # no mount points contain whitespace
                     if fields[1] == pathname:
-                        return fields[0]
+                        raw_dev_name = dev_name = fields[0]
+                        break
         except EnvironmentError:
             pass
-        return None  # explicit
+        if raw_dev_name is not None and raw_dev_name[:11] == '/dev/mapper':
+            # we have to read the /sys/block/*/*/name and match with the rest of the device
+            for fname in glob.glob('/sys/block/*/*/name'):
+                try:
+                    with open(fname) as f:
+                        block_dev_name = f.read().strip()
+                except IOError:
+                    # ignore those files we couldn't read (lack of permissions)
+                    continue
+                if raw_dev_name[12:] == block_dev_name:
+                    # we found the proper device name, get the 3rd comonent of the path
+                    # i.e. /sys/block/dm-0/dm/name
+                    components = fname.split('/')
+                    if len(components) >= 4:
+                        dev_name = components[3]
+                    break
+        return dev_name
 
     def get_df_data(self):
         """ Retrive raw data from df (transformations are performed via df_list_transformation) """

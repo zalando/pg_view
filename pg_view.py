@@ -1712,7 +1712,7 @@ class PartitionStatCollector(StatCollector):
                     fields = line.rstrip('\n').split()
                     # note that line above assumes that
                     # no mount points contain whitespace
-                    if fields[1] == pathname:
+                    if fields[1] == pathname and fields[0][:5] == '/dev/':
                         raw_dev_name = dev_name = fields[0]
                         break
         except EnvironmentError:

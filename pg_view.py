@@ -927,6 +927,7 @@ class PgstatCollector(StatCollector):
             {'out': 'datname', 'diff': False},
             {'out': 'usename', 'diff': False},
             {'out': 'waiting', 'diff': False},
+            {'out': 'locked_by', 'diff': False},
             {'out': 'query', 'diff': False},
         ]
 
@@ -937,6 +938,14 @@ class PgstatCollector(StatCollector):
                 'minw': 5,
                 'noautohide': True,
             },
+            {
+                'out': 'lock',
+                'in': 'locked_by',
+                'pos':  1,
+                'minw': 5,
+                'noautohide': True
+            },
+
             {'out': 'type', 'pos': 1},
             {
                 'out': 's',
@@ -1219,6 +1228,7 @@ class PgstatCollector(StatCollector):
                        client_port,
                        round(extract(epoch from (now() - xact_start))) as age,
                        waiting,
+                       CASE WHEN waiting AND other.pid IS NOT NULL THEN other.pid ELSE NULL END AS locked_by,
                        CASE
                          WHEN current_query = '<IDLE>' THEN 'idle'
                          WHEN current_query = '<IDLE> in transaction' THEN
@@ -1230,17 +1240,21 @@ class PgstatCollector(StatCollector):
                          WHEN current_query = '<IDLE> in transaction (aborted)' THEN 'idle in transaction (aborted)'
                         ELSE current_query
                        END AS query
-                  FROM pg_stat_activity WHERE procpid != pg_backend_pid()
+                  FROM pg_stat_activity
+                  LEFT JOIN pg_locks this ON (this.pid = procpid and this.granted = 'f')
+                  LEFT JOIN pg_locks other ON (((other.relation = this.relation and other.database = this.database) OR (other.transactionid = this.transactionid)) AND other.pid != procpid and other.granted = 't')
+                  WHERE procpid != pg_backend_pid()
                 """)
         else:
             cur.execute("""
                 SELECT datname,
-                       pid,
+                       a.pid,
                        usename,
                        client_addr,
                        client_port,
                        round(extract(epoch from (now() - xact_start))) as age,
                        waiting,
+                       CASE WHEN waiting AND other.pid IS NOT NULL THEN other.pid ELSE NULL END AS locked_by,
                        CASE
                            WHEN state = 'idle in transaction' THEN
                                 CASE WHEN xact_start != state_change THEN
@@ -1251,7 +1265,10 @@ class PgstatCollector(StatCollector):
                         WHEN state = 'active' THEN query
                         ELSE state
                         END AS query
-                FROM pg_stat_activity WHERE pid != pg_backend_pid()
+                FROM pg_stat_activity a
+                LEFT JOIN pg_locks this ON (this.pid = a.pid and this.granted = 'f')
+                LEFT JOIN pg_locks other ON (((other.relation = this.relation and other.database = this.database) OR (other.transactionid = this.transactionid)) AND other.pid != a.pid and other.granted = 't')
+                WHERE a.pid != pg_backend_pid()
                 """)
         results = cur.fetchall()
         # fill in the number of total connections, including ourselves

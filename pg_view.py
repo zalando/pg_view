@@ -1290,13 +1290,17 @@ class PgstatCollector(StatCollector):
         return ret
 
     def ncurses_produce_prefix(self):
-        return "{1} {0} {5} database connections: {2} of {4} allocated, {3} active\n".format(
-             self.dbver, self.dbname, self.total_connections, self.active_connections, self.max_connections, self.recovery_status)
+        return "{1} {0} {5} database connections: {2} of {4} allocated,\
+                {3} active\n".format(self.dbver, self.dbname,
+                                     self.total_connections, self.active_connections,
+                                     self.max_connections, self.recovery_status)
 
     def diff(self):
         """ we only diff backend processes if new one is not idle and use pid to identify processes """
 
         self.rows_diff = []
+        self.running_diffs = []
+        self.blocked_diffs = {}
         for cur in self.rows_cur:
             if 'query' not in cur or cur['query'] != 'idle':
                 # look for the previous row corresponding to the current one
@@ -1309,9 +1313,46 @@ class PgstatCollector(StatCollector):
                 # now we have a previous and a current row - do the diff
                 candidate = self._produce_diff_row(prev, cur)
                 if candidate is not None and len(candidate) > 0:
-                    self.rows_diff.append(candidate)
+                    if candidate['locked_by'] is None:
+                        self.running_diffs.append(candidate)
+                    else:
+                        block_pid = candidate['locked_by']
+                        if block_pid not in self.blocked_diffs:
+                            self.blocked_diffs[block_pid] = [candidate]
+                        else:
+                            self.blocked_diffs[block_pid].append(candidate)
         # order the result rows by the start time value
-        self.rows_diff.sort(key=lambda process: process['age'] if process['age'] is not None else sys.maxint, reverse=True)
+        if len(self.blocked_diffs) == 0:
+            self.rows_diff = self.running_diffs
+            self.rows_diff.sort(key=lambda process: process['age'] if process['age'] is not None else sys.maxint,
+                                reverse=True)
+        else:
+            blocked_temp = []
+            # we traverse the tree of blocked processes in a depth-first order, building a list
+            # to display the blocked processes near the blockers. The reason we need multiple
+            # loops here is because there is no way to quickly fetch the processes blocked
+            # by the current one from the plain list of process information rows, that's why
+            # we use a dictionary of lists of blocked processes with a blocker pid as a key
+            # and effectively build a separate tree for each blocker.
+            self.running_diffs.sort(key=lambda process: process['age'] if process['age'] is not None else sys.maxint,
+                                    reverse=True)
+            # sort elements in the blocked lists, so that they still appear in the latest to earliest order
+            for key in self.blocked_diffs:
+                self.blocked_diffs[key].sort(key=lambda process: process['age'] if process['age'] is not None
+                                             else sys.maxint)
+            for parent_row in self.running_diffs:
+                self.rows_diff.append(parent_row)
+                # if no processes blocked by this one - just skip to the next row
+                if parent_row['pid'] in self.blocked_diffs:
+                    blocked_temp.extend(self.blocked_diffs[parent_row['pid']])
+                    del self.blocked_diffs[parent_row['pid']]
+                    while len(blocked_temp) > 0:
+                        # traverse a tree (in DFS order) of all processes blocked by the current one
+                        child_row = blocked_temp.pop()
+                        self.rows_diff.append(child_row)
+                        if child_row['pid'] in self.blocked_diffs:
+                            blocked_temp.extend(self.blocked_diffs[child_row['pid']])
+                            del self.blocked_diffs[child_row['pid']]
 
     def output(self, method):
         return super(self.__class__, self).output(method, before_string='PostgreSQL processes:', after_string='\n')

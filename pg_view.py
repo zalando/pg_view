@@ -1242,7 +1242,11 @@ class PgstatCollector(StatCollector):
                        END AS query
                   FROM pg_stat_activity
                   LEFT JOIN pg_locks this ON (this.pid = procpid and this.granted = 'f')
-                  LEFT JOIN pg_locks other ON (((other.relation = this.relation and other.database = this.database) OR (other.transactionid = this.transactionid)) AND other.pid != procpid and other.granted = 't')
+                  LEFT JOIN pg_locks other ON (((other.relation = this.relation and other.database = this.database)
+                                                OR (other.transactionid = this.transactionid)
+                                                OR (other.classid = this.classid AND other.objid = this.objid
+                                                    AND other.objsubid = this.objsubid))
+                                               AND other.pid != procpid and other.granted = 't')
                   WHERE procpid != pg_backend_pid()
                 """)
         else:
@@ -1267,7 +1271,11 @@ class PgstatCollector(StatCollector):
                         END AS query
                 FROM pg_stat_activity a
                 LEFT JOIN pg_locks this ON (this.pid = a.pid and this.granted = 'f')
-                LEFT JOIN pg_locks other ON (((other.relation = this.relation and other.database = this.database) OR (other.transactionid = this.transactionid)) AND other.pid != a.pid and other.granted = 't')
+                LEFT JOIN pg_locks other ON (((other.relation = this.relation and other.database = this.database)
+                                              OR (other.transactionid = this.transactionid)
+                                              OR (other.classid = this.classid AND other.objid = this.objid
+                                                  AND other.objsubid = this.objsubid))
+                                             AND other.pid != a.pid and other.granted = 't')
                 WHERE a.pid != pg_backend_pid()
                 """)
         results = cur.fetchall()

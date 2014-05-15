@@ -3047,9 +3047,16 @@ def detect_db_connection_arguments(work_directory, version):
             conf_file = '{0}/postgresql.conf'.format(work_directory)
             # pre-compile some regular expresisons
             regexes = {}
-            regexes['port'] = re.compile('^\s*port\s*=\s*(\d+)\s*$')
-            regexes['host'] = re.compile('^\s*host\s*=\s*(\d+)\s*$')
-            regexes['socket_directory'] = re.compile('^\s*unix_socket_directory\s*=\s*(\S+)\s*$')
+            # the regexes above have some elements in common:
+            # values can be quoted by a single pair of single quotes
+            # = sign is optional
+            # spaces not inside the value (or trailing and heading value spaces) are ignored
+            # port is just any integer
+            regexes['port'] = re.compile(r'^\s*port\s*=?\s*(?P<quote>[\']?)\s*(\d+)\s*(?P=quote)\s*$')
+            # host can be either a single host (no spaces allowed inside), or multiple comma separted ones
+            regexes['host'] = re.compile(r'^\s*host\s*=?\s*(?P<quote>[\']?)\s*((\S+)(,\s*\S+\s*)*)\s*(?P=quote)\s*$')
+            # can be either unix_socket_directory or unix_socket_directories, one or multiple pathes (spaces inside are allowed)
+            regexes['socket_directory'] = re.compile(r'^\s*unix_socket_director(?:y|ies)\s*=?\s*(?P<quote>[\']?)\s*(.+?)\s*(?P=quote)\s*$')
 
             # try to read parameters from PostgreSQL.conf
             try:
@@ -3064,7 +3071,7 @@ def detect_db_connection_arguments(work_directory, version):
                     for keys in regexes:
                         m = re.match(regexes[keys], l)
                         if m:
-                            args[keys] = m.group(1).strip("'")
+                            args[keys] = m.group(2)
                             break
             except Exception, e:
                 logger.warning('could not read configuration file: {0}'.format(e))

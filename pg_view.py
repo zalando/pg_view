@@ -4,7 +4,7 @@
 __appname__ = 'pg_view'
 __version__ = '1.1.0'
 __author__ = 'Oleksii Kliukin <oleksii.kliukin@zalando.de>'
-__license__ = "Apache 2.0"
+__license__ = 'Apache 2.0'
 
 import os
 import os.path
@@ -149,11 +149,7 @@ class StatCollector(object):
         'column_header': COHEADER.ch_default,
     }
 
-    NCURSES_CUSTOM_OUTPUT_FIELDS = [
-        'header',
-        'prefix',
-        'append_column_headers',
-    ]
+    NCURSES_CUSTOM_OUTPUT_FIELDS = ['header', 'prefix', 'append_column_headers']
 
     def __init__(self, ticks_per_refresh=1, produce_diffs=True):
         self.rows_prev = []
@@ -905,8 +901,18 @@ class PgstatCollector(StatCollector):
             {'out': 'starttime', 'in': 21, 'fn': long},
             {'out': 'vsize', 'in': 22, 'fn': int},
             {'out': 'rss', 'in': 23, 'fn': int},
-            {'out': 'delayacct_blkio_ticks', 'in': 41, 'fn': long, 'optional': True},
-            {'out': 'guest_time', 'in': 42, 'fn': StatCollector.ticks_to_seconds, 'optional': True},
+            {
+                'out': 'delayacct_blkio_ticks',
+                'in': 41,
+                'fn': long,
+                'optional': True,
+            },
+            {
+                'out': 'guest_time',
+                'in': 42,
+                'fn': StatCollector.ticks_to_seconds,
+                'optional': True,
+            },
         ]
 
         self.transform_dict_data = [{'out': 'read_bytes', 'fn': int, 'optional': True}, {'out': 'write_bytes',
@@ -941,11 +947,10 @@ class PgstatCollector(StatCollector):
             {
                 'out': 'lock',
                 'in': 'locked_by',
-                'pos':  1,
+                'pos': 1,
                 'minw': 5,
-                'noautohide': True
+                'noautohide': True,
             },
-
             {'out': 'type', 'pos': 1},
             {
                 'out': 's',
@@ -1080,7 +1085,8 @@ class PgstatCollector(StatCollector):
             if self.dbver >= 9.2:
                 return 'idle in transaction for ' + StatCollector.time_pretty_print(int(r.group(1)))
             else:
-                return 'idle in transaction ' + StatCollector.time_pretty_print(int(r.group(1))) + ' since the last query start'
+                return 'idle in transaction ' + StatCollector.time_pretty_print(int(r.group(1))) \
+                    + ' since the last query start'
 
     def query_status_fn(self, row, col):
         if row[self.output_column_positions['w']] is True:
@@ -1197,6 +1203,7 @@ class PgstatCollector(StatCollector):
 
     def _get_max_connections(self):
         """ Read max connections from the database """
+
         cur = self.pgcon.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute('show max_connections')
         result = cur.fetchone()
@@ -1205,6 +1212,7 @@ class PgstatCollector(StatCollector):
 
     def _get_recovery_status(self):
         """ Determine whether the Postgres process is in recovery """
+
         cur = self.pgcon.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute("select case when pg_is_in_recovery() then 'standby' else 'master' end as role")
         result = cur.fetchone()
@@ -1299,9 +1307,9 @@ class PgstatCollector(StatCollector):
 
     def ncurses_produce_prefix(self):
         return "{1} {0} {5} database connections: {2} of {4} allocated,\
-                {3} active\n".format(self.dbver, self.dbname,
-                                     self.total_connections, self.active_connections,
-                                     self.max_connections, self.recovery_status)
+                {3} active\n".format(self.dbver,
+                self.dbname, self.total_connections, self.active_connections, self.max_connections,
+                self.recovery_status)
 
     def diff(self):
         """ we only diff backend processes if new one is not idle and use pid to identify processes """
@@ -1332,7 +1340,7 @@ class PgstatCollector(StatCollector):
         # order the result rows by the start time value
         if len(self.blocked_diffs) == 0:
             self.rows_diff = self.running_diffs
-            self.rows_diff.sort(key=lambda process: process['age'] if process['age'] is not None else sys.maxint,
+            self.rows_diff.sort(key=lambda process: (process['age'] if process['age'] is not None else sys.maxint),
                                 reverse=True)
         else:
             blocked_temp = []
@@ -1342,12 +1350,12 @@ class PgstatCollector(StatCollector):
             # by the current one from the plain list of process information rows, that's why
             # we use a dictionary of lists of blocked processes with a blocker pid as a key
             # and effectively build a separate tree for each blocker.
-            self.running_diffs.sort(key=lambda process: process['age'] if process['age'] is not None else sys.maxint,
+            self.running_diffs.sort(key=lambda process: (process['age'] if process['age'] is not None else sys.maxint),
                                     reverse=True)
             # sort elements in the blocked lists, so that they still appear in the latest to earliest order
             for key in self.blocked_diffs:
-                self.blocked_diffs[key].sort(key=lambda process: process['age'] if process['age'] is not None
-                                             else sys.maxint)
+                self.blocked_diffs[key].sort(key=lambda process: (process['age'] if process['age']
+                                             is not None else sys.maxint))
             for parent_row in self.running_diffs:
                 self.rows_diff.append(parent_row)
                 # if no processes blocked by this one - just skip to the next row
@@ -1508,11 +1516,7 @@ class SystemStatCollector(StatCollector):
         self.previos_total_cpu_time = 0
         self.current_total_cpu_time = 0
         self.cpu_time_diff = 0
-        self.ncurses_custom_fields = {
-            'header': False,
-            'prefix': 'sys: ',
-            'append_column_headers': True
-        }
+        self.ncurses_custom_fields = {'header': False, 'prefix': 'sys: ', 'append_column_headers': True}
 
         self.postinit()
 
@@ -1755,6 +1759,7 @@ class PartitionStatCollector(StatCollector):
     @staticmethod
     def get_mount_point(pathname):
         """Get the mount point of the filesystem containing pathname"""
+
         pathname = os.path.normcase(os.path.realpath(pathname))
         parent_device = path_device = os.stat(pathname).st_dev
         while parent_device == path_device:
@@ -1768,17 +1773,18 @@ class PartitionStatCollector(StatCollector):
     @staticmethod
     def get_mounted_device(pathname):
         """Get the device mounted at pathname"""
+
         # uses "/proc/mounts"
         raw_dev_name = None
         dev_name = None
         pathname = os.path.normcase(pathname)  # might be unnecessary here
         try:
-            with open("/proc/mounts", "r") as ifp:
+            with open('/proc/mounts', 'r') as ifp:
                 for line in ifp:
                     fields = line.rstrip('\n').split()
                     # note that line above assumes that
                     # no mount points contain whitespace
-                    if fields[1] == pathname and fields[0][:5] == '/dev/':
+                    if fields[1] == pathname and (fields[0])[:5] == '/dev/':
                         raw_dev_name = dev_name = fields[0]
                         break
         except EnvironmentError:
@@ -1807,16 +1813,20 @@ class PartitionStatCollector(StatCollector):
         result = {PartitionStatCollector.DATA_NAME: [], PartitionStatCollector.XLOG_NAME: []}
         # obtain the device names
         data_dev = self.get_mounted_device(self.get_mount_point(self.work_directory))
-        xlog_dev = self.get_mounted_device(self.get_mount_point(self.work_directory+'/pg_xlog/'))
+        xlog_dev = self.get_mounted_device(self.get_mount_point(self.work_directory + '/pg_xlog/'))
         data_vfs = os.statvfs(self.work_directory)
         if data_dev != xlog_dev:
-            xlog_vfs = os.statvfs(self.work_directory+'/pg_xlog/')
+            xlog_vfs = os.statvfs(self.work_directory + '/pg_xlog/')
         else:
             xlog_vfs = None
 
-        result[PartitionStatCollector.DATA_NAME] = (data_dev, data_vfs.f_blocks * (data_vfs.f_bsize/PartitionStatCollector.BLOCK_SIZE), data_vfs.f_bavail * (data_vfs.f_bsize/PartitionStatCollector.BLOCK_SIZE))
+        result[PartitionStatCollector.DATA_NAME] = data_dev, data_vfs.f_blocks * (data_vfs.f_bsize
+                / PartitionStatCollector.BLOCK_SIZE), data_vfs.f_bavail * (data_vfs.f_bsize
+                / PartitionStatCollector.BLOCK_SIZE)
         if data_dev != xlog_dev:
-            result[PartitionStatCollector.XLOG_NAME] = (xlog_dev, xlog_vfs.f_blocks * (xlog_vfs.f_bsize/PartitionStatCollector.BLOCK_SIZE), xlog_vfs.f_bavail * (xlog_vfs.f_bsize/PartitionStatCollector.BLOCK_SIZE))
+            result[PartitionStatCollector.XLOG_NAME] = xlog_dev, xlog_vfs.f_blocks * (xlog_vfs.f_bsize
+                    / PartitionStatCollector.BLOCK_SIZE), xlog_vfs.f_bavail * (xlog_vfs.f_bsize
+                    / PartitionStatCollector.BLOCK_SIZE)
         else:
             result[PartitionStatCollector.XLOG_NAME] = result[PartitionStatCollector.DATA_NAME]
         self.df_data = result
@@ -1861,18 +1871,20 @@ class PartitionStatCollector(StatCollector):
                 break
             if self.du_queue.full():
                 # if the queue is full - just wait and retry
-                time.sleep(TICK_LENGTH/2.0)
+                time.sleep(TICK_LENGTH / 2.0)
                 continue
             result = {PartitionStatCollector.DATA_NAME: [], PartitionStatCollector.XLOG_NAME: []}
             try:
                 data_size = self.run_du(self.work_directory, self.du_terminate_event, PartitionStatCollector.BLOCK_SIZE)
-                xlog_size = self.run_du(self.work_directory+'/pg_xlog/', self.du_terminate_event, PartitionStatCollector.BLOCK_SIZE)
+                xlog_size = self.run_du(self.work_directory + '/pg_xlog/', self.du_terminate_event,
+                                        PartitionStatCollector.BLOCK_SIZE)
             except Exception, e:
                 logger.error('Unable to read free space information for the pg_xlog and data directories for the database\
-                 {0}: {1}'.format(self.dbname, e))
+                 {0}: {1}'.format(self.dbname,
+                             e))
             else:
-                result['data'] = (str(data_size), PartitionStatCollector.DATA_NAME)
-                result['xlog'] = (str(xlog_size), PartitionStatCollector.XLOG_NAME)
+                result['data'] = str(data_size), PartitionStatCollector.DATA_NAME
+                result['xlog'] = str(xlog_size), PartitionStatCollector.XLOG_NAME
                 try:
                     self.du_queue.put(result, False)
                 except Queue.Full:
@@ -1880,7 +1892,7 @@ class PartitionStatCollector(StatCollector):
                     pass
             if self.du_terminate_event.is_set():
                 break
-            time.sleep(TICK_LENGTH/2.0)
+            time.sleep(TICK_LENGTH / 2.0)
 
     @staticmethod
     def run_du(pathname, terminate_event=None, block_size=1024, exclude=['lost+found']):
@@ -1911,7 +1923,7 @@ class PartitionStatCollector(StatCollector):
                     size += st.st_size
                 if mode == 0x8000:  # S_IFREG
                     size += st.st_size
-        return size/block_size
+        return size / block_size
 
     def output(self, method):
         return super(self.__class__, self).output(method, before_string='PostgreSQL partitions:', after_string='\n')
@@ -1928,7 +1940,12 @@ class MemoryStatCollector(StatCollector):
         self.transform_dict_data = [
             {'in': 'MemTotal', 'out': 'total', 'fn': int},
             {'in': 'MemFree', 'out': 'free', 'fn': int},
-            {'in': 'Buffers', 'out': 'buffers', 'fn': int, 'optional': True},
+            {
+                'in': 'Buffers',
+                'out': 'buffers',
+                'fn': int,
+                'optional': True,
+            },
             {'in': 'Cached', 'out': 'cached', 'fn': int},
             {'in': 'Dirty', 'out': 'dirty', 'fn': int},
             {
@@ -2017,11 +2034,7 @@ class MemoryStatCollector(StatCollector):
             },
         ]
 
-        self.ncurses_custom_fields = {
-            'header': False,
-            'prefix': 'mem: ',
-            'append_column_headers': True,
-        }
+        self.ncurses_custom_fields = {'header': False, 'prefix': 'mem: ', 'append_column_headers': True}
 
         self.postinit()
 
@@ -2126,11 +2139,7 @@ class HostStatCollector(StatCollector):
             },
         ]
 
-        self.ncurses_custom_fields = {
-            'header': False,
-            'prefix': None,
-            'append_column_headers': False
-        }
+        self.ncurses_custom_fields = {'header': False, 'prefix': None, 'append_column_headers': False}
 
         self.postinit()
 
@@ -2349,9 +2358,9 @@ class CursesOutput(object):
 
     def show_help_bar_item(self, key, description, selected, x):
         x = self.print_text(self.screen_y - 1, x, '{0}: '.format(key),
-                           (self.COLOR_MENU_SELECTED if selected else self.COLOR_MENU) | curses.A_BOLD)
+                            ((self.COLOR_MENU_SELECTED if selected else self.COLOR_MENU)) | curses.A_BOLD)
         x = self.print_text(self.screen_y - 1, x, '{0}   '.format(description),
-                            self.COLOR_MENU_SELECTED if selected else self.COLOR_MENU)
+                            (self.COLOR_MENU_SELECTED if selected else self.COLOR_MENU))
         return x
 
     def show_help_bar(self):
@@ -2372,12 +2381,12 @@ class CursesOutput(object):
             ('a', 'Autohide fields', autohide_fields),
             ('t', 'No trim', notrim),
             ('r', 'Realtime', realtime),
-            ('h', 'Help', self.show_help)
+            ('h', 'Help', self.show_help),
         )
 
         next_x = 0
         for item in menu_items:
-            next_x = self.show_help_bar_item(*item, x=next_x)
+            next_x = self.show_help_bar_item(x=next_x, *item)
 
         self.print_text(self.screen_y - 1, next_x, 'v.{0}'.format(__version__).rjust(self.screen_x - next_x - 1),
                         self.COLOR_MENU | curses.A_BOLD)
@@ -2400,7 +2409,7 @@ class CursesOutput(object):
         if status == COLSTATUS.cs_warning:
             return self.COLOR_WARNING
         if highlight:
-            return (self.COLOR_HIGHLIGHT | curses.A_BOLD)
+            return self.COLOR_HIGHLIGHT | curses.A_BOLD
         return self.COLOR_NORMAL
 
     def color_text(self, status_map, highlight, text):
@@ -2459,9 +2468,9 @@ class CursesOutput(object):
 
     def help(self):
         y = 0
-        self.print_text(y, 0, '{0} {1} - a monitor for PostgreSQL related system statistics'.format(__appname__, __version__),
-                        self.COLOR_NORMAL | curses.A_BOLD)
-        y+=1
+        self.print_text(y, 0, '{0} {1} - a monitor for PostgreSQL related system statistics'.format(__appname__,
+                        __version__), self.COLOR_NORMAL | curses.A_BOLD)
+        y += 1
         self.print_text(y, 0, 'Distributed under the terms of {0} license'.format(__license__))
         y += 2
         self.print_text(y, 0, 'The following hotkeys are supported:')
@@ -2538,16 +2547,16 @@ class CursesOutput(object):
                 # now check if we need to add ellipsis to indicate that the value has been truncated.
                 # we don't do this if the value is less than a certain length or when the column is marked as
                 # containing truncated values, but the actual value is not truncated.
-                if layout[field].get('truncate', False) and w > self.MIN_ELLIPSIS_FIELD_LENGTH \
-                    and w < len(str(row[field])):
+                if layout[field].get('truncate', False) and w > self.MIN_ELLIPSIS_FIELD_LENGTH and w \
+                    < len(str(row[field])):
                     text = str(row[field])[:w - 3] + '...'
                 else:
                     text = str(row[field])[:w]
                 text = self._align_field(text, w, column_alignment, types.get(field, COLTYPES.ct_string))
                 color_fields = self.color_text(status[field], highlights[field], text)
                 for f in color_fields:
-                    self.screen.addnstr(self.next_y, layout[field]['start'] + f['start'],
-                                        f['word'], f['width'], f['color'])
+                    self.screen.addnstr(self.next_y, layout[field]['start'] + f['start'], f['word'], f['width'],
+                                        f['color'])
             self.next_y += 1
 
     def display_prefix(self, collector, header):
@@ -2561,7 +2570,7 @@ class CursesOutput(object):
             elif prefix_len >= self.screen_x / 5 and not prefix_newline:
                 return 0
 
-            color = self.COLOR_INVERSE_HIGHLIGHT if prefix_newline else self.COLOR_NORMAL
+            color = (self.COLOR_INVERSE_HIGHLIGHT if prefix_newline else self.COLOR_NORMAL)
 
             self.screen.addnstr(self.next_y, 1, str(prefix), len(str(prefix)), color)
             if prefix_newline:
@@ -2574,9 +2583,9 @@ class CursesOutput(object):
     def display_header(self, layout, align, types):
         for field in layout:
             text = self._align_field(field, layout[field]['width'], align.get(field, COLALIGN.ca_none),
-                                             types.get(field, COLTYPES.ct_string))
-            self.screen.addnstr(self.next_y, layout[field]['start'], text,
-                                layout[field]['width'], self.COLOR_NORMAL|curses.A_BOLD)
+                                     types.get(field, COLTYPES.ct_string))
+            self.screen.addnstr(self.next_y, layout[field]['start'], text, layout[field]['width'], self.COLOR_NORMAL
+                                | curses.A_BOLD)
 
     def calculate_fields_position(self, collector, xstart):
         width = self.data[collector]['w']
@@ -2586,12 +2595,12 @@ class CursesOutput(object):
         candrop = [name for name in fields if name not in to_hide and not noautohide.get(name, False)]
         return self.layout_x(xstart, width, fields, to_hide, candrop)
 
-
     def show_status_of_invisible_fields(self, layout, status, xstart):
         """
             Show red/blue bar to the left of the screen representing the most critical
             status of the fields that are now shown.
         """
+
         status_rest = self._invisible_fields_status(layout, status)
         if status_rest != COLSTATUS.cs_ok:
             color_rest = self._status_to_color(status_rest, False)
@@ -2635,6 +2644,7 @@ class CursesOutput(object):
             can be hidden, if they are not important (determined at column defintion) and
             if we don't have enough space for them.
         """
+
         layout = {}
         # get only the columns that are not hidden
         col_remaining = [name for name in colnames if not name in colhidden]
@@ -2677,8 +2687,8 @@ class CursesOutput(object):
                 break
         return layout
 
-# some utility functions
 
+# some utility functions
 
 def read_configuration(config_file_name):
     # read PostgreSQL connection options
@@ -2693,7 +2703,13 @@ def read_configuration(config_file_name):
     # get through all defined databases
     for section in config.sections():
         config_data[section] = {}
-        for argname in 'port', 'host', 'socket_directory', 'user', 'dbname':
+        for argname in (
+            'port',
+            'host',
+            'socket_directory',
+            'user',
+            'dbname',
+        ):
             try:
                 val = config.get(section, argname)
             except ConfigParser.NoOptionError:
@@ -2714,7 +2730,8 @@ def read_postmaster_pid(work_directory, dbname):
     except:
         # XXX: do not bail out in case we are collecting data for multiple PostgreSQL clusters
         logger.error('Unable to read postmaster.pid for {name} at {wd}\n HINT: \
-            make sure Postgres is running'.format(name=dbname, wd=work_directory))
+            make sure Postgres is running'.format(name=dbname,
+                     wd=work_directory))
         return None
     finally:
         if fp is not None:
@@ -2751,9 +2768,9 @@ def poll_keys(screen, output):
     if c == ord('a'):
         autohide_fields = autohide_fields is False
     if c == ord('t'):
-        notrim = (notrim is False)
+        notrim = notrim is False
     if c == ord('r'):
-        realtime = (realtime is False)
+        realtime = realtime is False
     if c == ord('q'):
         # bail out immediately
         return False
@@ -2794,7 +2811,7 @@ def do_loop(screen, groups, output_method, collectors):
             st.set_units_display(display_units)
             st.set_ignore_autohide(not autohide_fields)
             st.set_notrim(notrim)
-            th = threading.Thread(target=process_single_collector, args=(st,))
+            th = threading.Thread(target=process_single_collector, args=(st, ))
             th.start()
             threads.append(th)
         # now wait for all threads to finish
@@ -2829,6 +2846,7 @@ def process_single_collector(st):
     """ perform all heavy-lifting for a single collector, i.e. data collection,
         diff calculation, etc. This is meant to be run in a separate thread.
     """
+
     if isinstance(st, PgstatCollector):
         st.set_aux_processes_filter(filter_aux)
     st.tick()
@@ -3011,8 +3029,8 @@ def detect_db_connection_arguments(work_directory, version):
         version = 9.0
 
     # try to access the socket directory
-    if not os.access(work_directory, os.R_OK|os.X_OK):
-        logger.warning("could not read from PostgreSQL cluster directory {0}: permission denied".format(work_directory))
+    if not os.access(work_directory, os.R_OK | os.X_OK):
+        logger.warning('could not read from PostgreSQL cluster directory {0}: permission denied'.format(work_directory))
     else:
         # now when we have version try getting useful information from postmaster.pid
         # we can obtain host, port and socket directory path
@@ -3056,7 +3074,8 @@ def detect_db_connection_arguments(work_directory, version):
             # host can be either a single host (no spaces allowed inside), or multiple comma separted ones
             regexes['host'] = re.compile(r'^\s*host\s*=?\s*(?P<quote>[\']?)\s*((\S+)(,\s*\S+\s*)*)\s*(?P=quote)\s*$')
             # can be either unix_socket_directory or unix_socket_directories, one or multiple pathes (spaces inside are allowed)
-            regexes['socket_directory'] = re.compile(r'^\s*unix_socket_director(?:y|ies)\s*=?\s*(?P<quote>[\']?)\s*(.+?)\s*(?P=quote)\s*$')
+            regexes['socket_directory'] = \
+                re.compile(r'^\s*unix_socket_director(?:y|ies)\s*=?\s*(?P<quote>[\']?)\s*(.+?)\s*(?P=quote)\s*$')
 
             # try to read parameters from PostgreSQL.conf
             try:
@@ -3117,7 +3136,7 @@ def connect_with_connection_arguments(dbname, args):
     if not (args.get('port') and (args.get('host') or args.get('socket_directory'))):
         missing = ('port' if not args.get('port') else 'host or socket_directory')
         logger.error('Not all required connection arguments ({0}) are specified for the database {1}, skipping it'.format(missing,
-                  dbname))
+                     dbname))
         return None
 
     use_socket = (True if args.get('socket_directory') else False)
@@ -3130,7 +3149,8 @@ def connect_with_connection_arguments(dbname, args):
     try:
         pgcon = psycopg2.connect('host={0} port={1} user={2} dbname={3}'.format(host, port, user, db))
     except Exception, e:
-        logger.error('failed to establish connection to {0} on port {1} user {2} database {3}'.format(host, port, user, dbname))
+        logger.error('failed to establish connection to {0} on port {1} user {2} database {3}'.format(host, port, user,
+                     dbname))
         logger.error('PostgreSQL exception: {0}'.format(e))
         return None
     # get the database version from the pgcon properties
@@ -3214,7 +3234,8 @@ def main():
     try:
         if len(clusters) == 0:
             logger.error('No suitable PostgreSQL instances detected, exiting...')
-            logger.error('hint: use -v for details, or specify connection parameters manually in the configuration file (-c)')
+            logger.error('hint: use -v for details, or specify connection parameters manually in the configuration file (-c)'
+                         )
             sys.exit(1)
 
         collectors.append(HostStatCollector())
@@ -3237,9 +3258,9 @@ def main():
         if os.stat(LOG_FILE_NAME)[stat.ST_SIZE] != 0:
             print 'Errors detected, see {0} for warnings and errors output'.format(LOG_FILE_NAME)
     except curses.error:
-            print traceback.format_exc()
-            if 'SSH_CLIENT' in os.environ and 'SSH_TTY' not in os.environ:
-                print "Unable to initialize curses. Make sure you supply -t option (force psedo-tty allocation) to ssh"
+        print traceback.format_exc()
+        if 'SSH_CLIENT' in os.environ and 'SSH_TTY' not in os.environ:
+            print 'Unable to initialize curses. Make sure you supply -t option (force psedo-tty allocation) to ssh'
     except Exception, e:
         print traceback.format_exc()
     finally:
@@ -3250,6 +3271,7 @@ def main():
         # for cl in clusters:
         #     'pgcon' in cl and cl['pgcon'] and cl['pgcon'].close()
         sys.exit(0)
+
 
 if __name__ == '__main__':
     main()

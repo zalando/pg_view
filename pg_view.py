@@ -555,7 +555,7 @@ class StatCollector(object):
                         if typ(word) >= col[st_name]:
                             st[i] = st_status
                             break
-                if not i in st:
+                if i not in st:
                     st[i] = COLSTATUS.cs_ok
         return st
 
@@ -691,7 +691,7 @@ class StatCollector(object):
         for i, col in enumerate(self.output_transform_data):
             # get the final attribute name and value
             if typ == 't':
-                if not 'w' in col:
+                if 'w' not in col:
                     val = '{{{0}}}'.format(i)
                 else:
                     val = '{{{0}:<{1}}}'.format(i, col['w'])
@@ -1229,62 +1229,102 @@ class PgstatCollector(StatCollector):
         # since it makes more sense then the previous layout, we 'cast' the former versions to 9.2
         if self.dbver < 9.2:
             cur.execute("""
-                SELECT datname,
-                       procpid as pid,
-                       usename,
-                       client_addr,
-                       client_port,
-                       round(extract(epoch from (now() - xact_start))) as age,
-                       waiting,
-                       CASE WHEN waiting AND other.pid IS NOT NULL THEN other.pid ELSE NULL END AS locked_by,
-                       CASE
-                         WHEN current_query = '<IDLE>' THEN 'idle'
-                         WHEN current_query = '<IDLE> in transaction' THEN
-                              CASE WHEN xact_start != query_start THEN
-                                  'idle in transaction'||' '||abs(round(extract(epoch from (now() - query_start))))
-                              ELSE
-                                  'idle in transaction'
-                              END
-                         WHEN current_query = '<IDLE> in transaction (aborted)' THEN 'idle in transaction (aborted)'
-                        ELSE current_query
-                       END AS query
-                  FROM pg_stat_activity
-                  LEFT JOIN pg_locks this ON (this.pid = procpid and this.granted = 'f')
-                  LEFT JOIN pg_locks other ON (((other.relation = this.relation and other.database = this.database)
-                                                OR (other.transactionid = this.transactionid)
-                                                OR (other.classid = this.classid AND other.objid = this.objid
-                                                    AND other.objsubid = this.objsubid))
-                                               AND other.pid != procpid and other.granted = 't')
-                  WHERE procpid != pg_backend_pid()
+                    SELECT datname,
+                           procpid as pid,
+                           usename,
+                           client_addr,
+                           client_port,
+                           round(extract(epoch from (now() - xact_start))) as age,
+                           waiting,
+                           string_agg(other.pid::TEXT, ',' ORDER BY other.pid) as locked_by,
+                           CASE
+                             WHEN current_query = '<IDLE>' THEN 'idle'
+                             WHEN current_query = '<IDLE> in transaction' THEN
+                                  CASE WHEN xact_start != query_start THEN
+                                      'idle in transaction'||' '||abs(round(extract(epoch from (now() - query_start))))
+                                  ELSE
+                                      'idle in transaction'
+                                  END
+                             WHEN current_query = '<IDLE> in transaction (aborted)' THEN 'idle in transaction (aborted)'
+                            ELSE current_query
+                           END AS query
+                      FROM pg_stat_activity
+                      LEFT JOIN pg_locks  this ON (this.pid = procpid and this.granted = 'f')
+                      -- acquire the same type of lock that is granted
+                      LEFT JOIN pg_locks other ON ((this.locktype = other.locktype AND other.granted = 't')
+                                               AND ( ( this.locktype IN ('relation', 'extend')
+                                                      AND this.database = other.database
+                                                      AND this.relation = other.relation)
+                                                     OR (this.locktype ='page'
+                                                      AND this.database = other.database
+                                                      AND this.relation = other.relation
+                                                      AND this.page = other.page)
+                                                     OR (this.locktype ='tuple'
+                                                      AND this.database = other.database
+                                                      AND this.relation = other.relation
+                                                      AND this.page = other.page
+                                                      AND this.tuple = other.tuple)
+                                                     OR (this.locktype ='transactionid'
+                                                      AND this.transactionid = other.transactionid)
+                                                     OR (this.locktype = 'virtualxid'
+                                                      AND this.virtualxid = other.virtualxid)
+                                                     OR (this.locktype IN ('object', 'userlock', 'advisory')
+                                                      AND this.database = other.database
+                                                      AND this.classid = other.classid
+                                                      AND this.objid = other.objid
+                                                      AND this.objsubid = other.objsubid))
+                                                   )
+                      WHERE procpid != pg_backend_pid()
+                      GROUP BY 1,2,3,4,5,6,7,9
                 """)
         else:
             cur.execute("""
-                SELECT datname,
-                       a.pid,
-                       usename,
-                       client_addr,
-                       client_port,
-                       round(extract(epoch from (now() - xact_start))) as age,
-                       waiting,
-                       CASE WHEN waiting AND other.pid IS NOT NULL THEN other.pid ELSE NULL END AS locked_by,
-                       CASE
-                           WHEN state = 'idle in transaction' THEN
-                                CASE WHEN xact_start != state_change THEN
-                                    state||' '||abs(round(extract(epoch from (now() - state_change))))
-                                ELSE
-                                    state
-                                END
-                        WHEN state = 'active' THEN query
-                        ELSE state
-                        END AS query
-                FROM pg_stat_activity a
-                LEFT JOIN pg_locks this ON (this.pid = a.pid and this.granted = 'f')
-                LEFT JOIN pg_locks other ON (((other.relation = this.relation and other.database = this.database)
-                                              OR (other.transactionid = this.transactionid)
-                                              OR (other.classid = this.classid AND other.objid = this.objid
-                                                  AND other.objsubid = this.objsubid))
-                                             AND other.pid != a.pid and other.granted = 't')
-                WHERE a.pid != pg_backend_pid()
+                    SELECT datname,
+                           a.pid as pid,
+                           usename,
+                           client_addr,
+                           client_port,
+                           round(extract(epoch from (now() - xact_start))) as age,
+                           waiting,
+                           string_agg(other.pid::TEXT, ',' ORDER BY other.pid) as locked_by,
+                           CASE
+                              WHEN state = 'idle in transaction' THEN
+                                  CASE WHEN xact_start != state_change THEN
+                                      state||' '||abs(round(extract(epoch from (now() - state_change))))
+                                  ELSE
+                                      state
+                                  END
+                              WHEN state = 'active' THEN query
+                              ELSE state
+                              END AS query
+                      FROM pg_stat_activity a
+                      LEFT JOIN pg_locks  this ON (this.pid = a.pid and this.granted = 'f')
+                      -- acquire the same type of lock that is granted
+                      LEFT JOIN pg_locks other ON ((this.locktype = other.locktype AND other.granted = 't')
+                                               AND ( ( this.locktype IN ('relation', 'extend')
+                                                      AND this.database = other.database
+                                                      AND this.relation = other.relation)
+                                                     OR (this.locktype ='page'
+                                                      AND this.database = other.database
+                                                      AND this.relation = other.relation
+                                                      AND this.page = other.page)
+                                                     OR (this.locktype ='tuple'
+                                                      AND this.database = other.database
+                                                      AND this.relation = other.relation
+                                                      AND this.page = other.page
+                                                      AND this.tuple = other.tuple)
+                                                     OR (this.locktype ='transactionid'
+                                                      AND this.transactionid = other.transactionid)
+                                                     OR (this.locktype = 'virtualxid'
+                                                      AND this.virtualxid = other.virtualxid)
+                                                     OR (this.locktype IN ('object', 'userlock', 'advisory')
+                                                      AND this.database = other.database
+                                                      AND this.classid = other.classid
+                                                      AND this.objid = other.objid
+                                                      AND this.objsubid = other.objsubid))
+                                                   )
+                      WHERE a.pid != pg_backend_pid()
+                      GROUP BY 1,2,3,4,5,6,7,9
                 """)
         results = cur.fetchall()
         # fill in the number of total connections, including ourselves
@@ -1332,7 +1372,11 @@ class PgstatCollector(StatCollector):
                     if candidate['locked_by'] is None:
                         self.running_diffs.append(candidate)
                     else:
-                        block_pid = candidate['locked_by']
+                        # when determining the position where to put the blocked process,
+                        # only consider the first blocker. This will provide consustent
+                        # results for multiple processes blocked by the same set of blockers,
+                        # since the list is sorted by pid.
+                        block_pid = int(candidate['locked_by'].split(',')[0])
                         if block_pid not in self.blocked_diffs:
                             self.blocked_diffs[block_pid] = [candidate]
                         else:

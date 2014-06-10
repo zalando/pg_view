@@ -3056,6 +3056,28 @@ def detect_postgres_version(work_directory):
     return version
 
 
+def fetch_socket_inodes_for_process(pid):
+    """ read /proc/[pid]/fd and get those that correspond to sockets """
+    inodes = []
+    fd_dir = '/proc/{0}/fd'.format(pid)
+    if not os.access(fd_dir, os.R_OK):
+        logger.warning("unable to read {0}".format(fd_dir))
+    else:
+        for link in glob.glob('{0}/*'.format(fd_dir)):
+            if not os.access(link, os.F_OK):
+                logger.warning("unable to access link {0}".format(link))
+                continue
+            try:
+                target = os.readlink(link)
+            except:
+                logger.error('coulnd\'t read link {0}'.format(link))
+            else:
+                # socket:[8430]
+                match = re.search(r'socket:\[(\d+)\]', target)
+                if match:
+                    inodes.append(int(match.group(1)))
+    return inodes
+
 def detect_db_connection_arguments(work_directory, version):
     """
         Try to detect database connection arguments from the postmaster.pid

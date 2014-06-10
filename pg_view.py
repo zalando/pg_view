@@ -2919,7 +2919,7 @@ def is_postgres_process(pid):
     return result
 
 
-def get_all_postmasters():
+def get_postmasters_directories():
     """ detect all postmasters running and get their pids """
 
     STAT_FIELD_PID = 0
@@ -2928,77 +2928,76 @@ def get_all_postmasters():
     STAT_FIELD_PPID = 3
     STAT_FIELD_START_TIME = 21
 
-    all_postgres_pids = []
-    postmaster_pids = []
-    postmaster_data_dirs = []
-    postgres_stat = []
-    candidates = []
+    pg_pids = []
+    postmasters = {}
+    pg_proc_stat = {}
     # get all 'number' directories from /proc/ and sort them
-    for x in os.listdir('/proc'):
-        if not re.match(r'\d+', x):
+    for f in glob.glob('/proc/[0-9]*/stat'):
+        # make sure the particular pid is accessible to us
+        if not os.access(f, os.R_OK):
             continue
-        st = None
-        try:
-            st = os.stat('/proc/{0}'.format(x))
-        except os.error:
-            logger.warn('could not stat /proc/{0}, process has probably terminated'.format(x))
-        if st is not None and stat.S_ISDIR(st.st_mode):
-            candidates.append(int(x))
-
-    candidates.sort()
-    # collect data from /proc/[pid]/stat for all postgres processes
-    for pid in candidates:
-        stat_file_name = '/proc/{0}/stat'.format(pid)
         stat_fields = []
-        # if we can't access the stat - bail out
-        if not os.access(stat_file_name, os.R_OK):
-            continue
         try:
-            with open(stat_file_name, 'rU') as fp:
+            with open(f, 'rU') as fp:
                 stat_fields = fp.read().strip().split()
         except:
-            logger.error('failed to read {0}'.format(stat_file_name))
+            logger.error('failed to read {0}'.format(f))
             continue
         # read PostgreSQL processes. Avoid zombies
-        if len(stat_fields) < STAT_FIELD_START_TIME + 1 or stat_fields[STAT_FIELD_PROCESS_NAME] != '(postgres)' \
-            or stat_fields[STAT_FIELD_STATE] == 'Z':
+        if len(stat_fields) < STAT_FIELD_START_TIME + 1 or stat_fields[STAT_FIELD_PROCESS_NAME] not in ('(postgres)', '(postmaster)') \
+                or stat_fields[STAT_FIELD_STATE] == 'Z':
             if stat_fields[STAT_FIELD_STATE] == 'Z':
-                logger.warning('zombie process {0}'.format(pid))
+                logger.warning('zombie process {0}'.format(f))
             if len(stat_fields) < STAT_FIELD_START_TIME + 1:
-                logger.error('{0} output is too short'.format(stat_file_name))
+                logger.error('{0} output is too short'.format(f))
             continue
         # convert interesting fields to int
         for no in STAT_FIELD_PID, STAT_FIELD_PPID, STAT_FIELD_START_TIME:
             stat_fields[no] = int(stat_fields[no])
-        postgres_stat.append(stat_fields)
-        all_postgres_pids.append(stat_fields[STAT_FIELD_PID])
+        pid = stat_fields[STAT_FIELD_PID]
+        pg_proc_stat[pid] = stat_fields
+        pg_proc_stat[pid] = stat_fields
+        pg_pids.append(pid)
 
-    for st in postgres_stat:
-        # get the parent pid
-        pid = st[STAT_FIELD_PID]
+    # we have a pid -> stat fields map, and an array of all pids.
+    # sort pids array by the start time of the process, so that we
+    # minimize the number of looks into /proc/../cmdline latter
+    # the idea is that processes starting earlier are likely to be
+    # parent ones.
+    pg_pids.sort(key=lambda pid: pg_proc_stat[pid][STAT_FIELD_START_TIME])
+    for pid in pg_pids:
+        st = pg_proc_stat[pid]
         ppid = st[STAT_FIELD_PPID]
-        # if parent is not a postgres process - this is the postmaster
-        if ppid not in all_postgres_pids:
-            cmd_line_file_name = '/proc/{0}/cmdline'.format(pid)
-            # obtain postmaster's work directory
-            with open(cmd_line_file_name, 'rU') as fp:
-                cmd_line = fp.read()
-                if cmd_line:
-                    # the format is
-                    # /usr/local/lsbin/postgres\x00-p\x005432\x00-D\x00/data/dir\x00
-                    fields = cmd_line.split('\x00')
-                    data_dir_field = False
-                    # go through the fields, looking for the data dir
-                    for f in fields:
-                        if f == '-D':
-                            data_dir_field = True
-                            continue
-                        if data_dir_field:
-                            data_dir = f
-                            postmaster_data_dirs.append(data_dir)
-                            postmaster_pids.append(pid)
-                            break
-    return dict(zip(postmaster_data_dirs, postmaster_pids))
+        # if parent is also a postgres process - no way this is a postmaster
+        if ppid in pg_pids:
+            continue
+        link_filename = '/proc/{0}/cwd'.format(pid)
+        # now get its data directory in the /proc/[pid]/cmdline
+        if not os.access(link_filename, os.R_OK):
+            logger.warning('potential postmaster work directory file {0} is not accessible'.format(link_filename))
+            continue
+        # now read the actual directory, check this is accessible to us and belongs to PostgreSQL
+        # additionally, we check that we haven't seen this directory before, in case the check
+        # for a parent pid still produce a postmaster child. Be extra careful to catch all exceptions
+        # at this phase, we don't want one bad postmaster to be the reason of tool's failure for the
+        # other good ones.
+        try:
+            pg_dir = os.readlink(link_filename)
+        except os.error, e:
+            logger.error('unable to readlink {0}: OS reported {1}'.format(link_filename, e))
+            continue
+        if pg_dir in postmasters:
+            continue
+        if not os.access(pg_dir, os.R_OK):
+            logger.warning('unable to access the PostgreSQL candidate directory {0}, have to skip it'.format(pg_dir))
+            continue
+        # if PG_VERSION file is missing, this is not a postgres directory
+        PG_VERSION_FILENAME = '{0}/PG_VERSION'.format(link_filename)
+        if not os.access(PG_VERSION_FILENAME, os.R_OK):
+            logger.warning('PostgreSQL candidate directory {0} is missing PG_VERSION file, have to skip it'.format(pg_dir))
+            continue
+        postmasters[pg_dir] = pid
+    return postmasters
 
 
 def get_dbname_dbversion(db_path):
@@ -3239,9 +3238,8 @@ def main():
             else:
                 logger.error('failed to acquire details about the database cluster {0}, the server will be skipped'.format(dbname))
     else:
-
         # do autodetection
-        postmasters = get_all_postmasters()
+        postmasters = get_postmasters_directories()
 
         # get all PostgreSQL instances
         for result_work_dir, ppid in postmasters.items():

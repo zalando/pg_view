@@ -35,7 +35,7 @@ By default, pg_view tries to autodetect all PostgreSQL clusters running on the h
 this it performs the following steps:
 
 * read /proc/ filesystem and detect pid files for the postmaster processes
-* get the working directories from /proc/pid/[cmdline]
+* get the working directories from the symlink at /proc/pid/cwd
 * get to the working directories and read PG_VERSION for PostgreSQL verions. If we can't, assume it's not a PostgreSQL directory and skip.
 * try to get all sockets the process is listening to from /proc/net/unix, /proc/net/tcp and /proc/net/tcp6
 * if that fails and version is 9.1 or above, read connection arguments from postmaster.pid

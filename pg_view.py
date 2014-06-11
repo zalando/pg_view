@@ -2995,25 +2995,30 @@ def get_postmasters_directories():
         if not os.access(PG_VERSION_FILENAME, os.R_OK):
             logger.warning('PostgreSQL candidate directory {0} is missing PG_VERSION file, have to skip it'.format(pg_dir))
             continue
-        postmasters[pg_dir] = pid
+        try:
+            fp = open(PG_VERSION_FILENAME, 'rU')
+            val = fp.read().strip()
+            if val is not None and len(val) >= 3:
+                version = float(val)
+        except os.error, e:
+            logger.error('unable to read version number from PG_VERSION directory {0}, have to skip it'.format(pg_dir))
+            continue
+        except ValueError:
+            logger.error('PG_VERSION doesn\'t contain a valid version number: {0}'.format(val))
+            continue
+        else:
+            dbname = get_dbname_from_path(pg_dir)
+            postmasters[pg_dir] = [pid, version, dbname]
     return postmasters
 
 
-def get_dbname_dbversion(db_path):
-    # dbname is the last component of the path
-    rest, dbname = os.path.split(db_path)
-    if dbname == '':  # path ends with /
-        dbname = os.path.split(rest)[1]
-    if dbname == 'data':  # HACK: assume dbversion/dbname/data format
-        rest = os.path.split(rest)[0]
-        dbname = os.path.split(rest)[1]
-        if dbname == '':
-            dbname = 'data'
-        else:
-            dbname = dbname.replace('pgsql_', '')
-    # read the version number
-    dbversion = detect_postgres_version(db_path)
-    return dbname, dbversion
+def get_dbname_from_path(db_path):
+    m = re.search(r'/pgsql_(.*?)(/\d+.\d+)?/data/?', db_path)
+    if m:
+        dbname = m.group(1)
+    else:
+        dbname = db_path
+    return dbname
 
 
 def detect_db_port(socket_dir):
@@ -3350,8 +3355,8 @@ def main():
         postmasters = get_postmasters_directories()
 
         # get all PostgreSQL instances
-        for result_work_dir, ppid in postmasters.items():
-            dbname, dbver = get_dbname_dbversion(result_work_dir)
+        for result_work_dir, data in postmasters.items():
+            (ppid, dbver, dbname) = data
             # if user requested a specific database name and version - don't try to connect to others
             if user_dbname:
                 if dbname != user_dbname or not result_work_dir or not ppid:

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 __appname__ = 'pg_view'
-__version__ = '1.1.0'
+__version__ = '1.2.0'
 __author__ = 'Oleksii Kliukin <oleksii.kliukin@zalando.de>'
 __license__ = 'Apache 2.0'
 
@@ -2750,7 +2750,6 @@ def read_configuration(config_file_name):
         for argname in (
             'port',
             'host',
-            'socket_directory',
             'user',
             'dbname',
         ):
@@ -3078,117 +3077,98 @@ def fetch_socket_inodes_for_process(pid):
                     inodes.append(int(match.group(1)))
     return inodes
 
-def detect_db_connection_arguments(work_directory, version):
+
+def detect_with_postmaster_pid(work_directory, version):
+
+    # PostgreSQL 9.0 doesn't have enough data
+    result = {}
+    if version is None or version == 9.0:
+        return None
+    PID_FILE = '{0}/postmaster.pid'.format(work_directory)
+    lines = []
+
+    # try to access the socket directory
+    if not os.access(work_directory, os.R_OK | os.X_OK):
+        logger.warning('cannot access PostgreSQL cluster directory {0}: permission denied'.format(work_directory))
+        return None
+    try:
+        with open(PID_FILE, 'rU') as fp:
+            lines = fp.readlines()
+    except os.error, e:
+        logger.error('could not read {0}: {1}'.format(PID_FILE, e))
+        return None
+    if len(lines) < 6:
+        logger.error('{0} seems to be truncated, unable to read connection information'.format(PID_FILE))
+        return None
+    port = lines[3].strip()
+    unix_socket_path = lines[4].strip()
+    if unix_socket_path != '':
+        result['unix'] = [(unix_socket_path, port)]
+    tcp_address = lines[5].strip()
+    if tcp_address != '':
+        if tcp_address == '*':
+            tcp_address = '127.0.0.1'
+        result['tcp'] = [(tcp_address, port)]
+    if len(result) == 0:
+        logger.error('could not acquire a socket postmaster at {0} is listening on'.format(work_directory))
+        return None
+    return result
+
+
+def pick_connection_arguments(conn_args):
+    """ go through all decected connections, picking the first one that actually works """
+    result = {}
+    for conn_type in ('unix', 'tcp', 'tcp6'):
+        if len(result) > 0:
+            break
+        for arg in conn_args.get(conn_type, []):
+            if can_connect_with_connection_arguments(*arg):
+                (result['host'], result['port']) = arg
+                break
+    return result
+
+def can_connect_with_connection_arguments(host, port):
+    """ check that we can connect given the specified arguments """
+    try:
+        test_conn = psycopg2.connect('host={0} port={1} user={2} dbname={3}'.format(host, port, 'postgres', 'postgres'))
+        test_conn.close()
+    except psycopg2.OperationalError:
+        return False
+    return True
+
+
+def detect_with_proc_net(pid):
+    result = None
+    inodes = fetch_socket_inodes_for_process(pid)
+    parser = ProcNetParser()
+    result = parser.match_socket_inodes(inodes)
+    if not result or len(result) == 0:
+        logger.error('could not detect connection string from /proc/net for postgres process {0}'.format(pid))
+        return None
+    return result
+
+
+def detect_db_connection_arguments(work_directory, pid, version):
     """
         Try to detect database connection arguments from the postmaster.pid
         We do this by first extracting useful information from postmaster.pid,
         next reading the postgresql.conf if necessary and, at last,
     """
-
-    args = {}
-    PID_FILE = '{0}/postmaster.pid'.format(work_directory)
-    fp = None
-    # get database version first, it will determine how much we can extract from
-    # the postmaster.pid
-    if version is None:
-        version = 9.0
-
-    # try to access the socket directory
-    if not os.access(work_directory, os.R_OK | os.X_OK):
-        logger.warning('could not read from PostgreSQL cluster directory {0}: permission denied'.format(work_directory))
-    else:
-        # now when we have version try getting useful information from postmaster.pid
-        # we can obtain host, port and socket directory path
-        try:
-            fp = open(PID_FILE, 'rU')
-            lines = fp.readlines()
-            for no, l in enumerate(lines):
-                if no == 0:
-                    args['pid'] = (int(l.strip()) if l else None)
-                if no == 1:
-                    args['data_dir'] = (l.strip() if l else None)
-                if no == 2:
-                    if version >= 9.1:
-                        args['start_time'] = (l.strip() if l else None)
-                    else:
-                        args['shmem_key'] = (l.strip().split() if l else None)
-                if version >= 9.1:
-                    if no == 3:
-                        args['port'] = (int(l.strip()) if l else None)
-                    if no == 4:
-                        args['socket_directory'] = (l.strip() if l else None)
-                    if no == 5:
-                        args['host'] = (l.strip() if l else None)
-                    if no == 6:
-                        args['shmem_key'] = (l.strip().split() if l else None)
-        except Exception, e:
-            logger.warning('could not read pid file: {0}'.format(e))
-            fp and fp.close()
-        # at the moment, we probably have some of the data, and might need to fill out the rest.
-        # check if we do have a port, get if from postgresql.conf if not.
-        if version < 9.1:
-            conf_file = '{0}/postgresql.conf'.format(work_directory)
-            # pre-compile some regular expresisons
-            regexes = {}
-            # the regexes above have some elements in common:
-            # values can be quoted by a single pair of single quotes
-            # = sign is optional
-            # spaces not inside the value (or trailing and heading value spaces) are ignored
-            # port is just any integer
-            regexes['port'] = re.compile(r'^\s*port\s*=?\s*(?P<quote>[\']?)\s*(\d+)\s*(?P=quote)\s*$')
-            # host can be either a single host (no spaces allowed inside), or multiple comma separted ones
-            regexes['host'] = re.compile(r'^\s*host\s*=?\s*(?P<quote>[\']?)\s*((\S+)(,\s*\S+\s*)*)\s*(?P=quote)\s*$')
-            # can be either unix_socket_directory or unix_socket_directories, one or multiple pathes (spaces inside are allowed)
-            regexes['socket_directory'] = \
-                re.compile(r'^\s*unix_socket_director(?:y|ies)\s*=?\s*(?P<quote>[\']?)\s*(.+?)\s*(?P=quote)\s*$')
-
-            # try to read parameters from PostgreSQL.conf
-            try:
-                fp = open(conf_file, 'rU')
-                content = fp.readlines()
-                # now parse it and get the port, socket directory and listen address
-                for l in content:
-                    l = l.strip()
-                    # ignore lines with comments
-                    if re.match('^\s+#', l):
-                        continue
-                    for keys in regexes:
-                        m = re.match(regexes[keys], l)
-                        if m:
-                            args[keys] = m.group(2)
-                            break
-            except Exception, e:
-                logger.warning('could not read configuration file: {0}'.format(e))
-            finally:
-                if fp is not None:
-                    fp.close()
-            # now it's time to fill-in defaults
-            if args.get('port') is None:
-                args['port'] = 5432
-            else:
-                args['port'] = int(args['port'])
-            if args.get('host') is not None:
-                if args['host'] == '*':
-                    args['host'] = '127.0.0.1'
-                else:
-                    # get only the first addr
-                    args['host'] = args['host'].split(',')[0]
-            elif args.get('socket_directory') is None:
-                # we don't have the listen address and the socket directory
-                # try to guess the socket directory here
-                # first, check for the data dir and the data dir upper directory
-                for path in work_directory, os.path.split(work_directory)[0]:
-                    port = detect_db_port(work_directory)
-                    if port != -1:
-                        args['port'] = port
-                        args['socket_directory'] = path
-                        break
-    # if we still don't have port and listen_address or unix_socket_directory
-    # complain
-    if not (args.get('port') and (args.get('host') or args.get('socket_directory'))):
-        logger.error('unable to detect connection parameters for the PostgreSQL cluster at {0}'.format(work_directory))
+    result = {}
+    conn_args = detect_with_proc_net(pid)
+    if not conn_args:
+        # if we failed to detect the arguments via the /proc/net/ readings,
+        # perhaps we'll get better luck with just peeking into postmaster.pid.
+        conn_args = detect_with_postmaster_pid(work_directory, version)
+        if not conn_args:
+            logger.error('unable to detect connection parameters for the PostgreSQL cluster at {0}'.format(work_directory))
+            return None
+    # try all acquired connection arguments, starting from unix, then tcp, then tcp over ipv6
+    result = pick_connection_arguments(conn_args)
+    if len(result) == 0:
+        logger.error('unable to connect to PostgreSQL cluster at {0} using any of the detected connection options: {1}'.format(work_directory, conn_args))
         return None
-    return args
+    return result
 
 
 def connect_with_connection_arguments(dbname, args):
@@ -3198,15 +3178,14 @@ def connect_with_connection_arguments(dbname, args):
 
     pgcon = None
     # sanity check
-    if not (args.get('port') and (args.get('host') or args.get('socket_directory'))):
-        missing = ('port' if not args.get('port') else 'host or socket_directory')
+    if not (args.get('port') or args.get('host')):
+        missing = ('port' if not args.get('port') else 'host')
         logger.error('Not all required connection arguments ({0}) are specified for the database {1}, skipping it'.format(missing,
                      dbname))
         return None
 
-    use_socket = (True if args.get('socket_directory') else False)
     port = args['port']
-    host = (args['socket_directory'] if use_socket else args['host'])
+    host = args['host']
     user = args.get('user', 'postgres')
     # the db is the actual database we connect to, while dbname is the name of the postgres cluster
     db = args.get('dbname', 'postgres')
@@ -3380,13 +3359,10 @@ def main():
                 if user_dbver is not None and dbver != user_dbver:
                     continue
             try:
-                conndata = detect_db_connection_arguments(result_work_dir, dbver)
+                conndata = detect_db_connection_arguments(result_work_dir, ppid, dbver)
                 if conndata is None:
                     continue
-                if conndata.get('socket_directory'):
-                    host = conndata['socket_directory']
-                else:
-                    host = conndata['host']
+                host = conndata['host']
                 port = conndata['port']
                 pgcon = psycopg2.connect('host={0} port={1} user=postgres dbname=postgres'.format(host, port))
             except Exception, e:

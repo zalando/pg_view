@@ -6,7 +6,7 @@ PostgreSQL Activity View Utility
 Synopsis
 ---------
 
-`pg_view` is a command-line tool to display the state of the PostgreSQL processes.
+`pg_view` is a command-line tool to display the state to the PostgreSQL processes.
 It shows the per-process statistics combined with `pg_stat_activity` output for the processes
 that have the rows there, global system stats, per-partition information and the memory stats.
 You can find a blog post about it at [tech.zalando.com](http://tech.zalando.com/getting-a-quick-view-of-your-postgresql-stats/).
@@ -35,10 +35,11 @@ By default, pg_view tries to autodetect all PostgreSQL clusters running on the h
 this it performs the following steps:
 
 * read /proc/ filesystem and detect pid files for the postmaster processes
-* get the working directories from the command-line options of the postmaster processes
-* get to the working directories and read PG_VERSION for PostgreSQL verions. If we can't, assume 9.0
-* if version is 9.1 or above, read connection arguments from postmaster.pid
-* if version is 9.0 (or below, although we never checked it on anything below 9.0), read postgresql.conf.
+* get the working directories from /proc/pid/[cmdline]
+* get to the working directories and read PG_VERSION for PostgreSQL verions. If we can't, assume it's not a PostgreSQL directory and skip.
+* try to get all sockets the process is listening to from /proc/net/unix, /proc/net/tcp and /proc/net/tcp6
+* if that fails and version is 9.1 or above, read connection arguments from postmaster.pid
+* check all arguments, picking the first one that allows us to establish a connection
 * if we can't get either the port/host or port/socket_directory pair, bail out.
 
 If the program is unable to detect connection arguments using the algorithm above it's possible to specify
@@ -46,9 +47,8 @@ those arguments manually using the configuration file supplied with -c option. T
 one or more sections, containing key = value pairs. Each section's title represents a database cluster name,
 this name is only used to for display purposes (the actual name of the DB to connect to can be specified by the dbname parameter and is 'postgres' by default), and the key - value pairs should contain connection parameters. The valid keys are:
 
-* `host`:             hostname or ip address of the database server
+* `host`:             hostname or ip address, or unix_socket_directory path of the database server
 * `port`:             the port the database server listsens on
-* `socket_directory`: the directory containing the unix socket file
 * `user`:             database role name
 
 The special 'DEFAULT' contains the parameters that apply for every database cluster if the corresponding parameter
@@ -61,7 +61,7 @@ is missing from the database-specific section. For instance:
     host=localhost
     
     [testdb2]
-    unix_socket_directory=/tmp/test
+    host=/tmp/test
     
     [testdb3]
     host=192.168.1.0

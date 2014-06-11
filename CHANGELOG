@@ -1,3 +1,11 @@
+Version 1.2:
+
+- Autodetection code has been revamped for a more
+  reliable detection of connection parameters.
+- Retires unix_socket_directory configuration option,
+  use host instead.
+- Show locks-related information
+
 Version 1.1:
 
 - Minor changes in the UI, aiming for it to be less 

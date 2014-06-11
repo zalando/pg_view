@@ -3176,7 +3176,7 @@ def detect_db_connection_arguments(work_directory, pid, version):
     return result
 
 
-def connect_with_connection_arguments(dbname, args):
+def establish_user_defined_connection(dbname, args, clusters):
     """ connect the database and get all necessary options like pid and work_directory
         we use port, host and socket_directory, prefering socket over TCP connections
     """
@@ -3216,6 +3216,15 @@ def connect_with_connection_arguments(dbname, args):
     if pid is None:
         logger.error('failed to read pid of the postmaster on {0}:{1}'.format(host, port))
         return None
+    # check that we don't have the same pid already in the accumulated results.
+    # for instance, a user may specify 2 different set of connection options for
+    # the same database (one for the unix_socket_directory and another for the host)
+    pids = [opt['pid'] for opt in clusters if 'pid' in opt]
+    if pid in pids:
+        duplicate_dbname = [opt['name'] for opt in clusters if 'pid' in opt and opt.get('pid', 0) == pid][0]
+        logger.error('duplicate connection options detected for databases {0} and {1}, same pid {2}, skipping {0}'.format(dbname, duplicate_dbname, pid))
+        pgcon.close()
+        return True
     # now we have all components to create the result
     result = {
         'name': dbname,
@@ -3224,7 +3233,8 @@ def connect_with_connection_arguments(dbname, args):
         'pid': pid,
         'pgcon': pgcon,
     }
-    return result
+    clusters.append(result)
+    return True
 
 
 class ProcNetParser():
@@ -3345,10 +3355,8 @@ def main():
         for dbname in config_data:
             if user_dbname and dbname != user_dbname:
                 continue
-            conndata = connect_with_connection_arguments(dbname, config_data[dbname])
-            if conndata:
-                clusters.append(conndata)
-            else:
+            # pass already aquired connections to make sure we only list unique clusters.
+            if not establish_user_defined_connection(dbname, config_data[dbname], clusters):
                 logger.error('failed to acquire details about the database cluster {0}, the server will be skipped'.format(dbname))
     else:
         # do autodetection

@@ -22,8 +22,6 @@ from multiprocessing import cpu_count  # for then number of cpus
 import platform
 import socket
 import subprocess
-import threading
-import Queue
 import time
 import traceback
 import json
@@ -1730,34 +1728,10 @@ class PartitionStatCollector(StatCollector):
         ]
         self.ncurses_custom_fields = {'header': True}
         self.ncurses_custom_fields['prefix'] = None
-        self.du_data = []
-        self.df_data = None
-        self.du_thread = None
-        self.du_queue = Queue.Queue()
-        self.du_terminate_event = threading.Event()
-        self.spawn_du_thread()
-
         self.postinit()
-
-    def ___del__(self):
-        self.stop_du_thread()
 
     def ident(self):
         return '{0} ({1}/{2})'.format(super(PartitionStatCollector, self).ident(), self.dbname, self.dbver)
-
-    def spawn_du_thread(self):
-        # if for some reason we are trying to spawn more than one thread
-        self.stop_du_thread()
-        self.du_thread = threading.Thread(target=self.produce_du_data)
-        self.du_thread.start()
-
-    def stop_du_thread(self):
-        if self.du_thread is not None:
-            if self.du_thread.is_alive():
-                self.du_terminate_event.set()
-                self.du_thread.join()
-            self.du_thread = None
-            self.du_terminate_event.clear()
 
     def _dereference_dev_name(self, devname):
         return (devname.replace('/dev/', '') if devname else None)
@@ -1766,22 +1740,15 @@ class PartitionStatCollector(StatCollector):
         result = {}
 
         # run df and du in parallel to reduce the I/O waiting time
-        df_thread = threading.Thread(target=self.get_df_data)
-        du_thread = threading.Thread(target=self.get_du_data)
+        df_out = self.get_df_data()
 
-        df_thread.start()
-        du_thread.start()
-
-        df_thread.join()
-
-        df_out = self.df_data
         for pname in PartitionStatCollector.DATA_NAME, PartitionStatCollector.XLOG_NAME:
             result[pname] = self._transform_input(df_out[pname], self.df_list_transformation)
 
         io_out = self.get_io_data([result[PartitionStatCollector.DATA_NAME]['dev'],
                                   result[PartitionStatCollector.XLOG_NAME]['dev']])
-        du_thread.join()
-        du_out = self.du_data
+
+        du_out = self.get_du_data()
 
         for pname in PartitionStatCollector.DATA_NAME, PartitionStatCollector.XLOG_NAME:
             if result[pname]['dev'] in io_out:
@@ -1873,7 +1840,7 @@ class PartitionStatCollector(StatCollector):
                     / PartitionStatCollector.BLOCK_SIZE)
         else:
             result[PartitionStatCollector.XLOG_NAME] = result[PartitionStatCollector.DATA_NAME]
-        self.df_data = result
+        return result
 
     def get_io_data(self, pnames):
         """ Retrieve raw data from /proc/diskstat (transformations are perfromed via io_list_transformation)"""
@@ -1902,52 +1869,28 @@ class PartitionStatCollector(StatCollector):
         return result
 
     def get_du_data(self):
-        if not self.du_queue.empty():
-            result = self.du_queue.get_nowait()
-            self.du_data = result
-
-    def produce_du_data(self):
         data_size = 0
         xlog_size = 0
 
-        while True:
-            if self.du_terminate_event.is_set():
-                break
-            if self.du_queue.full():
-                # if the queue is full - just wait and retry
-                time.sleep(TICK_LENGTH / 2.0)
-                continue
-            result = {PartitionStatCollector.DATA_NAME: [], PartitionStatCollector.XLOG_NAME: []}
-            try:
-                data_size = self.run_du(self.work_directory, self.du_terminate_event, PartitionStatCollector.BLOCK_SIZE)
-                xlog_size = self.run_du(self.work_directory + '/pg_xlog/', self.du_terminate_event,
-                                        PartitionStatCollector.BLOCK_SIZE)
-            except Exception, e:
-                logger.error('Unable to read free space information for the pg_xlog and data directories for the database\
-                 {0}: {1}'.format(self.dbname,
-                             e))
-            else:
-                result['data'] = str(data_size), PartitionStatCollector.DATA_NAME
-                result['xlog'] = str(xlog_size), PartitionStatCollector.XLOG_NAME
-                try:
-                    self.du_queue.put(result, False)
-                except Queue.Full:
-                    # the queue is full, just do nothing
-                    pass
-            if self.du_terminate_event.is_set():
-                break
-            time.sleep(TICK_LENGTH / 2.0)
+        result = {PartitionStatCollector.DATA_NAME: [], PartitionStatCollector.XLOG_NAME: []}
+        try:
+            data_size = self.run_du(self.work_directory, PartitionStatCollector.BLOCK_SIZE)
+            xlog_size = self.run_du(self.work_directory + '/pg_xlog/', PartitionStatCollector.BLOCK_SIZE)
+        except Exception, e:
+            logger.error('Unable to read free space information for the pg_xlog and data directories for the database\
+             {0}: {1}'.format(self.dbname,
+                         e))
+        else:
+            result[PartitionStatCollector.DATA_NAME] = str(data_size), PartitionStatCollector.DATA_NAME
+            result[PartitionStatCollector.XLOG_NAME] = str(xlog_size), PartitionStatCollector.XLOG_NAME
+        return result
 
     @staticmethod
-    def run_du(pathname, terminate_event=None, block_size=1024, exclude=['lost+found']):
+    def run_du(pathname, block_size=1024, exclude=['lost+found']):
         size = 0
         folders = [pathname]
-        if terminate_event and terminate_event.is_set():
-            return 0
         root_dev = os.lstat(pathname).st_dev
         while len(folders):
-            if terminate_event and terminate_event.is_set():
-                return 0
             c = folders.pop()
             for e in os.listdir(c):
                 e = os.path.join(c, e)
@@ -2845,7 +2788,6 @@ def do_loop(screen, groups, output_method, collectors):
         output = CommonOutput()
     while 1:
         # process input:
-        threads = []
         for st in collectors:
             if output_method == OUTPUT_METHOD.curses:
                 if not poll_keys(screen, output):
@@ -2854,21 +2796,10 @@ def do_loop(screen, groups, output_method, collectors):
             st.set_units_display(display_units)
             st.set_ignore_autohide(not autohide_fields)
             st.set_notrim(notrim)
-            th = threading.Thread(target=process_single_collector, args=(st, ))
-            th.start()
-            threads.append(th)
-        # now wait for all threads to finish
-        while True:
-            alive = False
-            for t in threads:
-                if output_method == OUTPUT_METHOD.curses:
-                    if not poll_keys(screen, output):
-                        return
-                if t.isAlive():
-                    alive = True
-                    t.join(1.0)
-            if not alive:
-                break
+            process_single_collector(st)
+            if output_method == OUTPUT_METHOD.curses:
+                if not poll_keys(screen, output):
+                    return
 
         if output_method == OUTPUT_METHOD.curses:
             process_groups(groups)
@@ -3424,12 +3355,6 @@ def main():
     except Exception, e:
         print traceback.format_exc()
     finally:
-        for c in collectors:
-            if isinstance(c, PartitionStatCollector):
-                # stop the thread that collects du information
-                c.stop_du_thread()
-        # for cl in clusters:
-        #     'pgcon' in cl and cl['pgcon'] and cl['pgcon'].close()
         sys.exit(0)
 
 

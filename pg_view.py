@@ -2886,7 +2886,6 @@ def get_postmasters_directories():
             stat_fields[no] = int(stat_fields[no])
         pid = stat_fields[STAT_FIELD_PID]
         pg_proc_stat[pid] = stat_fields
-        pg_proc_stat[pid] = stat_fields
         pg_pids.append(pid)
 
     # we have a pid -> stat fields map, and an array of all pids.

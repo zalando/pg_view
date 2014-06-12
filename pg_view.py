@@ -56,6 +56,8 @@ COLTYPES = enum(ct_string=0, ct_number=1)
 COHEADER = enum(ch_default=0, ch_prepend=1, ch_append=2)
 OUTPUT_METHOD = enum(console='console', json='json', curses='curses')
 
+STAT_FIELD = enum(st_pid=0, st_process_name=1, st_state=2, st_ppid=3, st_start_time=21)
+
 # some global variables for keyboard output
 freeze = False
 filter_aux = True
@@ -2852,12 +2854,6 @@ def is_postgres_process(pid):
 def get_postmasters_directories():
     """ detect all postmasters running and get their pids """
 
-    STAT_FIELD_PID = 0
-    STAT_FIELD_PROCESS_NAME = 1
-    STAT_FIELD_STATE = 2
-    STAT_FIELD_PPID = 3
-    STAT_FIELD_START_TIME = 21
-
     pg_pids = []
     postmasters = {}
     pg_proc_stat = {}
@@ -2874,17 +2870,17 @@ def get_postmasters_directories():
             logger.error('failed to read {0}'.format(f))
             continue
         # read PostgreSQL processes. Avoid zombies
-        if len(stat_fields) < STAT_FIELD_START_TIME + 1 or stat_fields[STAT_FIELD_PROCESS_NAME] not in ('(postgres)', '(postmaster)') \
-                or stat_fields[STAT_FIELD_STATE] == 'Z':
-            if stat_fields[STAT_FIELD_STATE] == 'Z':
+        if len(stat_fields) < STAT_FIELD.st_start_time + 1 or stat_fields[STAT_FIELD.st_process_name] not in ('(postgres)', '(postmaster)') \
+                or stat_fields[STAT_FIELD.st_state] == 'Z':
+            if stat_fields[STAT_FIELD.st_state] == 'Z':
                 logger.warning('zombie process {0}'.format(f))
-            if len(stat_fields) < STAT_FIELD_START_TIME + 1:
+            if len(stat_fields) < STAT_FIELD.st_start_time + 1:
                 logger.error('{0} output is too short'.format(f))
             continue
         # convert interesting fields to int
-        for no in STAT_FIELD_PID, STAT_FIELD_PPID, STAT_FIELD_START_TIME:
+        for no in STAT_FIELD.st_pid, STAT_FIELD.st_ppid, STAT_FIELD.st_start_time:
             stat_fields[no] = int(stat_fields[no])
-        pid = stat_fields[STAT_FIELD_PID]
+        pid = stat_fields[STAT_FIELD.st_pid]
         pg_proc_stat[pid] = stat_fields
         pg_pids.append(pid)
 
@@ -2893,10 +2889,10 @@ def get_postmasters_directories():
     # minimize the number of looks into /proc/../cmdline latter
     # the idea is that processes starting earlier are likely to be
     # parent ones.
-    pg_pids.sort(key=lambda pid: pg_proc_stat[pid][STAT_FIELD_START_TIME])
+    pg_pids.sort(key=lambda pid: pg_proc_stat[pid][STAT_FIELD.st_start_time])
     for pid in pg_pids:
         st = pg_proc_stat[pid]
-        ppid = st[STAT_FIELD_PPID]
+        ppid = st[STAT_FIELD.st_ppid]
         # if parent is also a postgres process - no way this is a postmaster
         if ppid in pg_pids:
             continue

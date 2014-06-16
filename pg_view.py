@@ -3403,7 +3403,7 @@ class DiskCollectorConsumer(object):
             return
         try:
             self.result = self.q.get_nowait()
-            self.cached_result = self.result
+            self.cached_result = self.result.copy()
         except Empty:
             # we are too fast, just do nothing.
             pass

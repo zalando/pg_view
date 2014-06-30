@@ -3281,8 +3281,8 @@ class DetachedDiskStatCollector(Process):
              {0}: {1}'.format(wd, e))
         else:
             # XXX: why do we pass the block size there?
-            result['data'] = str(data_size), BLOCK_SIZE
-            result['xlog'] = str(xlog_size), BLOCK_SIZE
+            result['data'] = str(data_size), wd
+            result['xlog'] = str(xlog_size), wd + '/pg_xlog'
         return result
 
     @staticmethod

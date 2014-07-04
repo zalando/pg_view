@@ -3255,12 +3255,14 @@ class DetachedDiskStatCollector(Process):
         self.work_directories = work_directories
         self.q = q
         self.daemon = True
+        self.df_cache = {}
 
     def run(self):
         while True:
             # wait until the previous data is consumed
             self.q.join()
             result = {}
+            self.df_cache = {}
             for wd in self.work_directories:
                 du_data = self.get_du_data(wd)
                 df_data = self.get_df_data(wd)
@@ -3319,11 +3321,17 @@ class DetachedDiskStatCollector(Process):
         # obtain the device names
         data_dev = self.get_mounted_device(self.get_mount_point(work_directory))
         xlog_dev = self.get_mounted_device(self.get_mount_point(work_directory + '/pg_xlog/'))
-        data_vfs = os.statvfs(work_directory)
-        if data_dev != xlog_dev:
-            xlog_vfs = os.statvfs(work_directory + '/pg_xlog/')
+        if data_dev not in self.df_cache:
+            data_vfs = os.statvfs(work_directory)
+            self.df_cache[data_dev] = data_vfs
         else:
-            xlog_vfs = None
+            data_vfs = self.df_cache[data_dev]
+
+        if xlog_dev not in self.df_cache:
+            xlog_vfs = os.statvfs(work_directory + '/pg_xlog/')
+            self.df_cache[xlog_dev] = xlog_vfs
+        else:
+            xlog_vfs = self.df_cache[xlog_dev]
 
         result['data'] = data_dev, data_vfs.f_blocks * (data_vfs.f_bsize
                 / BLOCK_SIZE), data_vfs.f_bavail * (data_vfs.f_bsize

@@ -1243,7 +1243,7 @@ class PgstatCollector(StatCollector):
                              WHEN current_query = '<IDLE>' THEN 'idle'
                              WHEN current_query = '<IDLE> in transaction' THEN
                                   CASE WHEN xact_start != query_start THEN
-                                      'idle in transaction'||' '||abs(round(extract(epoch from (now() - query_start))))
+                                      'idle in transaction'||' '||CAST( abs(round(extract(epoch from (now() - query_start)))) AS text )
                                   ELSE
                                       'idle in transaction'
                                   END
@@ -1292,7 +1292,7 @@ class PgstatCollector(StatCollector):
                            CASE
                               WHEN state = 'idle in transaction' THEN
                                   CASE WHEN xact_start != state_change THEN
-                                      state||' '||abs(round(extract(epoch from (now() - state_change))))
+                                      state||' '||CAST( abs(round(extract(epoch from (now() - state_change)))) AS text )
                                   ELSE
                                       state
                                   END

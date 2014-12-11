@@ -21,6 +21,7 @@ from numbers import Number
 from multiprocessing import Process, JoinableQueue, cpu_count  # for then number of cpus
 from Queue import Empty
 import platform
+import resource
 import socket
 import subprocess
 import time
@@ -59,6 +60,7 @@ OUTPUT_METHOD = enum(console='console', json='json', curses='curses')
 
 STAT_FIELD = enum(st_pid=0, st_process_name=1, st_state=2, st_ppid=3, st_start_time=21)
 BLOCK_SIZE = 1024
+MEM_PAGE_SIZE = resource.getpagesize()
 
 # some global variables for keyboard output
 freeze = False
@@ -877,6 +879,8 @@ class PgstatCollector(StatCollector):
 
     """ Collect PostgreSQL-related statistics """
 
+    STATM_FILENAME = '/proc/{0}/statm'
+
     def __init__(self, pgcon, pid, dbname, dbver):
         super(PgstatCollector, self).__init__()
         self.postmaster_pid = pid
@@ -931,6 +935,7 @@ class PgstatCollector(StatCollector):
             {'out': 'delayacct_blkio_ticks'},
             {'out': 'read_bytes'},
             {'out': 'write_bytes'},
+            {'out': 'uss', 'diff': False},
             {'out': 'age', 'diff': False},
             {'out': 'datname', 'diff': False},
             {'out': 'usename', 'diff': False},
@@ -1010,6 +1015,16 @@ class PgstatCollector(StatCollector):
                 'round': StatCollector.RD,
                 'pos': 8,
                 'noautohide': True,
+            },
+            {
+                'out': 'uss',
+                'in': 'uss',
+                'units': 'MB',
+                'fn': StatCollector.bytes_to_mbytes,
+                'round': StatCollector.RD,
+                'pos': 9,
+                'align': COLALIGN.ca_left,
+                'noautohide': True
             },
             {
                 'out': 'age',
@@ -1105,7 +1120,6 @@ class PgstatCollector(StatCollector):
     @staticmethod
     def _get_psinfo(cmdline):
         """ gets PostgreSQL process type from the command-line."""
-
         pstype = 'unknown'
         psactivity = ''
         if cmdline is not None and len(cmdline) > 0:
@@ -1113,14 +1127,13 @@ class PgstatCollector(StatCollector):
             m = re.match(r'postgres:\s+(.*)\s+process\s*(.*)$', cmdline)
             if m:
                 pstype = m.group(1)
-                psactivity = m.group(2)
             else:
                 if re.match(r'postgres:.*', cmdline):
                     # assume it's a backend process
                     pstype = 'backend'
         if pstype == 'autovacuum worker':
             pstype = 'autovacuum'
-        return pstype, psactivity
+        return pstype
 
     @staticmethod
     def _is_auxiliary_process(pstype):
@@ -1145,12 +1158,15 @@ class PgstatCollector(StatCollector):
         # fetch up-to-date list of subprocess PIDs
         self.get_subprocesses_pid()
         stat_data = self._read_pg_stat_activity()
+        logger.info("new refresh round")
         for pid in self.pids:
             if pid == self.connection_pid:
                 continue
+            is_backend = pid in stat_data
+            is_active = is_backend and stat_data[pid]['query'] != 'idle'
             result_row = {}
             # for each pid, get hash row from /proc/
-            proc_data = self._read_proc(pid)
+            proc_data = self._read_proc(pid, is_backend, is_active)
             if proc_data:
                 result_row.update(proc_data)
             if stat_data and pid in stat_data:
@@ -1162,7 +1178,7 @@ class PgstatCollector(StatCollector):
         # and refresh the rows with this data
         self._do_refresh(result)
 
-    def _read_proc(self, pid):
+    def _read_proc(self, pid, is_backend, is_active):
         """ see man 5 proc for details (/proc/[pid]/stat) """
 
         result = {}
@@ -1170,7 +1186,7 @@ class PgstatCollector(StatCollector):
 
         fp = None
         # read raw data from /proc/stat, proc/cmdline and /proc/io
-        for ftyp, fname in zip(('stat', 'cmd', 'io'), ('/proc/{0}/stat', '/proc/{0}/cmdline', '/proc/{0}/io')):
+        for ftyp, fname in zip(('stat', 'cmd', 'io',), ('/proc/{0}/stat', '/proc/{0}/cmdline', '/proc/{0}/io')):
             try:
                 fp = open(fname.format(pid), 'rU')
                 if ftyp == 'stat':
@@ -1200,8 +1216,38 @@ class PgstatCollector(StatCollector):
             result.update(self._transform_input(raw_result.get(cat, ({} if cat == 'io' else []))))
         # generated columns
         result['cmdline'] = raw_result.get('cmd', None)
-        result['type'], result['query'] = self._get_psinfo(result['cmdline'])
+        if not is_backend:
+            result['type'] = self._get_psinfo(result['cmdline'])
+        else:
+            result['type'] = 'backend'
+        if is_active or not is_backend:
+            result['uss'] = self._get_memory_usage(pid)
         return result
+
+    def _get_memory_usage(self, pid):
+        """ calculate usage of private memory per process """
+        # compute process's own non-shared memory.
+        # See http://www.depesz.com/2012/06/09/how-much-ram-is-postgresql-using/ for the explanation of
+        # how to measure PostgreSQL process memory usage and the stackexchange answer for details on the unshared counts:
+        # http://unix.stackexchange.com/questions/33381/getting-information-about-a-process-memory-usage-from-proc-pid-smaps
+        # there is also a good discussion here:
+        # http://rhaas.blogspot.de/2012/01/linux-memory-reporting.html
+        # we use statm instead of /proc/smaps because of performance considerations. statm is much faster,
+        # while providing slightly outdated results.
+        uss = 0L
+        statm = None
+        fp = None
+        try:
+            fp = open(PgstatCollector.STATM_FILENAME.format(pid), 'r')
+            statm = fp.read().strip().split()
+            logger.info("calculating memory for process {0}".format(pid))
+        except IOError, e:
+            logger.warning('Unable to read {0}: {1}, process memory information will be unavailable'.format(STATM_FILENAME.format(pid), e))
+        finally:
+            fp and fp.close()
+        if statm and len(statm) >= 3:
+            uss = (long(statm[1]) - long(statm[2])) * MEM_PAGE_SIZE
+        return uss
 
     def _get_max_connections(self):
         """ Read max connections from the database """

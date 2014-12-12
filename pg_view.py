@@ -102,6 +102,7 @@ parser.add_option('-R', '--reset-output', help='clear screen after each tick', a
                   dest='clear_screen')
 parser.add_option('-c', '--configuration-file', help='configuration file for PostgreSQL connections', action='store',
                   default='', dest='config_file')
+parser.add_option('-p', '--pid', help='always track a given pid (may be used multiple times)', action='append', type=int, default=[])
 
 options, args = parser.parse_args()
 
@@ -881,7 +882,7 @@ class PgstatCollector(StatCollector):
 
     STATM_FILENAME = '/proc/{0}/statm'
 
-    def __init__(self, pgcon, pid, dbname, dbver):
+    def __init__(self, pgcon, pid, dbname, dbver, always_track_pids):
         super(PgstatCollector, self).__init__()
         self.postmaster_pid = pid
         self.pgcon = pgcon
@@ -892,6 +893,7 @@ class PgstatCollector(StatCollector):
         self.connection_pid = pgcon.get_backend_pid()
         self.max_connections = self._get_max_connections()
         self.recovery_status = self._get_recovery_status()
+        self.always_track_pids = always_track_pids
         self.dbname = dbname
         self.dbver = dbver
         self.filter_aux_processes = True
@@ -1163,7 +1165,7 @@ class PgstatCollector(StatCollector):
             if pid == self.connection_pid:
                 continue
             is_backend = pid in stat_data
-            is_active = is_backend and stat_data[pid]['query'] != 'idle'
+            is_active = is_backend and (stat_data[pid]['query'] != 'idle' or pid in self.always_track_pids)
             result_row = {}
             # for each pid, get hash row from /proc/
             proc_data = self._read_proc(pid, is_backend, is_active)
@@ -1406,7 +1408,7 @@ class PgstatCollector(StatCollector):
         self.running_diffs = []
         self.blocked_diffs = {}
         for cur in self.rows_cur:
-            if 'query' not in cur or cur['query'] != 'idle':
+            if 'query' not in cur or cur['query'] != 'idle' or cur['pid'] in self.always_track_pids:
                 # look for the previous row corresponding to the current one
                 for x in self.rows_prev:
                     if x['pid'] == cur['pid']:
@@ -3270,7 +3272,7 @@ def main():
         collectors.append(MemoryStatCollector())
         for cl in clusters:
             part = PartitionStatCollector(cl['name'], cl['ver'], cl['wd'], consumer)
-            pg = PgstatCollector(cl['pgcon'], cl['pid'], cl['name'], cl['ver'])
+            pg = PgstatCollector(cl['pgcon'], cl['pid'], cl['name'], cl['ver'], options.pid)
             groupname = cl['wd']
             groups[groupname] = {'pg': pg, 'partitions': part}
             collectors.append(part)

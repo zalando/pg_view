@@ -3143,6 +3143,8 @@ class ProcNetParser():
         for inode in inodes:
             if inode in self.sockets:
                 addr_tuple = self.parse_single_line(inode)
+                if addr_tuple is None:
+                    continue
                 socket_type = addr_tuple[0]
                 if socket_type in result:
                     result[socket_type].append(addr_tuple[1:])

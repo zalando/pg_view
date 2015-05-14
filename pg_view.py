@@ -14,12 +14,10 @@ import sys
 import glob
 import logging
 from optparse import OptionParser
-import ConfigParser
 from operator import itemgetter
 from datetime import datetime, timedelta
 from numbers import Number
 from multiprocessing import Process, JoinableQueue, cpu_count  # for then number of cpus
-from Queue import Empty
 import platform
 import resource
 import socket
@@ -27,22 +25,33 @@ import subprocess
 import time
 import traceback
 import json
+
+if sys.hexversion >= 0x03000000:
+    import configparser as ConfigParser
+    from queue import Empty
+    long = int
+    maxsize = sys.maxsize
+else:
+    import ConfigParser
+    from Queue import Empty
+    maxsize = sys.maxint
+
 try:
     import psycopg2
     import psycopg2.extras
 except ImportError:
-    print 'Unable to import psycopg2 module, please, install it (python-psycopg2). Can not continue'
+    print('Unable to import psycopg2 module, please, install it (python-psycopg2). Can not continue')
     sys.exit(254)
 try:
     import curses
     curses_available = True
 except ImportError:
-    print 'Unable to import ncurses, curses output will be unavailable'
+    print('Unable to import ncurses, curses output will be unavailable')
     curses_available = False
 
 # bail out if we are not running Linux
 if platform.system() != 'Linux':
-    print 'Non Linux database hosts are not supported at the moment. Can not continue'
+    print('Non Linux database hosts are not supported at the moment. Can not continue')
     sys.exit(243)
 
 
@@ -113,12 +122,12 @@ TICK_LENGTH = options.tick
 output_method = options.output_method
 
 if not output_method_is_valid(output_method):
-    print 'Unsupported output method: {0}'.format(output_method)
-    print 'Valid output methods are: {0}'.format(','.join(get_valid_output_methods()))
+    print('Unsupported output method: {0}'.format(output_method))
+    print('Valid output methods are: {0}'.format(','.join(get_valid_output_methods())))
     sys.exit(1)
 
 if output_method == OUTPUT_METHOD.curses and not curses_available:
-    print 'Curses output is selected, but curses are unavailable, falling back to console output'
+    print('Curses output is selected, but curses are unavailable, falling back to console output')
     output_method == OUTPUT_METHOD.console
 
 LOG_FILE_NAME = options.log_file
@@ -310,9 +319,9 @@ class StatCollector(object):
         delta = abs(delta)
 
         secs = delta.seconds
-        mins = secs / 60
+        mins = int(secs / 60)
         secs %= 60
-        hrs = mins / 60
+        hrs = int(mins / 60)
         mins %= 60
         hrs %= 24
         result = ''
@@ -1236,14 +1245,14 @@ class PgstatCollector(StatCollector):
         # http://rhaas.blogspot.de/2012/01/linux-memory-reporting.html
         # we use statm instead of /proc/smaps because of performance considerations. statm is much faster,
         # while providing slightly outdated results.
-        uss = 0L
+        uss = 0
         statm = None
         fp = None
         try:
             fp = open(PgstatCollector.STATM_FILENAME.format(pid), 'r')
             statm = fp.read().strip().split()
             logger.info("calculating memory for process {0}".format(pid))
-        except IOError, e:
+        except IOError as e:
             logger.warning('Unable to read {0}: {1}, process memory information will be unavailable'.format(STATM_FILENAME.format(pid), e))
         finally:
             fp and fp.close()
@@ -1434,8 +1443,7 @@ class PgstatCollector(StatCollector):
         # order the result rows by the start time value
         if len(self.blocked_diffs) == 0:
             self.rows_diff = self.running_diffs
-            self.rows_diff.sort(key=lambda process: (process['age'] if process['age'] is not None else sys.maxint),
-                                reverse=True)
+            self.rows_diff.sort(key=lambda process: (process['age'] or maxsize), reverse=True)
         else:
             blocked_temp = []
             # we traverse the tree of blocked processes in a depth-first order, building a list
@@ -1444,12 +1452,10 @@ class PgstatCollector(StatCollector):
             # by the current one from the plain list of process information rows, that's why
             # we use a dictionary of lists of blocked processes with a blocker pid as a key
             # and effectively build a separate tree for each blocker.
-            self.running_diffs.sort(key=lambda process: (process['age'] if process['age'] is not None else sys.maxint),
-                                    reverse=True)
+            self.running_diffs.sort(key=lambda process: (process['age'] or maxsize), reverse=True)
             # sort elements in the blocked lists, so that they still appear in the latest to earliest order
             for key in self.blocked_diffs:
-                self.blocked_diffs[key].sort(key=lambda process: (process['age'] if process['age']
-                                             is not None else sys.maxint))
+                self.blocked_diffs[key].sort(key=lambda process: (process['age'] or maxsize))
             for parent_row in self.running_diffs:
                 self.rows_diff.append(parent_row)
                 # if no processes blocked by this one - just skip to the next row
@@ -2167,7 +2173,7 @@ class CommonOutput(object):
         super(CommonOutput, self)
 
     def display(self, data):
-        print data
+        print(data)
 
     def refresh(self):
         os.system('clear')
@@ -2226,8 +2232,8 @@ class CursesOutput(object):
     def display(self, data):
         """ just collect the data """
 
-        collector_name = data.keys()[0]
-        self.data[collector_name] = data.values()[0]
+        collector_name = list(data.keys())[0]
+        self.data[collector_name] = list(data.values())[0]
         self.output_order.append(collector_name)
 
     def toggle_help(self):
@@ -2844,7 +2850,7 @@ def get_postmasters_directories():
         # other good ones.
         try:
             pg_dir = os.readlink(link_filename)
-        except os.error, e:
+        except os.error as e:
             logger.error('unable to readlink {0}: OS reported {1}'.format(link_filename, e))
             continue
         if pg_dir in postmasters:
@@ -2862,7 +2868,7 @@ def get_postmasters_directories():
             val = fp.read().strip()
             if val is not None and len(val) >= 3:
                 version = float(val)
-        except os.error, e:
+        except os.error as e:
             logger.error('unable to read version number from PG_VERSION directory {0}, have to skip it'.format(pg_dir))
             continue
         except ValueError:
@@ -2913,7 +2919,7 @@ def detect_postgres_version(work_directory):
         val = fp.read().strip()
         if val is not None and len(val) == 3:
             version = float(val)
-    except Exception, e:
+    except Exception as e:
         # if we failed to read a file - assume version 9.0
         logger.warning('could not read from the PG_VERSION: {0}'.format(e))
         version = None
@@ -2961,7 +2967,7 @@ def detect_with_postmaster_pid(work_directory, version):
     try:
         with open(PID_FILE, 'rU') as fp:
             lines = fp.readlines()
-    except os.error, e:
+    except os.error as e:
         logger.error('could not read {0}: {1}'.format(PID_FILE, e))
         return None
     if len(lines) < 6:
@@ -3059,7 +3065,7 @@ def establish_user_defined_connection(dbname, args, clusters):
     # establish a new connection
     try:
         pgcon = psycopg2.connect('host={0} port={1} user={2} dbname={3}'.format(host, port, user, db))
-    except Exception, e:
+    except Exception as e:
         logger.error('failed to establish connection to {0} on port {1} user {2} database {3}'.format(host, port, user,
                      dbname))
         logger.error('PostgreSQL exception: {0}'.format(e))
@@ -3158,7 +3164,7 @@ class ProcNetParser():
         try:
             with open(filename) as fp:
                 data = fp.readlines()
-        except os.error, e:
+        except os.error as e:
             logger.error('unable to read from {0}: OS reported {1}'.format(filename, e))
         # remove the header
         header = (data.pop(0)).split()
@@ -3242,7 +3248,7 @@ def main():
                 host = conndata['host']
                 port = conndata['port']
                 pgcon = psycopg2.connect('host={0} port={1} user=postgres dbname=postgres'.format(host, port))
-            except Exception, e:
+            except Exception as e:
                 logger.error('PostgreSQL exception {0}'.format(e))
                 pgcon = None
             if pgcon:
@@ -3285,15 +3291,15 @@ def main():
         loop(collectors, consumer, groups, output_method)
         logger.addHandler(log_stderr)
     except KeyboardInterrupt:
-        print 'Interrupted by user'
+        print('Interrupted by user')
         if os.stat(LOG_FILE_NAME)[stat.ST_SIZE] != 0:
-            print 'Errors detected, see {0} for warnings and errors output'.format(LOG_FILE_NAME)
+            print('Errors detected, see {0} for warnings and errors output'.format(LOG_FILE_NAME))
     except curses.error:
-        print traceback.format_exc()
+        print(traceback.format_exc())
         if 'SSH_CLIENT' in os.environ and 'SSH_TTY' not in os.environ:
-            print 'Unable to initialize curses. Make sure you supply -t option (force psedo-tty allocation) to ssh'
-    except Exception, e:
-        print traceback.format_exc()
+            print('Unable to initialize curses. Make sure you supply -t option (force psedo-tty allocation) to ssh')
+    except:
+        print(traceback.format_exc())
     finally:
         sys.exit(0)
 
@@ -3328,7 +3334,7 @@ class DetachedDiskStatCollector(Process):
         try:
             data_size = self.run_du(wd, BLOCK_SIZE)
             xlog_size = self.run_du(wd + '/pg_xlog/', BLOCK_SIZE)
-        except Exception, e:
+        except Exception as e:
             logger.error('Unable to read free space information for the pg_xlog and data directories for the directory\
              {0}: {1}'.format(wd, e))
         else:
@@ -3362,7 +3368,7 @@ class DetachedDiskStatCollector(Process):
                     size += st.st_size
                 if mode == 0x8000:  # S_IFREG
                     size += st.st_size
-        return size / block_size
+        return long(size / block_size)
 
     def get_df_data(self, work_directory):
         """ Retrive raw data from df (transformations are performed via df_list_transformation) """

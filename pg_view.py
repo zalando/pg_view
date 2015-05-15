@@ -1,13 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-__appname__ = 'pg_view'
-__version__ = '1.2.0'
-__author__ = 'Oleksii Kliukin <oleksii.kliukin@zalando.de>'
-__license__ = 'Apache 2.0'
-
 import os
-import os.path
 import re
 import stat
 import sys
@@ -25,6 +19,12 @@ import subprocess
 import time
 import traceback
 import json
+
+__appname__ = 'pg_view'
+__version__ = '1.2.0'
+__author__ = 'Oleksii Kliukin <oleksii.kliukin@zalando.de>'
+__license__ = 'Apache 2.0'
+
 
 if sys.hexversion >= 0x03000000:
     import configparser as ConfigParser
@@ -195,7 +195,7 @@ class StatCollector(object):
 
     def postinit(self):
         for l in self.transform_list_data, self.transform_dict_data, self.diff_generator_data, \
-            self.output_transform_data:
+                 self.output_transform_data:
             self.validate_list_out(l)
         self.output_column_positions = self._calculate_output_column_positions()
 
@@ -451,10 +451,10 @@ class StatCollector(object):
         elif str(raw_val) == 'False':
             val = 'F'
         if output_data.get('maxw', 0) > 0 and not self.notrim and len(str(val)) > output_data['maxw']:
-             # if the value is higher than maximum allowed width - trim it byt removing chars from the middle
+            # if the value is higher than maximum allowed width - trim it byt removing chars from the middle
             val = self._trim_text_middle(val, output_data['maxw'])
         if self.ncurses_custom_fields.get('append_column_headers') or output_data.get('column_header',
-                COHEADER.ch_default) == COHEADER.ch_prepend:
+           COHEADER.ch_default) == COHEADER.ch_prepend:
             val = '{0}|{1}'.format(attname, val)
         elif output_data.get('column_header', COHEADER.ch_default) == COHEADER.ch_append:
             val = '{0}|{1}'.format(val, attname)
@@ -498,12 +498,12 @@ class StatCollector(object):
             if 'diff' in col and col['diff'] is False:
                 result[attname] = (cur[incol] if incol in cur else None)
             elif 'fn' in col:
-            # if diff is True and fn is supplied - apply it to the current and previous row.
+                # if diff is True and fn is supplied - apply it to the current and previous row.
                 result[attname] = (col['fn'](incol, cur, prev) if cur.get(incol, None) is not None and prev.get(incol,
                                    None) is not None else None)
             else:
-            # default case - calculate the diff between the current attribute's values of
-            # old and new rows and divide it by the time interval passed between measurements.
+                # default case - calculate the diff between the current attribute's values of
+                # old and new rows and divide it by the time interval passed between measurements.
                 result[attname] = ((cur[incol] - prev[incol]) / self.diff_time if cur.get(incol, None) is not None
                                    and prev.get(incol, None) is not None and self.diff_time >= 0 else None)
         return result
@@ -668,8 +668,8 @@ class StatCollector(object):
                     else:
                         result[attname] = None
                 elif incol not in l:
-                # if the column is marked as optional and it's not present in the output data
-                # set None instead
+                    # if the column is marked as optional and it's not present in the output data
+                    # set None instead
                     result[attname] = None
                     if not ('optional' in col and col['optional']):
                         self.warn_non_optional_column(incol)
@@ -1132,7 +1132,6 @@ class PgstatCollector(StatCollector):
     def _get_psinfo(cmdline):
         """ gets PostgreSQL process type from the command-line."""
         pstype = 'unknown'
-        psactivity = ''
         if cmdline is not None and len(cmdline) > 0:
             # postgres: stats collector process
             m = re.match(r'postgres:\s+(.*)\s+process\s*(.*)$', cmdline)
@@ -1181,7 +1180,7 @@ class PgstatCollector(StatCollector):
             if proc_data:
                 result_row.update(proc_data)
             if stat_data and pid in stat_data:
-            # ditto for the pg_stat_activity
+                # ditto for the pg_stat_activity
                 result_row.update(stat_data[pid])
             # result is not empty - add it to the list of current rows
             if result_row:
@@ -1249,11 +1248,11 @@ class PgstatCollector(StatCollector):
         statm = None
         fp = None
         try:
-            fp = open(PgstatCollector.STATM_FILENAME.format(pid), 'r')
+            fp = open(self.STATM_FILENAME.format(pid), 'r')
             statm = fp.read().strip().split()
             logger.info("calculating memory for process {0}".format(pid))
         except IOError as e:
-            logger.warning('Unable to read {0}: {1}, process memory information will be unavailable'.format(STATM_FILENAME.format(pid), e))
+            logger.warning('Unable to read {0}: {1}, process memory information will be unavailable'.format(self.format(pid), e))
         finally:
             fp and fp.close()
         if statm and len(statm) >= 3:
@@ -1407,8 +1406,9 @@ class PgstatCollector(StatCollector):
     def ncurses_produce_prefix(self):
         return "{1} {0} {5} database connections: {2} of {4} allocated,\
                 {3} active\n".format(self.dbver,
-                self.dbname, self.total_connections, self.active_connections, self.max_connections,
-                self.recovery_status)
+                                     self.dbname, self.total_connections,
+                                     self.active_connections, self.max_connections,
+                                     self.recovery_status)
 
     def diff(self):
         """ we only diff backend processes if new one is not idle and use pid to identify processes """
@@ -1656,7 +1656,7 @@ class SystemStatCollector(StatCollector):
                 # otherwise, the line is probably empty or bogus and should be skipped
             result = self._transform_input(raw_result)
         except IOError:
-            logger.error('Unable to read {0}, global data will be unavailable'.format(SystemStatCollector.PROC_STAT_FILENAME))
+            logger.error('Unable to read {0}, global data will be unavailable'.format(self.PROC_STAT_FILENAME))
         return result
 
     def _cpu_time_diff(self, colname, cur, prev):
@@ -1853,7 +1853,6 @@ class PartitionStatCollector(StatCollector):
         finally:
             fp and fp.close()
         return result
-
 
     def output(self, method):
         return super(self.__class__, self).output(method, before_string='PostgreSQL partitions:', after_string='\n')
@@ -2088,7 +2087,7 @@ class HostStatCollector(StatCollector):
     def _load_avg_state(self, row, col):
         state = {}
         load_avg_str = row[self.output_column_positions[col['out']]]
-        if load_avg_str == None:
+        if not load_avg_str:
             return {}
         # load average consists of 3 values.
         load_avg_vals = load_avg_str.split()
@@ -2381,7 +2380,7 @@ class CursesOutput(object):
                     status = status_map[no]
                     color = self._status_to_color(status, highlight)
                 elif -1 in status_map:
-                # -1 is catchall for all fields (i.e for queries)
+                    # -1 is catchall for all fields (i.e for queries)
                     status = status_map[-1]
                     color = self._status_to_color(status, highlight)
                 else:
@@ -2429,9 +2428,8 @@ class CursesOutput(object):
         self.print_text(y, 0, "Press 'h' to exit this screen")
 
     def show_collector_data(self, collector, clock=False):
-
-        if collector not in self.data or len(self.data[collector]) <= 0 or len(self.data[collector].get('rows', ())) \
-            <= 0 and not self.data[collector]['prefix']:
+        if collector not in self.data or len(self.data[collector]) <= 0 or\
+           len(self.data[collector].get('rows', ())) <= 0 and not self.data[collector]['prefix']:
             return
 
         rows = self.data[collector]['rows']

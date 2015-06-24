@@ -1,0 +1,4 @@
+include *.txt
+include *.rst
+include *.md
+include *.py

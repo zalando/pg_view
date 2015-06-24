@@ -39,9 +39,9 @@ else:
 try:
     import psycopg2
     import psycopg2.extras
+    psycopg2_available = True
 except ImportError:
-    print('Unable to import psycopg2 module, please, install it (python-psycopg2). Can not continue')
-    sys.exit(254)
+    psycopg2_available = False
 try:
     import curses
     curses_available = True
@@ -101,55 +101,39 @@ def output_method_is_valid(method):
     return method in get_valid_output_methods()
 
 
-# parse command-line options
+def parse_args():
+    '''parse command-line options'''
 
-parser = OptionParser()
-parser.add_option('-v', '--verbose', help='verbose mode', action='store_true', dest='verbose')
-parser.add_option('-i', '--instance', help='name of the instance to monitor', action='store', dest='instance')
-parser.add_option('-t', '--tick', help='tick length (in seconds)', action='store', dest='tick', type='int', default=1)
-parser.add_option('-o', '--output-method', help='send output to the following source', action='store',
-                  default=OUTPUT_METHOD.curses, dest='output_method')
-parser.add_option('-V', '--use-version', help='version of the instance to monitor (in case it can\'t be autodetected)',
-                  action='store', dest='version', type='float')
-parser.add_option('-l', '--log-file', help='direct log output to the file', action='store', default='pg_view.log',
-                  dest='log_file')
-parser.add_option('-R', '--reset-output', help='clear screen after each tick', action='store_true', default=False,
-                  dest='clear_screen')
-parser.add_option('-c', '--configuration-file', help='configuration file for PostgreSQL connections', action='store',
-                  default='', dest='config_file')
-parser.add_option('-p', '--pid', help='always track a given pid (may be used multiple times)',
-                  action='append', type=int, default=[])
+    parser = OptionParser()
+    parser.add_option('-v', '--verbose', help='verbose mode', action='store_true', dest='verbose')
+    parser.add_option('-i', '--instance', help='name of the instance to monitor', action='store', dest='instance')
+    parser.add_option('-t', '--tick', help='tick length (in seconds)',
+                      action='store', dest='tick', type='int', default=1)
+    parser.add_option('-o', '--output-method', help='send output to the following source', action='store',
+                      default=OUTPUT_METHOD.curses, dest='output_method')
+    parser.add_option('-V', '--use-version',
+                      help='version of the instance to monitor (in case it can\'t be autodetected)',
+                      action='store', dest='version', type='float')
+    parser.add_option('-l', '--log-file', help='direct log output to the file', action='store', default='pg_view.log',
+                      dest='log_file')
+    parser.add_option('-R', '--reset-output', help='clear screen after each tick', action='store_true', default=False,
+                      dest='clear_screen')
+    parser.add_option('-c', '--configuration-file', help='configuration file for PostgreSQL connections',
+                      action='store', default='', dest='config_file')
+    parser.add_option('-p', '--pid', help='always track a given pid (may be used multiple times)',
+                      action='append', type=int, default=[])
 
-options, args = parser.parse_args()
+    options, args = parser.parse_args()
+    return options, args
 
 # setup system constants
+TICK_LENGTH = 1
 
-TICK_LENGTH = options.tick
+output_method = OUTPUT_METHOD.curses
 
-output_method = options.output_method
+options = None
 
-if not output_method_is_valid(output_method):
-    print('Unsupported output method: {0}'.format(output_method))
-    print('Valid output methods are: {0}'.format(','.join(get_valid_output_methods())))
-    sys.exit(1)
-
-if output_method == OUTPUT_METHOD.curses and not curses_available:
-    print('Curses output is selected, but curses are unavailable, falling back to console output')
-    output_method == OUTPUT_METHOD.console
-
-LOG_FILE_NAME = options.log_file
-
-# truncate the former logs
-with open(LOG_FILE_NAME, 'w'):
-    pass
-
-# set basic logging
-logging.basicConfig(format='%(levelname)s: %(asctime)-15s %(message)s', filename=LOG_FILE_NAME)
-logger = logging.getLogger(__name__)
-logger.setLevel((logging.INFO if options.verbose else logging.ERROR))
-
-log_stderr = logging.StreamHandler()
-logger.addHandler(log_stderr)
+logger = None
 
 
 class StatCollector(object):
@@ -3252,6 +3236,40 @@ class ProcNetParser():
 
 
 def main():
+    global TICK_LENGTH, logger, options
+
+    if not psycopg2_available:
+        print('Unable to import psycopg2 module, please, install it (python-psycopg2). Can not continue')
+        sys.exit(254)
+
+    options, args = parse_args()
+    TICK_LENGTH = options.tick
+
+    output_method = options.output_method
+
+    if not output_method_is_valid(output_method):
+        print('Unsupported output method: {0}'.format(output_method))
+        print('Valid output methods are: {0}'.format(','.join(get_valid_output_methods())))
+        sys.exit(1)
+
+    if output_method == OUTPUT_METHOD.curses and not curses_available:
+        print('Curses output is selected, but curses are unavailable, falling back to console output')
+        output_method == OUTPUT_METHOD.console
+
+    LOG_FILE_NAME = options.log_file
+
+    # truncate the former logs
+    with open(LOG_FILE_NAME, 'w'):
+        pass
+
+    # set basic logging
+    logging.basicConfig(format='%(levelname)s: %(asctime)-15s %(message)s', filename=LOG_FILE_NAME)
+    logger = logging.getLogger(__name__)
+    logger.setLevel((logging.INFO if options.verbose else logging.ERROR))
+
+    log_stderr = logging.StreamHandler()
+    logger.addHandler(log_stderr)
+
     user_dbname = options.instance
     user_dbver = options.version
     clusters = []

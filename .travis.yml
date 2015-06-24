@@ -4,7 +4,6 @@ python:
   - "2.7"
 install:
   - pip install -r requirements.txt
-  - pip install flake8
 script:
-  - python -m doctest -v pg_view.py
-  - flake8 pg_view.py
+  - python setup.py test
+  - python setup.py flake8

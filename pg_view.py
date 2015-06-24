@@ -3298,9 +3298,7 @@ def main():
         loop(collectors, consumer, groups, output_method)
         logger.addHandler(log_stderr)
     except KeyboardInterrupt:
-        print('Interrupted by user')
-        if os.stat(LOG_FILE_NAME)[stat.ST_SIZE] != 0:
-            print('Errors detected, see {0} for warnings and errors output'.format(LOG_FILE_NAME))
+        pass
     except curses.error:
         print(traceback.format_exc())
         if 'SSH_CLIENT' in os.environ and 'SSH_TTY' not in os.environ:

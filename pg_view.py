@@ -1132,18 +1132,20 @@ class PgstatCollector(StatCollector):
     def _get_psinfo(cmdline):
         """ gets PostgreSQL process type from the command-line."""
         pstype = 'unknown'
+        action = None
         if cmdline is not None and len(cmdline) > 0:
             # postgres: stats collector process
             m = re.match(r'postgres:\s+(.*)\s+process\s*(.*)$', cmdline)
             if m:
                 pstype = m.group(1)
+                action = m.group(2)
             else:
                 if re.match(r'postgres:.*', cmdline):
                     # assume it's a backend process
                     pstype = 'backend'
         if pstype == 'autovacuum worker':
             pstype = 'autovacuum'
-        return pstype
+        return (pstype, action)
 
     @staticmethod
     def _is_auxiliary_process(pstype):
@@ -1227,7 +1229,9 @@ class PgstatCollector(StatCollector):
         # generated columns
         result['cmdline'] = raw_result.get('cmd', None)
         if not is_backend:
-            result['type'] = self._get_psinfo(result['cmdline'])
+            result['type'], action = self._get_psinfo(result['cmdline'])
+            if action:
+                result['query'] = action
         else:
             result['type'] = 'backend'
         if is_active or not is_backend:
@@ -1410,6 +1414,10 @@ class PgstatCollector(StatCollector):
                                      self.active_connections, self.max_connections,
                                      self.recovery_status)
 
+    @staticmethod
+    def process_sort_key(process):
+        return process['age'] if process['age'] is not None else maxsize
+
     def diff(self):
         """ we only diff backend processes if new one is not idle and use pid to identify processes """
 
@@ -1443,7 +1451,7 @@ class PgstatCollector(StatCollector):
         # order the result rows by the start time value
         if len(self.blocked_diffs) == 0:
             self.rows_diff = self.running_diffs
-            self.rows_diff.sort(key=lambda process: (process['age'] or maxsize), reverse=True)
+            self.rows_diff.sort(key=self.process_sort_key, reverse=True)
         else:
             blocked_temp = []
             # we traverse the tree of blocked processes in a depth-first order, building a list
@@ -1452,10 +1460,10 @@ class PgstatCollector(StatCollector):
             # by the current one from the plain list of process information rows, that's why
             # we use a dictionary of lists of blocked processes with a blocker pid as a key
             # and effectively build a separate tree for each blocker.
-            self.running_diffs.sort(key=lambda process: (process['age'] or maxsize), reverse=True)
+            self.running_diffs.sort(key=self.process_sort_key, reverse=True)
             # sort elements in the blocked lists, so that they still appear in the latest to earliest order
             for key in self.blocked_diffs:
-                self.blocked_diffs[key].sort(key=lambda process: (process['age'] or maxsize))
+                self.blocked_diffs[key].sort(key=self.process_sort_key)
             for parent_row in self.running_diffs:
                 self.rows_diff.append(parent_row)
                 # if no processes blocked by this one - just skip to the next row

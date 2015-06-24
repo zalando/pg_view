@@ -3,7 +3,6 @@
 
 import os
 import re
-import stat
 import sys
 import glob
 import getpass
@@ -1691,8 +1690,8 @@ class PartitionStatCollector(StatCollector):
         self.dbver = dbversion
         self.queue_consumer = consumer
         self.work_directory = work_directory
-        self.df_list_transformation = [{'out': 'dev', 'in': 0, 'fn': self._dereference_dev_name}, {'out': 'space_total'
-                                       , 'in': 1, 'fn': int}, {'out': 'space_left', 'in': 2, 'fn': int}]
+        self.df_list_transformation = [{'out': 'dev', 'in': 0, 'fn': self._dereference_dev_name}, {'out': 'space_total',
+                                        'in': 1, 'fn': int}, {'out': 'space_left', 'in': 2, 'fn': int}]
         self.io_list_transformation = [{'out': 'sectors_read', 'in': 5, 'fn': int}, {'out': 'sectors_written', 'in': 9,
                                        'fn': int}, {'out': 'await', 'in': 13, 'fn': int}]
         self.du_list_transformation = [{'out': 'path_size', 'in': 0, 'fn': int}, {'out': 'path', 'in': 1}]
@@ -2576,7 +2575,7 @@ class CursesOutput(object):
 
         layout = {}
         # get only the columns that are not hidden
-        col_remaining = [name for name in colnames if not name in colhidden]
+        col_remaining = [name for name in colnames if name not in colhidden]
         # calculate the available screen X dimensions and the width required by all columns
         width_available = self.screen_x - (xstart + 1)
         # we add width of all N fields + N-1 spaces between fields
@@ -3004,6 +3003,7 @@ def pick_connection_arguments(conn_args):
                 (result['host'], result['port']) = arg
                 break
     return result
+
 
 def can_connect_with_connection_arguments(host, port):
     """ check that we can connect given the specified arguments """

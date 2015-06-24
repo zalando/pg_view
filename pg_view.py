@@ -92,6 +92,12 @@ def get_valid_output_methods():
 
 
 def output_method_is_valid(method):
+    '''
+    >>> output_method_is_valid('foo')
+    False
+    >>> output_method_is_valid('curses')
+    True
+    '''
     return method in get_valid_output_methods()
 
 
@@ -2894,6 +2900,12 @@ def get_postmasters_directories():
 
 
 def get_dbname_from_path(db_path):
+    '''
+    >>> get_dbname_from_path('foo')
+    'foo'
+    >>> get_dbname_from_path('/pgsql_bar/9.4/data')
+    'bar'
+    '''
     m = re.search(r'/pgsql_(.*?)(/\d+.\d+)?/data/?', db_path)
     if m:
         dbname = m.group(1)

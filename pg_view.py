@@ -1133,18 +1133,20 @@ class PgstatCollector(StatCollector):
     def _get_psinfo(cmdline):
         """ gets PostgreSQL process type from the command-line."""
         pstype = 'unknown'
+        action = None
         if cmdline is not None and len(cmdline) > 0:
             # postgres: stats collector process
             m = re.match(r'postgres:\s+(.*)\s+process\s*(.*)$', cmdline)
             if m:
                 pstype = m.group(1)
+                action = m.group(2)
             else:
                 if re.match(r'postgres:.*', cmdline):
                     # assume it's a backend process
                     pstype = 'backend'
         if pstype == 'autovacuum worker':
             pstype = 'autovacuum'
-        return pstype
+        return (pstype, action)
 
     @staticmethod
     def _is_auxiliary_process(pstype):
@@ -1228,7 +1230,9 @@ class PgstatCollector(StatCollector):
         # generated columns
         result['cmdline'] = raw_result.get('cmd', None)
         if not is_backend:
-            result['type'] = self._get_psinfo(result['cmdline'])
+            result['type'], action = self._get_psinfo(result['cmdline'])
+            if action:
+                result['query'] = action
         else:
             result['type'] = 'backend'
         if is_active or not is_backend:

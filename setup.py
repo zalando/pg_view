@@ -98,7 +98,7 @@ def setup_package():
 
     install_reqs = get_install_requirements('requirements.txt')
 
-    command_options = {}
+    command_options = {'test': {'cov': ('setup.py', MAIN_MODULE), 'cov_xml': ('setup.py', True)}}
 
     setup(
         name=NAME,

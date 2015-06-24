@@ -6,6 +6,7 @@ import re
 import stat
 import sys
 import glob
+import getpass
 import logging
 from optparse import OptionParser
 from operator import itemgetter
@@ -2904,6 +2905,12 @@ def detect_db_port(socket_dir):
     return port
 
 
+def detect_default_user_database():
+    user = os.environ.get('PGUSER') or getpass.getuser()
+    database = os.environ.get('PGDATABASE') or user
+    return (user, database)
+
+
 def detect_postgres_version(work_directory):
     """ read the current major version number from pgversion """
 
@@ -3000,8 +3007,9 @@ def pick_connection_arguments(conn_args):
 
 def can_connect_with_connection_arguments(host, port):
     """ check that we can connect given the specified arguments """
+    user, database = detect_default_user_database()
     try:
-        test_conn = psycopg2.connect('host={0} port={1} user={2} dbname={3}'.format(host, port, 'postgres', 'postgres'))
+        test_conn = psycopg2.connect('host={0} port={1} user={2} dbname={3}'.format(host, port, user, database))
         test_conn.close()
     except psycopg2.OperationalError:
         return False
@@ -3245,7 +3253,8 @@ def main():
                     continue
                 host = conndata['host']
                 port = conndata['port']
-                pgcon = psycopg2.connect('host={0} port={1} user=postgres dbname=postgres'.format(host, port))
+                user, database = detect_default_user_database()
+                pgcon = psycopg2.connect('host={0} port={1} user={2} dbname={3}'.format(host, port, user, database))
             except Exception as e:
                 logger.error('PostgreSQL exception {0}'.format(e))
                 pgcon = None

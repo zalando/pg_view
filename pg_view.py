@@ -111,7 +111,8 @@ parser.add_option('-R', '--reset-output', help='clear screen after each tick', a
                   dest='clear_screen')
 parser.add_option('-c', '--configuration-file', help='configuration file for PostgreSQL connections', action='store',
                   default='', dest='config_file')
-parser.add_option('-p', '--pid', help='always track a given pid (may be used multiple times)', action='append', type=int, default=[])
+parser.add_option('-p', '--pid', help='always track a given pid (may be used multiple times)',
+                  action='append', type=int, default=[])
 
 options, args = parser.parse_args()
 
@@ -194,8 +195,8 @@ class StatCollector(object):
         self.ncurses_custom_fields = dict.fromkeys(StatCollector.NCURSES_CUSTOM_OUTPUT_FIELDS, None)
 
     def postinit(self):
-        for l in self.transform_list_data, self.transform_dict_data, self.diff_generator_data, \
-                 self.output_transform_data:
+        for l in [self.transform_list_data, self.transform_dict_data, self.diff_generator_data,
+                  self.output_transform_data]:
             self.validate_list_out(l)
         self.output_column_positions = self._calculate_output_column_positions()
 
@@ -313,8 +314,8 @@ class StatCollector(object):
         elif isinstance(start_time, timedelta):
             delta = start_time
         else:
-            raise ValueError('passed value should be either a number of seconds from year 1970 or datetime instance of timedelta instance'
-                             )
+            raise ValueError('passed value should be either a number of seconds ' +
+                             'from year 1970 or datetime instance of timedelta instance')
 
         delta = abs(delta)
 
@@ -425,8 +426,8 @@ class StatCollector(object):
         if not self.cook_function.get(method):
             return row
         if len(row) != len(header):
-            logger.error('Unable to cook row with non-matching number of header and value columns: row {0} header {1}'.format(row,
-                         header))
+            logger.error('Unable to cook row with non-matching number of header and value columns: ' +
+                         'row {0} header {1}'.format(row, header))
         cook_fn = self.cook_function[method]
         for no, val in enumerate(row):
             # if might be tempting to just get the column from output_transform_data using
@@ -1241,8 +1242,8 @@ class PgstatCollector(StatCollector):
     def _get_memory_usage(self, pid):
         """ calculate usage of private memory per process """
         # compute process's own non-shared memory.
-        # See http://www.depesz.com/2012/06/09/how-much-ram-is-postgresql-using/ for the explanation of
-        # how to measure PostgreSQL process memory usage and the stackexchange answer for details on the unshared counts:
+        # See http://www.depesz.com/2012/06/09/how-much-ram-is-postgresql-using/ for the explanation of how
+        # to measure PostgreSQL process memory usage and the stackexchange answer for details on the unshared counts:
         # http://unix.stackexchange.com/questions/33381/getting-information-about-a-process-memory-usage-from-proc-pid-smaps
         # there is also a good discussion here:
         # http://rhaas.blogspot.de/2012/01/linux-memory-reporting.html
@@ -1256,7 +1257,8 @@ class PgstatCollector(StatCollector):
             statm = fp.read().strip().split()
             logger.info("calculating memory for process {0}".format(pid))
         except IOError as e:
-            logger.warning('Unable to read {0}: {1}, process memory information will be unavailable'.format(self.format(pid), e))
+            logger.warning('Unable to read {0}: {1}, process memory information will be unavailable'.format(
+                           self.format(pid), e))
         finally:
             fp and fp.close()
         if statm and len(statm) >= 3:
@@ -1303,7 +1305,9 @@ class PgstatCollector(StatCollector):
                              WHEN current_query = '<IDLE>' THEN 'idle'
                              WHEN current_query = '<IDLE> in transaction' THEN
                                   CASE WHEN xact_start != query_start THEN
-                                      'idle in transaction'||' '||CAST( abs(round(extract(epoch from (now() - query_start)))) AS text )
+                                      'idle in transaction'||' '||CAST(
+                                          abs(round(extract(epoch from (now() - query_start)))) AS text
+                                      )
                                   ELSE
                                       'idle in transaction'
                                   END
@@ -1698,8 +1702,9 @@ class PartitionStatCollector(StatCollector):
         self.dbver = dbversion
         self.queue_consumer = consumer
         self.work_directory = work_directory
-        self.df_list_transformation = [{'out': 'dev', 'in': 0, 'fn': self._dereference_dev_name}, {'out': 'space_total',
-                                        'in': 1, 'fn': int}, {'out': 'space_left', 'in': 2, 'fn': int}]
+        self.df_list_transformation = [{'out': 'dev', 'in': 0, 'fn': self._dereference_dev_name},
+                                       {'out': 'space_total', 'in': 1, 'fn': int},
+                                       {'out': 'space_left', 'in': 2, 'fn': int}]
         self.io_list_transformation = [{'out': 'sectors_read', 'in': 5, 'fn': int}, {'out': 'sectors_written', 'in': 9,
                                        'fn': int}, {'out': 'await', 'in': 13, 'fn': int}]
         self.du_list_transformation = [{'out': 'path_size', 'in': 0, 'fn': int}, {'out': 'path', 'in': 1}]
@@ -2483,8 +2488,9 @@ class CursesOutput(object):
                 # now check if we need to add ellipsis to indicate that the value has been truncated.
                 # we don't do this if the value is less than a certain length or when the column is marked as
                 # containing truncated values, but the actual value is not truncated.
-                if layout[field].get('truncate', False) and w > self.MIN_ELLIPSIS_FIELD_LENGTH and w \
-                    < len(str(row[field])):
+                if layout[field].get('truncate', False) \
+                        and w > self.MIN_ELLIPSIS_FIELD_LENGTH \
+                        and w < len(str(row[field])):
                     text = str(row[field])[:w - 3] + '...'
                 else:
                     text = str(row[field])[:w]
@@ -2867,7 +2873,8 @@ def get_postmasters_directories():
         # if PG_VERSION file is missing, this is not a postgres directory
         PG_VERSION_FILENAME = '{0}/PG_VERSION'.format(link_filename)
         if not os.access(PG_VERSION_FILENAME, os.R_OK):
-            logger.warning('PostgreSQL candidate directory {0} is missing PG_VERSION file, have to skip it'.format(pg_dir))
+            logger.warning('PostgreSQL candidate directory {0} is missing PG_VERSION file, have to skip it'.format(
+                           pg_dir))
             continue
         try:
             fp = open(PG_VERSION_FILENAME, 'rU')
@@ -3048,12 +3055,14 @@ def detect_db_connection_arguments(work_directory, pid, version):
         # perhaps we'll get better luck with just peeking into postmaster.pid.
         conn_args = detect_with_postmaster_pid(work_directory, version)
         if not conn_args:
-            logger.error('unable to detect connection parameters for the PostgreSQL cluster at {0}'.format(work_directory))
+            logger.error('unable to detect connection parameters for the PostgreSQL cluster at {0}'.format(
+                         work_directory))
             return None
     # try all acquired connection arguments, starting from unix, then tcp, then tcp over ipv6
     result = pick_connection_arguments(conn_args)
     if len(result) == 0:
-        logger.error('unable to connect to PostgreSQL cluster at {0} using any of the detected connection options: {1}'.format(work_directory, conn_args))
+        logger.error('unable to connect to PostgreSQL cluster ' +
+                     'at {0} using any of the detected connection options: {1}'.format(work_directory, conn_args))
         return None
     return result
 
@@ -3067,8 +3076,8 @@ def establish_user_defined_connection(dbname, args, clusters):
     # sanity check
     if not (args.get('port') or args.get('host')):
         missing = ('port' if not args.get('port') else 'host')
-        logger.error('Not all required connection arguments ({0}) are specified for the database {1}, skipping it'.format(missing,
-                     dbname))
+        logger.error('Not all required connection arguments ' +
+                     '({0}) are specified for the database {1}, skipping it'.format(missing, dbname))
         return None
 
     port = args['port']
@@ -3104,7 +3113,8 @@ def establish_user_defined_connection(dbname, args, clusters):
     pids = [opt['pid'] for opt in clusters if 'pid' in opt]
     if pid in pids:
         duplicate_dbname = [opt['name'] for opt in clusters if 'pid' in opt and opt.get('pid', 0) == pid][0]
-        logger.error('duplicate connection options detected for databases {0} and {1}, same pid {2}, skipping {0}'.format(dbname, duplicate_dbname, pid))
+        logger.error('duplicate connection options detected ' +
+                     'for databases {0} and {1}, same pid {2}, skipping {0}'.format(dbname, duplicate_dbname, pid))
         pgcon.close()
         return True
     # now we have all components to create the result
@@ -3186,7 +3196,8 @@ class ProcNetParser():
             self.unix_socket_header_len = len(header)
         indexes = [i for i, name in enumerate(header) if name.lower() == 'inode']
         if len(indexes) != 1:
-            logger.error('attribute \'inode\' in the header of {0} is not unique or missing: {1}'.format(filename, header))
+            logger.error('attribute \'inode\' in the header of {0} is not unique or missing: {1}'.format(
+                         filename, header))
         else:
             inode_idx = indexes[0]
             if socket_type != 'unix':
@@ -3241,7 +3252,8 @@ def main():
                 continue
             # pass already aquired connections to make sure we only list unique clusters.
             if not establish_user_defined_connection(dbname, config_data[dbname], clusters):
-                logger.error('failed to acquire details about the database cluster {0}, the server will be skipped'.format(dbname))
+                logger.error('failed to acquire details about ' +
+                             'the database cluster {0}, the server will be skipped'.format(dbname))
     else:
         # do autodetection
         postmasters = get_postmasters_directories()
@@ -3279,8 +3291,8 @@ def main():
     try:
         if len(clusters) == 0:
             logger.error('No suitable PostgreSQL instances detected, exiting...')
-            logger.error('hint: use -v for details, or specify connection parameters manually in the configuration file (-c)'
-                         )
+            logger.error('hint: use -v for details, ' +
+                         'or specify connection parameters manually in the configuration file (-c)')
             sys.exit(1)
 
         # initialize the disks stat collector process and create an exchange queue
@@ -3402,13 +3414,11 @@ class DetachedDiskStatCollector(Process):
         else:
             xlog_vfs = self.df_cache[xlog_dev]
 
-        result['data'] = data_dev, data_vfs.f_blocks * (data_vfs.f_bsize
-                / BLOCK_SIZE), data_vfs.f_bavail * (data_vfs.f_bsize
-                / BLOCK_SIZE)
+        result['data'] = (data_dev, data_vfs.f_blocks * (data_vfs.f_bsize / BLOCK_SIZE),
+                          data_vfs.f_bavail * (data_vfs.f_bsize / BLOCK_SIZE))
         if data_dev != xlog_dev:
-            result['xlog'] = xlog_dev, xlog_vfs.f_blocks * (xlog_vfs.f_bsize
-                    / BLOCK_SIZE), xlog_vfs.f_bavail * (xlog_vfs.f_bsize
-                    / BLOCK_SIZE)
+            result['xlog'] = (xlog_dev, xlog_vfs.f_blocks * (xlog_vfs.f_bsize / BLOCK_SIZE),
+                              xlog_vfs.f_bavail * (xlog_vfs.f_bsize / BLOCK_SIZE))
         else:
             result['xlog'] = result['data']
         return result

@@ -32,7 +32,7 @@ KEYWORDS = 'postgres postgresql pg database'
 # Add here all kinds of additional classifiers as defined under
 # https://pypi.python.org/pypi?%3Aaction=list_classifiers
 CLASSIFIERS = [
-    'Development Status :: 4 - Beta',
+    'Development Status :: 5 - Production/Stable',
     'Environment :: Console',
     'Intended Audience :: Developers',
     'Intended Audience :: System Administrators',
@@ -42,6 +42,7 @@ CLASSIFIERS = [
     'Programming Language :: Python :: 2.7',
     'Programming Language :: Python :: 3.4',
     'Programming Language :: Python :: Implementation :: CPython',
+    'Topic :: Database'
 ]
 
 CONSOLE_SCRIPTS = ['pg_view = pg_view:main']

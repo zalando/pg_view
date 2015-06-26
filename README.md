@@ -1,6 +1,8 @@
 pg_view
 =======
 
+[![Build Status](https://travis-ci.org/zalando/pg_view.svg?branch=master)](https://travis-ci.org/zalando/pg_view)
+
 PostgreSQL Activity View Utility
 
 Synopsis
@@ -56,13 +58,13 @@ is missing from the database-specific section. For instance:
 
     [DEFAULT]
     port=5435
-    
+
     [testdb]
     host=localhost
-    
+
     [testdb2]
     host=/tmp/test
-    
+
     [testdb3]
     host=192.168.1.0
     port=5433

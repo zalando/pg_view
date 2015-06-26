@@ -1,13 +1,7 @@
 pg_view
 =======
 
-[![Build Status](https://travis-ci.org/zalando/pg_view.svg?branch=master)](https://travis-ci.org/zalando/pg_view)
-
-[![PyPI Downloads](https://img.shields.io/pypi/dw/pg-view.svg)](https://pypi.python.org/pypi/pg-view)
-
-[![Latest PyPI version](https://img.shields.io/pypi/v/pg-view.svg)](https://pypi.python.org/pypi/pg-view)
-
-[![License](https://img.shields.io/pypi/l/pg-view.svg)](https://pypi.python.org/pypi/pg-view)
+[![Build Status](https://travis-ci.org/zalando/pg_view.svg?branch=master)](https://travis-ci.org/zalando/pg_view) [![PyPI Downloads](https://img.shields.io/pypi/dw/pg-view.svg)](https://pypi.python.org/pypi/pg-view) [![Latest PyPI version](https://img.shields.io/pypi/v/pg-view.svg)](https://pypi.python.org/pypi/pg-view) [![License](https://img.shields.io/pypi/l/pg-view.svg)](https://pypi.python.org/pypi/pg-view)
 
 PostgreSQL Activity View Utility
 

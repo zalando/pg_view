@@ -629,8 +629,13 @@ class StatCollector(object):
                     # get the column from which the value is extracted
                     if incol > total - 1:
                         result[attname] = None
-                        if not ('optional' in col and col['optional']):
-                            logger.error('Column {0} is not optional, but input row has no value for it'.format(incol))
+                        # complain on optional columns, but only if the list to transform has any data
+                        # we want to catch cases when the data collectors (i.e. df, du) doesn't deliver
+                        # the result in the format we ask them to, but, on the other hand, if there is
+                        # nothing at all from them - then the problem is elsewhere and there is no need
+                        # to bleat here for each missing column.
+                        if not col.get('optional', False) and len(l) > 0:
+                            self.warn_non_optional_column(incol)
                     else:
                         result[attname] = l[incol]
                 # if transformation function is supplied - apply it to the input data.
@@ -662,7 +667,8 @@ class StatCollector(object):
                     # if the column is marked as optional and it's not present in the output data
                     # set None instead
                     result[attname] = None
-                    if not ('optional' in col and col['optional']):
+                    # see the comment at _transform_list on why we do complain here.
+                    if not col.get('optional', False) and len(l) > 0:
                         self.warn_non_optional_column(incol)
                 else:
                     result[attname] = l[incol]

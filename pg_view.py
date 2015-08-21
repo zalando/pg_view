@@ -2295,9 +2295,9 @@ class CursesOutput(object):
             return startx
 
     def show_help_bar_item(self, key, description, selected, x):
-        x = self.print_text(self.screen_y - 1, x, '{0}: '.format(key),
+        x = self.print_text(self.screen_y - 1, x, '{0}:'.format(key),
                             ((self.COLOR_MENU_SELECTED if selected else self.COLOR_MENU)) | curses.A_BOLD)
-        x = self.print_text(self.screen_y - 1, x, '{0}   '.format(description),
+        x = self.print_text(self.screen_y - 1, x, '{0} '.format(description),
                             (self.COLOR_MENU_SELECTED if selected else self.COLOR_MENU))
         return x
 
@@ -2313,20 +2313,20 @@ class CursesOutput(object):
             pass
 
         menu_items = (
-            ('s', 'System processes', not filter_aux),
-            ('f', 'Freeze output', freeze),
-            ('u', 'Measurement units', display_units),
-            ('a', 'Autohide fields', autohide_fields),
-            ('t', 'No trim', notrim),
-            ('r', 'Realtime', realtime),
-            ('h', 'Help', self.show_help),
+            ('s', 'system', not filter_aux),
+            ('f', 'freeze', freeze),
+            ('u', 'units', display_units),
+            ('a', 'autohide', autohide_fields),
+            ('t', 'trimming', notrim),
+            ('r', 'realtime', realtime),
+            ('h', 'help', self.show_help),
         )
 
         next_x = 0
         for item in menu_items:
             next_x = self.show_help_bar_item(x=next_x, *item)
 
-        self.print_text(self.screen_y - 1, next_x, 'v.{0}'.format(__version__).rjust(self.screen_x - next_x - 1),
+        self.print_text(self.screen_y - 1, next_x, 'v{0}'.format(__version__).rjust(self.screen_x - next_x - 1),
                         self.COLOR_MENU | curses.A_BOLD)
 
     def show_clock(self):
@@ -2414,22 +2414,22 @@ class CursesOutput(object):
         self.print_text(y, 0, 'The following hotkeys are supported:')
         y += 1
         x = self.print_text(y, 5, 's: ', self.COLOR_NORMAL | curses.A_BOLD)
-        self.print_text(y, x, 'change system processes display mode')
+        self.print_text(y, x, 'toggle system processes display')
         y += 1
         x = self.print_text(y, 5, 'f: ', self.COLOR_NORMAL | curses.A_BOLD)
-        self.print_text(y, x, 'freeze output')
+        self.print_text(y, x, 'freeze/unfreeze output')
         y += 1
         x = self.print_text(y, 5, 'u: ', self.COLOR_NORMAL | curses.A_BOLD)
-        self.print_text(y, x, 'toggle measurement units (MB, s)')
+        self.print_text(y, x, 'toggle measurement units display (MB, s)')
         y += 1
-        x = self.print_text(y, 5, 'w: ', self.COLOR_NORMAL | curses.A_BOLD)
-        self.print_text(y, x, 'avoid hiding non-essential attributes')
+        x = self.print_text(y, 5, 'a: ', self.COLOR_NORMAL | curses.A_BOLD)
+        self.print_text(y, x, 'toggle auto-hiding of non-essential attributes')
         y += 1
         x = self.print_text(y, 5, 't: ', self.COLOR_NORMAL | curses.A_BOLD)
-        self.print_text(y, x, 'avoid trimming attributes in the middle (user and database names)')
+        self.print_text(y, x, 'toggle trimming of attributes in the middle (user and database names)')
         y += 1
         x = self.print_text(y, 5, 'r: ', self.COLOR_NORMAL | curses.A_BOLD)
-        self.print_text(y, x, 'update information as fast as possible (may cause additional load)')
+        self.print_text(y, x, 'update information in real time (may cause additional load)')
         y += 1
         x = self.print_text(y, 5, 'q: ', self.COLOR_NORMAL | curses.A_BOLD)
         self.print_text(y, x, 'exit program')

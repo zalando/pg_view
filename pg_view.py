@@ -2333,13 +2333,13 @@ class CursesOutput(object):
         clock_str_len = len(self.CLOCK_FORMAT)
         clean = True
         for pos in range(0, clock_str_len):
-            x = self.screen.inch(0, self.screen_x - clock_str_len - 2 + pos) & 255
+            x = self.screen.inch(0, self.screen_x - clock_str_len - 1 + pos) & 255
             if x != ord(' '):
                 clean = False
                 break
         if clean:
             clock_str = time.strftime(self.CLOCK_FORMAT, time.localtime())
-            self.screen.addnstr(0, self.screen_x - clock_str_len - 1, clock_str, clock_str_len)
+            self.screen.addnstr(0, self.screen_x - clock_str_len, clock_str, clock_str_len)
 
     def _status_to_color(self, status, highlight):
         if status == COLSTATUS.cs_critical:

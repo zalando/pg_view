@@ -902,6 +902,7 @@ class PgstatCollector(StatCollector):
         self.always_track_pids = always_track_pids
         self.dbname = dbname
         self.dbver = dbver
+        self.server_version = pgcon.get_parameter_status('server_version')
         self.filter_aux_processes = True
         self.total_connections = 0
         self.active_connections = 0
@@ -1409,7 +1410,7 @@ class PgstatCollector(StatCollector):
 
     def ncurses_produce_prefix(self):
         return "{1} {0} {5} database connections: {2} of {4} allocated,\
-                {3} active\n".format(self.dbver,
+                {3} active\n".format(self.server_version,
                                      self.dbname, self.total_connections,
                                      self.active_connections, self.max_connections,
                                      self.recovery_status)

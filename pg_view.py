@@ -1032,7 +1032,6 @@ class PgstatCollector(StatCollector):
                 'fn': StatCollector.bytes_to_mbytes,
                 'round': StatCollector.RD,
                 'pos': 9,
-                'align': COLALIGN.ca_left,
                 'noautohide': True
             },
             {

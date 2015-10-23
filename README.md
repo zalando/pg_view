@@ -11,7 +11,7 @@ Synopsis
 `pg_view` is a command-line tool to display the state to the PostgreSQL processes.
 It shows the per-process statistics combined with `pg_stat_activity` output for the processes
 that have the rows there, global system stats, per-partition information and the memory stats.
-You can find a blog post about it at [tech.zalando.com](http://tech.zalando.com/getting-a-quick-view-of-your-postgresql-stats/).
+You can find a blog post about it at [tech.zalando.com](https://tech.zalando.com/blog/getting-a-quick-view-of-your-postgresql-stats/).
 
 Requirements
 ------------

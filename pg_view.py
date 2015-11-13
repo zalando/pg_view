@@ -114,7 +114,7 @@ def parse_args():
     parser.add_option('-V', '--use-version',
                       help='version of the instance to monitor (in case it can\'t be autodetected)',
                       action='store', dest='version', type='float')
-    parser.add_option('-l', '--log-file', help='direct log output to the file', action='store', default='pg_view.log',
+    parser.add_option('-l', '--log-file', help='direct log output to the file', action='store',
                       dest='log_file')
     parser.add_option('-R', '--reset-output', help='clear screen after each tick', action='store_true', default=False,
                       dest='clear_screen')
@@ -122,6 +122,10 @@ def parse_args():
                       action='store', default='', dest='config_file')
     parser.add_option('-p', '--pid', help='always track a given pid (may be used multiple times)',
                       action='append', type=int, default=[])
+    parser.add_option('-U', '--username', help='database user name',
+                      action='store', dest='username')
+    parser.add_option('-d', '--dbname', help='database name to connect to',
+                      action='store', dest='dbname')
 
     options, args = parser.parse_args()
     return options, args
@@ -2922,8 +2926,8 @@ def detect_db_port(socket_dir):
 
 
 def detect_default_user_database():
-    user = os.environ.get('PGUSER') or getpass.getuser()
-    database = os.environ.get('PGDATABASE') or user
+    user = options.username or os.environ.get('PGUSER') or getpass.getuser()
+    database = options.dbname or os.environ.get('PGDATABASE') or user
     return (user, database)
 
 
@@ -3262,14 +3266,17 @@ def main():
         print('Curses output is selected, but curses are unavailable, falling back to console output')
         output_method == OUTPUT_METHOD.console
 
-    LOG_FILE_NAME = options.log_file
-
-    # truncate the former logs
-    with open(LOG_FILE_NAME, 'w'):
-        pass
 
     # set basic logging
-    logging.basicConfig(format='%(levelname)s: %(asctime)-15s %(message)s', filename=LOG_FILE_NAME)
+    if options.log_file:
+        LOG_FILE_NAME = options.log_file
+
+        # truncate the former logs
+        with open(LOG_FILE_NAME, 'w'):
+            pass
+        logging.basicConfig(format='%(levelname)s: %(asctime)-15s %(message)s', filename=LOG_FILE_NAME)
+    else:
+        logging.basicConfig(format='%(levelname)s: %(asctime)-15s %(message)s')
     logger = logging.getLogger(__name__)
     logger.setLevel((logging.INFO if options.verbose else logging.ERROR))
 

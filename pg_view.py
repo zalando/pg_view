@@ -3266,7 +3266,6 @@ def main():
         print('Curses output is selected, but curses are unavailable, falling back to console output')
         output_method == OUTPUT_METHOD.console
 
-
     # set basic logging
     if options.log_file:
         LOG_FILE_NAME = options.log_file

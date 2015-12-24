@@ -127,7 +127,8 @@ def parse_args():
                       action='store', dest='username')
     parser.add_option('-d', '--dbname', help='database name to connect to',
                       action='store', dest='dbname')
-    parser.add_option('-h', '--host', help='database connection host (or a directory path for the unix socket connection)',
+    parser.add_option('-h', '--host', help='database connection host '
+                      '(or a directory path for the unix socket connection)',
                       action='store', dest='host')
     parser.add_option('-p', '--port', help='database port number', action='store', dest='port')
 
@@ -3291,7 +3292,8 @@ def main():
             # pass already aquired connections to make sure we only list unique clusters.
             host = config[instance].get('host')
             port = config[instance].get('port')
-            user, database = detect_default_user_database(config[instance].get('user'), config[instance].get('database'))
+            user, database = detect_default_user_database(config[instance].get('user'),
+                                                          config[instance].get('database'))
 
             if not establish_user_defined_connection(instance, clusters, host, port, user, database):
                 logger.error('failed to acquire details about ' +

@@ -126,6 +126,9 @@ def parse_args():
                       action='store', dest='username')
     parser.add_option('-d', '--dbname', help='database name to connect to',
                       action='store', dest='dbname')
+    parser.add_option('-H', '--host', help='database connection host (or a directory path for the unix socket connection)',
+                      action='store', dest='host')
+    parser.add_option('-P', '--port', help='database port number', action='store', dest='port')
 
     options, args = parser.parse_args()
     return options, args
@@ -2925,9 +2928,9 @@ def detect_db_port(socket_dir):
     return port
 
 
-def detect_default_user_database():
-    user = options.username or os.environ.get('PGUSER') or getpass.getuser()
-    database = options.dbname or os.environ.get('PGDATABASE') or user
+def detect_default_user_database(user, database):
+    user = user or os.environ.get('PGUSER') or getpass.getuser()
+    database = database or os.environ.get('PGDATABASE') or user
     return (user, database)
 
 
@@ -3028,7 +3031,7 @@ def pick_connection_arguments(conn_args):
 
 def can_connect_with_connection_arguments(host, port):
     """ check that we can connect given the specified arguments """
-    user, database = detect_default_user_database()
+    user, database = detect_default_user_database(options.username, options.dbname)
     try:
         test_conn = psycopg2.connect('host={0} port={1} user={2} dbname={3}'.format(host, port, user, database))
         test_conn.close()
@@ -3073,30 +3076,22 @@ def detect_db_connection_arguments(work_directory, pid, version):
     return result
 
 
-def establish_user_defined_connection(dbname, args, clusters):
+def establish_user_defined_connection(instance, clusters, host, port, user, dbname):
     """ connect the database and get all necessary options like pid and work_directory
         we use port, host and socket_directory, prefering socket over TCP connections
     """
 
     pgcon = None
+    connstring = "host={0} port={1} user={2} dbname={3}".format(host, port, user, dbname)
     # sanity check
-    if not (args.get('port') or args.get('host')):
-        missing = ('port' if not args.get('port') else 'host')
-        logger.error('Not all required connection arguments ' +
-                     '({0}) are specified for the database {1}, skipping it'.format(missing, dbname))
+    if not (host and port and user and dbname):
+        logger.error("Connection string is incomplete: {0}".format(connstring))
         return None
-
-    port = args['port']
-    host = args['host']
-    user = args.get('user', 'postgres')
-    # the db is the actual database we connect to, while dbname is the name of the postgres cluster
-    db = args.get('dbname', 'postgres')
     # establish a new connection
     try:
-        pgcon = psycopg2.connect('host={0} port={1} user={2} dbname={3}'.format(host, port, user, db))
+        pgcon = psycopg2.connect('{0}'.format(connstring))
     except Exception as e:
-        logger.error('failed to establish connection to {0} on port {1} user {2} database {3}'.format(host, port, user,
-                     dbname))
+        logger.error('failed to establish connection to {0} via {1}'.format(instance, connstring))
         logger.error('PostgreSQL exception: {0}'.format(e))
         return None
     # get the database version from the pgcon properties
@@ -3109,7 +3104,7 @@ def establish_user_defined_connection(dbname, args, clusters):
     cur.close()
     pgcon.commit()
     # now, when we have the work directory, acquire the pid of the postmaster.
-    pid = read_postmaster_pid(work_directory, dbname)
+    pid = read_postmaster_pid(work_directory, instance)
     if pid is None:
         logger.error('failed to read pid of the postmaster on {0}:{1}'.format(host, port))
         return None
@@ -3118,14 +3113,14 @@ def establish_user_defined_connection(dbname, args, clusters):
     # the same database (one for the unix_socket_directory and another for the host)
     pids = [opt['pid'] for opt in clusters if 'pid' in opt]
     if pid in pids:
-        duplicate_dbname = [opt['name'] for opt in clusters if 'pid' in opt and opt.get('pid', 0) == pid][0]
+        duplicate_instance = [opt['name'] for opt in clusters if 'pid' in opt and opt.get('pid', 0) == pid][0]
         logger.error('duplicate connection options detected ' +
-                     'for databases {0} and {1}, same pid {2}, skipping {0}'.format(dbname, duplicate_dbname, pid))
+                     'for databases {0} and {1}, same pid {2}, skipping {0}'.format(instance, duplicate_instance, pid))
         pgcon.close()
         return True
     # now we have all components to create the result
     result = {
-        'name': dbname,
+        'name': instance,
         'ver': dbver,
         'wd': work_directory,
         'pid': pid,
@@ -3287,15 +3282,26 @@ def main():
     clusters = []
 
     # now try to read the configuration file
-    config_data = (read_configuration(options.config_file) if options.config_file else None)
-    if config_data:
-        for dbname in config_data:
-            if user_dbname and dbname != user_dbname:
+    config = (read_configuration(options.config_file) if options.config_file else None)
+    if config:
+        for instance in config:
+            if user_dbname and instance != user_dbname:
                 continue
             # pass already aquired connections to make sure we only list unique clusters.
-            if not establish_user_defined_connection(dbname, config_data[dbname], clusters):
+            host = config[instance].get('host')
+            port = config[instance].get('port')
+            user, database = detect_default_user_database(config[instance].get('user'), config[instance].get('database'))
+
+            if not establish_user_defined_connection(instance, clusters, host, port, user, database):
                 logger.error('failed to acquire details about ' +
-                             'the database cluster {0}, the server will be skipped'.format(dbname))
+                             'the database cluster {0}, the server will be skipped'.format(instance))
+    elif options.host:
+        port = options.port or "5432"
+        # try to connet to the database specified by command-line options
+        user, dbname = detect_default_user_database(options.username, options.dbname)
+        instance = options.instance or "default"
+        if not establish_user_defined_connection(instance, clusters, options.host, port, user, dbname):
+            logger.error("unable to continue with cluster {0}".format(instance))
     else:
         # do autodetection
         postmasters = get_postmasters_directories()
@@ -3315,7 +3321,7 @@ def main():
                     continue
                 host = conndata['host']
                 port = conndata['port']
-                user, database = detect_default_user_database()
+                user, database = detect_default_user_database(options.username, options.dbname)
                 pgcon = psycopg2.connect('host={0} port={1} user={2} dbname={3}'.format(host, port, user, database))
             except Exception as e:
                 logger.error('PostgreSQL exception {0}'.format(e))

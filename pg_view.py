@@ -104,7 +104,8 @@ def output_method_is_valid(method):
 def parse_args():
     '''parse command-line options'''
 
-    parser = OptionParser()
+    parser = OptionParser(add_help_option=False)
+    parser.add_option('-H', '--help', help='show_help', action='help')
     parser.add_option('-v', '--verbose', help='verbose mode', action='store_true', dest='verbose')
     parser.add_option('-i', '--instance', help='name of the instance to monitor', action='store', dest='instance')
     parser.add_option('-t', '--tick', help='tick length (in seconds)',
@@ -120,15 +121,15 @@ def parse_args():
                       dest='clear_screen')
     parser.add_option('-c', '--configuration-file', help='configuration file for PostgreSQL connections',
                       action='store', default='', dest='config_file')
-    parser.add_option('-p', '--pid', help='always track a given pid (may be used multiple times)',
+    parser.add_option('-P', '--pid', help='always track a given pid (may be used multiple times)',
                       action='append', type=int, default=[])
     parser.add_option('-U', '--username', help='database user name',
                       action='store', dest='username')
     parser.add_option('-d', '--dbname', help='database name to connect to',
                       action='store', dest='dbname')
-    parser.add_option('-H', '--host', help='database connection host (or a directory path for the unix socket connection)',
+    parser.add_option('-h', '--host', help='database connection host (or a directory path for the unix socket connection)',
                       action='store', dest='host')
-    parser.add_option('-P', '--port', help='database port number', action='store', dest='port')
+    parser.add_option('-p', '--port', help='database port number', action='store', dest='port')
 
     options, args = parser.parse_args()
     return options, args

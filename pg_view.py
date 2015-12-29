@@ -468,7 +468,7 @@ class StatCollector(object):
             This kind of trimming seems to be better than tail trimming for user and database names.
         """
 
-        half = (maxw - 2) / 2
+        half = int((maxw - 2) / 2)
         return val[:half] + '..' + val[-half:]
 
     def _do_refresh(self, new_rows):

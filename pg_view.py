@@ -2938,7 +2938,7 @@ def build_connection(host, port, user, database):
     if user:
         result['user'] = user
     if database:
-        result['dbname'] = database
+        result['database'] = database
     return result
 
 

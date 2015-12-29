@@ -62,18 +62,18 @@ def enum(**enums):
     return type('Enum', (), enums)
 
 
-class ColumnType(namedtuple('ColumnType', 'value header align')):
+class ColumnType(namedtuple('ColumnType', 'value header header_position')):
     __slots__ = ()
 
     @property
     def length(self):
-        return len(self.value) + (0 if not self.align else len(self.header) + 1)
+        return len(self.value) + (0 if not self.header_position else len(self.header) + 1)
 
 
 COLSTATUS = enum(cs_ok=0, cs_warning=1, cs_critical=2)
 COLALIGN = enum(ca_none=0, ca_left=1, ca_center=2, ca_right=3)
 COLTYPES = enum(ct_string=0, ct_number=1)
-COHEADER = enum(ch_default=0, ch_prepend=1, ch_append=2)
+COLHEADER = enum(ch_default=0, ch_prepend=1, ch_append=2)
 OUTPUT_METHOD = enum(console='console', json='json', curses='curses')
 
 STAT_FIELD = enum(st_pid=0, st_process_name=1, st_state=2, st_ppid=3, st_start_time=21)
@@ -164,7 +164,7 @@ class StatCollector(object):
         'noautohide': False,
         'w': 0,
         'align': COLALIGN.ca_none,
-        'column_header': COHEADER.ch_default,
+        'column_header': COLHEADER.ch_default,
     }
 
     NCURSES_CUSTOM_OUTPUT_FIELDS = ['header', 'prefix', 'append_column_headers']
@@ -446,10 +446,10 @@ class StatCollector(object):
             the same for all columns and depends on the values only.
         """
         val = raw_val
-        align = None
+        header_position = None
         # change the None output to ''
         if raw_val is None:
-            return ColumnType(value='', header='', align=None)
+            return ColumnType(value='', header='', header_position=None)
         if str(raw_val) == 'True':
             val = 'T'
         elif str(raw_val) == 'False':
@@ -458,11 +458,11 @@ class StatCollector(object):
             # if the value is larger than the maximum allowed width - trim it by removing chars from the middle
             val = self._trim_text_middle(val, output_data['maxw'])
         if self.ncurses_custom_fields.get('append_column_headers') or output_data.get('column_header',
-           COHEADER.ch_default) == COHEADER.ch_prepend:
-            align = COHEADER.ch_prepend
-        elif output_data.get('column_header', COHEADER.ch_default) == COHEADER.ch_append:
-            align = COHEADER.ch_append
-        return ColumnType(value=str(val), header=str(attname), align=align)
+           COLHEADER.ch_default) == COLHEADER.ch_prepend:
+            header_position = COLHEADER.ch_prepend
+        elif output_data.get('column_header', COLHEADER.ch_default) == COLHEADER.ch_append:
+            header_position = COLHEADER.ch_append
+        return ColumnType(value=str(val), header=str(attname), header_position=header_position)
 
     @staticmethod
     def _trim_text_middle(val, maxw):
@@ -2062,7 +2062,7 @@ class HostStatCollector(StatCollector):
                 'noautohide': True,
                 'warning': 5,
                 'critical': 20,
-                'column_header': COHEADER.ch_prepend,
+                'column_header': COLHEADER.ch_prepend,
                 'status_fn': self._load_avg_state,
             },
             {
@@ -2070,7 +2070,7 @@ class HostStatCollector(StatCollector):
                 'in': 'uptime',
                 'pos': 1,
                 'noautohide': True,
-                'column_header': COHEADER.ch_prepend,
+                'column_header': COLHEADER.ch_prepend,
             },
             {
                 'out': 'host',
@@ -2083,7 +2083,7 @@ class HostStatCollector(StatCollector):
                 'out': 'cores',
                 'pos': 2,
                 'noautohide': True,
-                'column_header': COHEADER.ch_append,
+                'column_header': COLHEADER.ch_append,
             },
             {
                 'out': 'name',
@@ -2366,18 +2366,18 @@ class CursesOutput(object):
             return self.COLOR_HIGHLIGHT | curses.A_BOLD
         return self.COLOR_NORMAL
 
-    def color_text(self, status_map, highlight, text, header, align):
+    def color_text(self, status_map, highlight, text, header, header_position):
         """ for a given header and text - decide on the position and output color """
         result = []
         xcol = 0
-        # 'alignment' is either put the header before the value, or after
-        # if align is empty, no header is present
-        if align == COHEADER.ch_prepend:
+        # header_position is either put the header before the value, or after
+        # if header_position is empty, no header is present
+        if header_position == COLHEADER.ch_prepend:
             xcol = self.color_header(header, xcol, result)
             # the text might be empty, if it was truncated by truncate_column_value
             if text:
                 self.color_value(text, xcol, status_map, highlight, result)
-        elif align == COHEADER.ch_append:
+        elif header_position == COLHEADER.ch_append:
             xcol = self.color_value(text, xcol, status_map, highlight, result)
             # ditto for the header
             if header:
@@ -2522,12 +2522,12 @@ class CursesOutput(object):
                 if layout[field].get('truncate', False) \
                         and w > self.MIN_ELLIPSIS_FIELD_LENGTH \
                         and w < row[field].length:
-                    # XXX: recheck
+                    # XXX: why do we truncate even when truncate for the column is set to False?
                     header, text = self.truncate_column_value(row[field], w)
                 else:
                     header, text = self.truncate_column_value(row[field], w, False)
                 text = self._align_field(text, header, w, column_alignment, types.get(field, COLTYPES.ct_string))
-                color_fields = self.color_text(status[field], highlights[field], text, header, row[field].align)
+                color_fields = self.color_text(status[field], highlights[field], text, header, row[field].header_position)
                 for f in color_fields:
                     self.screen.addnstr(self.next_y, layout[field]['start'] + f['start'], f['word'], f['width'],
                                         f['color'])
@@ -2537,19 +2537,19 @@ class CursesOutput(object):
         """ make sure that a pair of header and value fits into the allocated field length """
         value = cv.value
         header = cv.header
-        align = cv.align
+        header_position = cv.header_position
         h_len = len(header)
         v_len = len(value)
         maxlen = (maxlen - 3) if ellipsis else maxlen
-        if align:
-            if align == COHEADER.ch_prepend:
+        if header_position:
+            if header_position == COLHEADER.ch_prepend:
                 if h_len + 1 >= maxlen:
                     # prepend the header, consider if we have to truncate the header and omit the value altogether
                     header = header[:maxlen] + (' ' if maxlen == h_len + 1 else '') + ('...' if ellipsis else '')
                     value = ''
                 else:
                     value = value[:(maxlen - h_len - 1)] + ('...' if ellipsis else '')
-            elif align == COHEADER.ch_append:
+            elif header_position == COLHEADER.ch_append:
                 if v_len + 1 >= maxlen:
                     # prepend the value, consider if we have to truncate it and omit the header altogether
                     value = value[:maxlen] + (' ' if maxlen == v_len + 1 else '') + ('...' if ellipsis else '')

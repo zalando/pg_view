@@ -50,11 +50,6 @@ except ImportError:
     print('Unable to import ncurses, curses output will be unavailable')
     curses_available = False
 
-# bail out if we are not running Linux
-if platform.system() != 'Linux':
-    print('Non Linux database hosts are not supported at the moment. Can not continue')
-    sys.exit(243)
-
 
 # enum emulation
 
@@ -2528,7 +2523,8 @@ class CursesOutput(object):
                 else:
                     header, text = row[field].header, row[field].value
                 text = self._align_field(text, header, w, column_alignment, types.get(field, COLTYPES.ct_string))
-                color_fields = self.color_text(status[field], highlights[field], text, header, row[field].header_position)
+                color_fields = self.color_text(status[field], highlights[field],
+                                               text, header, row[field].header_position)
                 for f in color_fields:
                     self.screen.addnstr(self.next_y, layout[field]['start'] + f['start'], f['word'], f['width'],
                                         f['color'])
@@ -3308,6 +3304,11 @@ class ProcNetParser():
 
 def main():
     global TICK_LENGTH, logger, options
+
+    # bail out if we are not running Linux
+    if platform.system() != 'Linux':
+        print('Non Linux database hosts are not supported at the moment. Can not continue')
+        sys.exit(243)
 
     if not psycopg2_available:
         print('Unable to import psycopg2 module, please, install it (python-psycopg2). Can not continue')

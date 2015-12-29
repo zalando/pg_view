@@ -167,7 +167,7 @@ class StatCollector(object):
         'column_header': COLHEADER.ch_default,
     }
 
-    NCURSES_CUSTOM_OUTPUT_FIELDS = ['header', 'prefix', 'append_column_headers']
+    NCURSES_CUSTOM_OUTPUT_FIELDS = ['header', 'prefix', 'prepend_column_headers']
 
     def __init__(self, ticks_per_refresh=1, produce_diffs=True):
         self.rows_prev = []
@@ -457,7 +457,7 @@ class StatCollector(object):
         if output_data.get('maxw', 0) > 0 and not self.notrim and len(str(val)) > output_data['maxw']:
             # if the value is larger than the maximum allowed width - trim it by removing chars from the middle
             val = self._trim_text_middle(val, output_data['maxw'])
-        if self.ncurses_custom_fields.get('append_column_headers') or output_data.get('column_header',
+        if self.ncurses_custom_fields.get('prepend_column_headers') or output_data.get('column_header',
            COLHEADER.ch_default) == COLHEADER.ch_prepend:
             header_position = COLHEADER.ch_prepend
         elif output_data.get('column_header', COLHEADER.ch_default) == COLHEADER.ch_append:
@@ -765,7 +765,7 @@ class StatCollector(object):
             minw = col.get('minw', 0)
             attname = self._produce_output_name(col)
             # XXX:  if append_column_header, min width should include the size of the attribut name
-            if method == OUTPUT_METHOD.curses and self.ncurses_custom_fields.get('append_column_headers'):
+            if method == OUTPUT_METHOD.curses and self.ncurses_custom_fields.get('prepend_column_headers'):
                 minw += len(attname) + 1
             col['w'] = len(attname)
             # use cooked values
@@ -1643,7 +1643,7 @@ class SystemStatCollector(StatCollector):
         self.previos_total_cpu_time = 0
         self.current_total_cpu_time = 0
         self.cpu_time_diff = 0
-        self.ncurses_custom_fields = {'header': False, 'prefix': 'sys: ', 'append_column_headers': True}
+        self.ncurses_custom_fields = {'header': False, 'prefix': 'sys: ', 'prepend_column_headers': True}
 
         self.postinit()
 
@@ -1991,7 +1991,7 @@ class MemoryStatCollector(StatCollector):
             },
         ]
 
-        self.ncurses_custom_fields = {'header': False, 'prefix': 'mem: ', 'append_column_headers': True}
+        self.ncurses_custom_fields = {'header': False, 'prefix': 'mem: ', 'prepend_column_headers': True}
 
         self.postinit()
 
@@ -2096,7 +2096,7 @@ class HostStatCollector(StatCollector):
             },
         ]
 
-        self.ncurses_custom_fields = {'header': False, 'prefix': None, 'append_column_headers': False}
+        self.ncurses_custom_fields = {'header': False, 'prefix': None, 'prepend_column_headers': False}
 
         self.postinit()
 
@@ -2482,7 +2482,7 @@ class CursesOutput(object):
         statuses = self.data[collector]['statuses']
         align = self.data[collector]['align']
         header = self.data[collector].get('header', False) or False
-        append_column_headers = self.data[collector].get('append_column_headers', False)
+        prepend_column_headers = self.data[collector].get('prepend_column_headers', False)
         highlights = self.data[collector]['highlights']
         types = self.data[collector]['types']
 
@@ -2516,7 +2516,7 @@ class CursesOutput(object):
             for field in layout:
                 # calculate colors and alignment for the data value
                 column_alignment = (align.get(field,
-                                    COLALIGN.ca_none) if not append_column_headers else COLALIGN.ca_left)
+                                    COLALIGN.ca_none) if not prepend_column_headers else COLALIGN.ca_left)
                 w = layout[field]['width']
                 # now check if we need to add ellipsis to indicate that the value has been truncated.
                 # we don't do this if the value is less than a certain length or when the column is marked as

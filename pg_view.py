@@ -446,7 +446,7 @@ class StatCollector(object):
             the same for all columns and depends on the values only.
         """
         val = raw_val
-        header_position = None
+        header = str(attname)
         # change the None output to ''
         if raw_val is None:
             return ColumnType(value='', header='', header_position=None)
@@ -462,7 +462,10 @@ class StatCollector(object):
             header_position = COLHEADER.ch_prepend
         elif output_data.get('column_header', COLHEADER.ch_default) == COLHEADER.ch_append:
             header_position = COLHEADER.ch_append
-        return ColumnType(value=str(val), header=str(attname), header_position=header_position)
+        else:
+            header = ''
+            header_position = None
+        return ColumnType(value=str(val), header=header, header_position=header_position)
 
     @staticmethod
     def _trim_text_middle(val, maxw):
@@ -2519,13 +2522,11 @@ class CursesOutput(object):
                 # we don't do this if the value is less than a certain length or when the column is marked as
                 # containing truncated values, but the actual value is not truncated.
 
-                if layout[field].get('truncate', False) \
-                        and w > self.MIN_ELLIPSIS_FIELD_LENGTH \
-                        and w < row[field].length:
+                if layout[field].get('truncate', False):
                     # XXX: why do we truncate even when truncate for the column is set to False?
-                    header, text = self.truncate_column_value(row[field], w)
+                    header, text = self.truncate_column_value(row[field], w, (w > self.MIN_ELLIPSIS_FIELD_LENGTH))
                 else:
-                    header, text = self.truncate_column_value(row[field], w, False)
+                    header, text = row[field].header, row[field].value
                 text = self._align_field(text, header, w, column_alignment, types.get(field, COLTYPES.ct_string))
                 color_fields = self.color_text(status[field], highlights[field], text, header, row[field].header_position)
                 for f in color_fields:
@@ -2557,8 +2558,8 @@ class CursesOutput(object):
                 else:
                     header = header[:(maxlen - v_len - 1)] + ('...' if ellipsis else '')
         else:
+            # header is set to '' by the collector
             value = value[:maxlen] + ('...' if ellipsis else '')
-            header = ''
         return header, value
 
     def display_prefix(self, collector, header):

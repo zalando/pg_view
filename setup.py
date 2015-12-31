@@ -77,7 +77,6 @@ class PyTest(TestCommand):
         params = {'args': self.test_args}
         if self.cov:
             params['args'] += self.cov
-            params['plugins'] = ['cov']
         params['args'] += ['--doctest-modules', MAIN_MODULE + '.py', '-s', '-vv']
         errno = pytest.main(**params)
         sys.exit(errno)

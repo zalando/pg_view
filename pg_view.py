@@ -510,8 +510,8 @@ class StatCollector(object):
             else:
                 # default case - calculate the diff between the current attribute's values of
                 # old and new rows and divide it by the time interval passed between measurements.
-                result[attname] = ((cur[incol] - prev[incol]) / self.diff_time if cur.get(incol, None) is not None
-                                   and prev.get(incol, None) is not None and self.diff_time >= 0 else None)
+                result[attname] = ((cur[incol] - prev[incol]) / self.diff_time if cur.get(incol, None) is not None and
+                                   prev.get(incol, None) is not None and self.diff_time >= 0 else None)
         return result
 
     def _produce_output_row(self, row):
@@ -2033,8 +2033,8 @@ class MemoryStatCollector(StatCollector):
         return result
 
     def calculate_kb_left_until_limit(self, colname, row, optional):
-        result = (int(row['CommitLimit']) - int(row['Committed_AS']) if row.get('CommitLimit', None) is not None
-                  and row.get('Committed_AS', None) is not None else None)
+        result = (int(row['CommitLimit']) - int(row['Committed_AS']) if row.get('CommitLimit', None) is not None and
+                  row.get('Committed_AS', None) is not None else None)
         if result is None and not optional:
             self.warn_non_optional_column(colname)
         return result
@@ -2587,8 +2587,8 @@ class CursesOutput(object):
         for field in layout:
             text = self._align_field(field, '', layout[field]['width'], align.get(field, COLALIGN.ca_none),
                                      types.get(field, COLTYPES.ct_string))
-            self.screen.addnstr(self.next_y, layout[field]['start'], text, layout[field]['width'], self.COLOR_NORMAL
-                                | curses.A_BOLD)
+            self.screen.addnstr(self.next_y, layout[field]['start'], text, layout[field]['width'], self.COLOR_NORMAL |
+                                curses.A_BOLD)
 
     def calculate_fields_position(self, collector, xstart):
         width = self.data[collector]['w']
@@ -2885,8 +2885,8 @@ def get_postmasters_directories():
             logger.error('failed to read {0}'.format(f))
             continue
         # read PostgreSQL processes. Avoid zombies
-        if len(stat_fields) < STAT_FIELD.st_start_time + 1 or stat_fields[STAT_FIELD.st_process_name] not in ('(postgres)', '(postmaster)') \
-                or stat_fields[STAT_FIELD.st_state] == 'Z':
+        if len(stat_fields) < STAT_FIELD.st_start_time + 1 or stat_fields[STAT_FIELD.st_process_name] not in \
+                ('(postgres)', '(postmaster)') or stat_fields[STAT_FIELD.st_state] == 'Z':
             if stat_fields[STAT_FIELD.st_state] == 'Z':
                 logger.warning('zombie process {0}'.format(f))
             if len(stat_fields) < STAT_FIELD.st_start_time + 1:

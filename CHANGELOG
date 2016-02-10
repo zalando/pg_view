@@ -1,3 +1,18 @@
+Version 1.3 (February 10th, 2016):
+
+- show actions for the system PostgreSQL processes (Oleksii Kliukin)
+- UI changes: (Oleksandr Shulgin):
+	- fix USS column alignment
+	- improve the help screen
+	- fix the help bar to 80 characters
+	- show the minor server version
+	- improve formatting in the connection stats line
+- add -U option to specify the PostgreSQL username (David Turoň)
+- redefine -h and -p options to specify PostgreSQL host and port to connect
+  The help and pid options are available with -H and -P (Oleksii Kliukin)
+- do not truncate the query text on the '|' character (Oleksii Kliukin)
+- change the README file to the reStructuredText (Henning Jacobs, Oleksii Kliukin)
+
 Version 1.2:
 
 - Autodetection code has been revamped for a more

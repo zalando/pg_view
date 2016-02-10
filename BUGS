@@ -1,0 +1,6 @@
+Known bugs:
+- pg_view doesn't work correctly with unicode strings in Python 2.
+- lock information sometimes show duplicate pids
+- no tests are present
+- pg_view only runs on Linux
+- pg_view only runs on the host and does not support remote databases

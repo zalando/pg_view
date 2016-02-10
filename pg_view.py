@@ -21,7 +21,7 @@ import json
 from collections import namedtuple
 
 __appname__ = 'pg_view'
-__version__ = '1.2.0'
+__version__ = '1.3.0'
 __author__ = 'Oleksii Kliukin <oleksii.kliukin@zalando.de>'
 __license__ = 'Apache 2.0'
 

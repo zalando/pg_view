@@ -109,7 +109,7 @@ def setup_package():
         author_email=EMAIL,
         license=LICENSE,
         keywords=KEYWORDS,
-        long_description=read('README.md'),
+        long_description=read('README.rst'),
         classifiers=CLASSIFIERS,
         test_suite='tests',
         py_modules=['pg_view'],

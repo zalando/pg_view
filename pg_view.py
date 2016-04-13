@@ -1426,11 +1426,13 @@ class PgstatCollector(StatCollector):
         return ret
 
     def ncurses_produce_prefix(self):
-        return "{1} {0} {5} connections: {2} of {4} allocated, {3} active\n".\
-            format(self.server_version,
-                   self.dbname, self.total_connections,
-                   self.active_connections, self.max_connections,
-                   self.recovery_status)
+        return "{dbname} {version} {role} connections: {conns} of {max_conns} allocated, {active_conns} active\n".\
+            format(dbname=self.dbname,
+                   version=self.server_version,
+                   role=self.recovery_status,
+                   conns=self.total_connections,
+                   max_conns=self.max_connections,
+                   active_conns=self.active_connections)
 
     @staticmethod
     def process_sort_key(process):

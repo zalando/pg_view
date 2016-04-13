@@ -1451,7 +1451,7 @@ class PgstatCollector(StatCollector):
                        max_conns=self.max_connections,
                        active_conns=self.active_connections)
         else:
-            return "{dbname} {version} (offline)\n\n".\
+            return "{dbname} {version} (offline)\n".\
                 format(dbname=self.dbname,
                        version=self.server_version)
 
@@ -2590,18 +2590,17 @@ class CursesOutput(object):
         if prefix:
             prefix_len = len(prefix)
             prefix_newline = prefix[-1] == '\n'
-            if prefix_len >= 2:
-                prefix_double_newline = prefix[-2] == '\n'
             # truncate the prefix if it doesn't fit the screen
             if prefix_len >= self.screen_x and prefix_newline:
                 prefix = prefix[:max(self.screen_x - 1, 0)]
             elif prefix_len >= self.screen_x / 5 and not prefix_newline:
                 return 0
 
-            if prefix_double_newline:
-                color = self.COLOR_CRITICAL
-            elif prefix_newline:
-                color = self.COLOR_INVERSE_HIGHLIGHT
+            if prefix_newline:
+                if prefix.endswith("(offline)\n"):
+                    color = self.COLOR_CRITICAL
+                else:
+                    color = self.COLOR_INVERSE_HIGHLIGHT
             else:
                 color = self.COLOR_NORMAL
 

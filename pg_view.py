@@ -225,7 +225,7 @@ class StatCollector(object):
         proc = subprocess.Popen(cmdline, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         ret = proc.wait()
         if ret != 0:
-            logger.debug('The command {cmd} returned a non-zero exit code'.format(cmd=cmdline))
+            logger.info('The command {cmd} returned a non-zero exit code'.format(cmd=cmdline))
         return ret, proc.stdout.read().strip()
 
     @staticmethod
@@ -1104,7 +1104,7 @@ class PgstatCollector(StatCollector):
         ppid = self.postmaster_pid
         result = self.exec_command_with_output('ps -o pid --ppid {0} --noheaders'.format(ppid))
         if result[0] != 0:
-            logger.debug("Couldn't determine the pid of subprocesses for {0}".format(ppid))
+            logger.info("Couldn't determine the pid of subprocesses for {0}".format(ppid))
             self.pids = []
         self.pids = [int(x) for x in result[1].split()]
 

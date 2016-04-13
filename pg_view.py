@@ -3397,7 +3397,7 @@ def main():
             host = config[instance].get('host')
             port = config[instance].get('port')
             conn = build_connection(host, port,
-                                    config[instance].get('user'), config[instance].get('database'))
+                                    config[instance].get('user'), config[instance].get('dbname'))
 
             if not establish_user_defined_connection(instance, conn, clusters):
                 logger.error('failed to acquire details about ' +

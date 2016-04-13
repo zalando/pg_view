@@ -3164,10 +3164,11 @@ def establish_user_defined_connection(instance, conn, clusters):
         we use port, host and socket_directory, prefering socket over TCP connections
     """
 
-    pgcon = None
-    # establish a new connection
     def reconnect():
         return psycopg2.connect(**conn)
+
+    pgcon = None
+    # establish a new connection
     try:
         pgcon = reconnect()
     except Exception as e:
@@ -3409,6 +3410,7 @@ def main():
                 host = conndata['host']
                 port = conndata['port']
                 conn = build_connection(host, port, options.username, options.dbname)
+
                 def reconnect():
                     return psycopg2.connect(**conn)
                 pgcon = reconnect()

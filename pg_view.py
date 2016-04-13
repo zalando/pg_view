@@ -3163,14 +3163,10 @@ def establish_user_defined_connection(instance, conn, clusters):
     """ connect the database and get all necessary options like pid and work_directory
         we use port, host and socket_directory, prefering socket over TCP connections
     """
-
-    def reconnect():
-        return psycopg2.connect(**conn)
-
     pgcon = None
     # establish a new connection
     try:
-        pgcon = reconnect()
+        pgcon = psycopg2.connect(**conn)
     except Exception as e:
         logger.error('failed to establish connection to {0} via {1}'.format(instance, conn))
         logger.error('PostgreSQL exception: {0}'.format(e))
@@ -3199,17 +3195,27 @@ def establish_user_defined_connection(instance, conn, clusters):
                      'for databases {0} and {1}, same pid {2}, skipping {0}'.format(instance, duplicate_instance, pid))
         pgcon.close()
         return True
-    # now we have all components to create the result
-    result = {
-        'name': instance,
-        'ver': dbver,
-        'wd': work_directory,
+    # now we have all components to create a cluster descriptor
+    desc = make_cluster_desc(name=instance, version=dbver, workdir=work_directory,
+                             pid=pid, pgcon=pgcon, conn=conn)
+    clusters.append(desc)
+    return True
+
+
+def make_cluster_desc(name, version, workdir, pid, pgcon, conn):
+    """Create cluster descriptor, complete with the reconnect function."""
+
+    def reconnect():
+        return psycopg2.connect(**conn)
+
+    return {
+        'name': name,
+        'ver': version,
+        'wd': workdir,
         'pid': pid,
         'pgcon': pgcon,
         'reconnect': reconnect
     }
-    clusters.append(result)
-    return True
 
 
 class ProcNetParser():
@@ -3410,22 +3416,14 @@ def main():
                 host = conndata['host']
                 port = conndata['port']
                 conn = build_connection(host, port, options.username, options.dbname)
-
-                def reconnect():
-                    return psycopg2.connect(**conn)
-                pgcon = reconnect()
+                pgcon = psycopg2.connect(**conn)
             except Exception as e:
                 logger.error('PostgreSQL exception {0}'.format(e))
                 pgcon = None
             if pgcon:
-                clusters.append({
-                    'name': dbname,
-                    'ver': dbver,
-                    'wd': result_work_dir,
-                    'pid': ppid,
-                    'pgcon': pgcon,
-                    'reconnect': reconnect
-                })
+                desc = make_cluster_desc(name=dbname, ver=dbver, workdir=result_work_dir,
+                                         pid=ppid, pgcon=pgcon, conn=conn)
+                clusters.append(desc)
     collectors = []
     groups = {}
     try:

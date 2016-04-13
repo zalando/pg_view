@@ -3434,7 +3434,7 @@ def main():
                 logger.error('PostgreSQL exception {0}'.format(e))
                 pgcon = None
             if pgcon:
-                desc = make_cluster_desc(name=dbname, ver=dbver, workdir=result_work_dir,
+                desc = make_cluster_desc(name=dbname, version=dbver, workdir=result_work_dir,
                                          pid=ppid, pgcon=pgcon, conn=conn)
                 clusters.append(desc)
     collectors = []

@@ -225,7 +225,7 @@ class StatCollector(object):
         proc = subprocess.Popen(cmdline, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         ret = proc.wait()
         if ret != 0:
-            logger.error('The command {cmd} returned a non-zero exit code'.format(cmd=cmdline))
+            logger.debug('The command {cmd} returned a non-zero exit code'.format(cmd=cmdline))
         return ret, proc.stdout.read().strip()
 
     @staticmethod
@@ -906,10 +906,11 @@ class PgstatCollector(StatCollector):
 
     STATM_FILENAME = '/proc/{0}/statm'
 
-    def __init__(self, pgcon, pid, dbname, dbver, always_track_pids):
+    def __init__(self, pgcon, reconnect, pid, dbname, dbver, always_track_pids):
         super(PgstatCollector, self).__init__()
         self.postmaster_pid = pid
         self.pgcon = pgcon
+        self.reconnect = reconnect
         self.pids = []
         self.rows_diff = []
         self.rows_diff_output = []
@@ -1102,7 +1103,7 @@ class PgstatCollector(StatCollector):
         ppid = self.postmaster_pid
         result = self.exec_command_with_output('ps -o pid --ppid {0} --noheaders'.format(ppid))
         if result[0] != 0:
-            logger.error("Couldn't determine the pid of subprocesses for {0}".format(ppid))
+            logger.debug("Couldn't determine the pid of subprocesses for {0}".format(ppid))
             self.pids = []
         self.pids = [int(x) for x in result[1].split()]
 
@@ -1184,7 +1185,17 @@ class PgstatCollector(StatCollector):
         result = []
         # fetch up-to-date list of subprocess PIDs
         self.get_subprocesses_pid()
-        stat_data = self._read_pg_stat_activity()
+        try:
+            if not self.pgcon:
+                self.pgcon = self.reconnect()
+            else:
+                stat_data = self._read_pg_stat_activity()
+        except psycopg2.OperationalError as e:
+            logger.info("failed to query the server: {}".format(e))
+            if self.pgcon and not self.pgcon.closed:
+                self.pgcon.close()
+            self.pgcon = None
+            return
         logger.info("new refresh round")
         for pid in self.pids:
             if pid == self.connection_pid:
@@ -1426,13 +1437,18 @@ class PgstatCollector(StatCollector):
         return ret
 
     def ncurses_produce_prefix(self):
-        return "{dbname} {version} {role} connections: {conns} of {max_conns} allocated, {active_conns} active\n".\
-            format(dbname=self.dbname,
-                   version=self.server_version,
-                   role=self.recovery_status,
-                   conns=self.total_connections,
-                   max_conns=self.max_connections,
-                   active_conns=self.active_connections)
+        if self.pgcon:
+            return "{dbname} {version} {role} connections: {conns} of {max_conns} allocated, {active_conns} active\n".\
+                format(dbname=self.dbname,
+                       version=self.server_version,
+                       role=self.recovery_status,
+                       conns=self.total_connections,
+                       max_conns=self.max_connections,
+                       active_conns=self.active_connections)
+        else:
+            return "{dbname} {version} (offline)\n".\
+                format(dbname=self.dbname,
+                       version=self.server_version)
 
     @staticmethod
     def process_sort_key(process):
@@ -3150,8 +3166,10 @@ def establish_user_defined_connection(instance, conn, clusters):
 
     pgcon = None
     # establish a new connection
+    def reconnect():
+        return psycopg2.connect(**conn)
     try:
-        pgcon = psycopg2.connect(**conn)
+        pgcon = reconnect()
     except Exception as e:
         logger.error('failed to establish connection to {0} via {1}'.format(instance, conn))
         logger.error('PostgreSQL exception: {0}'.format(e))
@@ -3187,6 +3205,7 @@ def establish_user_defined_connection(instance, conn, clusters):
         'wd': work_directory,
         'pid': pid,
         'pgcon': pgcon,
+        'reconnect': reconnect
     }
     clusters.append(result)
     return True
@@ -3390,7 +3409,9 @@ def main():
                 host = conndata['host']
                 port = conndata['port']
                 conn = build_connection(host, port, options.username, options.dbname)
-                pgcon = psycopg2.connect(**conn)
+                def reconnect():
+                    return psycopg2.connect(**conn)
+                pgcon = reconnect()
             except Exception as e:
                 logger.error('PostgreSQL exception {0}'.format(e))
                 pgcon = None
@@ -3401,6 +3422,7 @@ def main():
                     'wd': result_work_dir,
                     'pid': ppid,
                     'pgcon': pgcon,
+                    'reconnect': reconnect
                 })
     collectors = []
     groups = {}
@@ -3423,7 +3445,7 @@ def main():
         collectors.append(MemoryStatCollector())
         for cl in clusters:
             part = PartitionStatCollector(cl['name'], cl['ver'], cl['wd'], consumer)
-            pg = PgstatCollector(cl['pgcon'], cl['pid'], cl['name'], cl['ver'], options.pid)
+            pg = PgstatCollector(cl['pgcon'], cl['reconnect'], cl['pid'], cl['name'], cl['ver'], options.pid)
             groupname = cl['wd']
             groups[groupname] = {'pg': pg, 'partitions': part}
             collectors.append(part)

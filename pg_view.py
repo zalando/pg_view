@@ -2864,9 +2864,9 @@ def process_single_collector(st):
     if isinstance(st, PgstatCollector):
         st.set_aux_processes_filter(filter_aux)
     st.tick()
-    if st.needs_refresh() and not freeze:
-        st.refresh()
     if not freeze:
+        if st.needs_refresh():
+            st.refresh()
         if st.needs_diffs():
             st.diff()
         else:

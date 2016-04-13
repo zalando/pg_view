@@ -1193,8 +1193,7 @@ class PgstatCollector(StatCollector):
                 self.pgcon, self.postmaster_pid = self.reconnect()
                 self.connection_pid = self.pgcon.get_backend_pid()
                 self.max_connections = self._get_max_connections()
-            else:
-                stat_data = self._read_pg_stat_activity()
+            stat_data = self._read_pg_stat_activity()
         except psycopg2.OperationalError as e:
             logger.info("failed to query the server: {}".format(e))
             if self.pgcon and not self.pgcon.closed:

@@ -405,8 +405,7 @@ class StatCollector(object):
             or if it doesn't have data to produce them yet.
         """
 
-        return self.produce_diffs and self.rows_prev is not None and self.rows_cur is not None and len(self.rows_prev) \
-            > 0 and len(self.rows_cur) > 0
+        return self.produce_diffs and self.rows_prev and self.rows_cur
 
     def tick(self):
         self.ticks += 1
@@ -890,14 +889,16 @@ class StatCollector(object):
         return self.output_function[method](rows, before_string, after_string)
 
     def diff(self):
-        # reset all previous values
-        self.rows_diff = []
+        self.clear_diffs()
         # empty values for current or prev rows are already covered by the need
         for prev, cur in zip(self.rows_prev, self.rows_cur):
             candidate = self._produce_diff_row(prev, cur)
             if candidate is not None and len(candidate) > 0:
                 # produce the actual diff row
                 self.rows_diff.append(candidate)
+
+    def clear_diffs(self):
+        self.rows_diff = []
 
 
 class PgstatCollector(StatCollector):
@@ -1187,7 +1188,11 @@ class PgstatCollector(StatCollector):
         self.get_subprocesses_pid()
         try:
             if not self.pgcon:
-                self.pgcon = self.reconnect()
+                # if we've lost the connection, try to reconnect and
+                # re-initialize all connection invariants
+                self.pgcon, self.postmaster_pid = self.reconnect()
+                self.connection_pid = self.pgcon.get_backend_pid()
+                self.max_connections = self._get_max_connections()
             else:
                 stat_data = self._read_pg_stat_activity()
         except psycopg2.OperationalError as e:
@@ -1195,6 +1200,7 @@ class PgstatCollector(StatCollector):
             if self.pgcon and not self.pgcon.closed:
                 self.pgcon.close()
             self.pgcon = None
+            self._do_refresh([])
             return
         logger.info("new refresh round")
         for pid in self.pids:
@@ -2861,8 +2867,14 @@ def process_single_collector(st):
     st.tick()
     if st.needs_refresh() and not freeze:
         st.refresh()
-    if st.needs_diffs() and not freeze:
-        st.diff()
+    if not freeze:
+        if st.needs_diffs():
+            st.diff()
+        else:
+            # if the server goes offline, we need to clear diffs here,
+            # otherwise rows from the last successful reading will be
+            # displayed forever
+            st.clear_diffs()
 
 
 def process_groups(groups):
@@ -3206,7 +3218,9 @@ def make_cluster_desc(name, version, workdir, pid, pgcon, conn):
     """Create cluster descriptor, complete with the reconnect function."""
 
     def reconnect():
-        return psycopg2.connect(**conn)
+        pgcon = psycopg2.connect(**conn)
+        pid = read_postmaster_pid(workdir, name)
+        return (pgcon, pid)
 
     return {
         'name': name,

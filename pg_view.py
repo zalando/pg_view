@@ -225,7 +225,7 @@ class StatCollector(object):
         proc = subprocess.Popen(cmdline, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         ret = proc.wait()
         if ret != 0:
-            logger.error('The command {cmd} returned a non-zero exit code'.format(cmd=cmdline))
+            logger.info('The command {cmd} returned a non-zero exit code'.format(cmd=cmdline))
         return ret, proc.stdout.read().strip()
 
     @staticmethod
@@ -405,8 +405,7 @@ class StatCollector(object):
             or if it doesn't have data to produce them yet.
         """
 
-        return self.produce_diffs and self.rows_prev is not None and self.rows_cur is not None and len(self.rows_prev) \
-            > 0 and len(self.rows_cur) > 0
+        return self.produce_diffs and self.rows_prev and self.rows_cur
 
     def tick(self):
         self.ticks += 1
@@ -890,14 +889,16 @@ class StatCollector(object):
         return self.output_function[method](rows, before_string, after_string)
 
     def diff(self):
-        # reset all previous values
-        self.rows_diff = []
+        self.clear_diffs()
         # empty values for current or prev rows are already covered by the need
         for prev, cur in zip(self.rows_prev, self.rows_cur):
             candidate = self._produce_diff_row(prev, cur)
             if candidate is not None and len(candidate) > 0:
                 # produce the actual diff row
                 self.rows_diff.append(candidate)
+
+    def clear_diffs(self):
+        self.rows_diff = []
 
 
 class PgstatCollector(StatCollector):
@@ -906,10 +907,11 @@ class PgstatCollector(StatCollector):
 
     STATM_FILENAME = '/proc/{0}/statm'
 
-    def __init__(self, pgcon, pid, dbname, dbver, always_track_pids):
+    def __init__(self, pgcon, reconnect, pid, dbname, dbver, always_track_pids):
         super(PgstatCollector, self).__init__()
         self.postmaster_pid = pid
         self.pgcon = pgcon
+        self.reconnect = reconnect
         self.pids = []
         self.rows_diff = []
         self.rows_diff_output = []
@@ -1102,7 +1104,7 @@ class PgstatCollector(StatCollector):
         ppid = self.postmaster_pid
         result = self.exec_command_with_output('ps -o pid --ppid {0} --noheaders'.format(ppid))
         if result[0] != 0:
-            logger.error("Couldn't determine the pid of subprocesses for {0}".format(ppid))
+            logger.info("Couldn't determine the pid of subprocesses for {0}".format(ppid))
             self.pids = []
         self.pids = [int(x) for x in result[1].split()]
 
@@ -1184,7 +1186,21 @@ class PgstatCollector(StatCollector):
         result = []
         # fetch up-to-date list of subprocess PIDs
         self.get_subprocesses_pid()
-        stat_data = self._read_pg_stat_activity()
+        try:
+            if not self.pgcon:
+                # if we've lost the connection, try to reconnect and
+                # re-initialize all connection invariants
+                self.pgcon, self.postmaster_pid = self.reconnect()
+                self.connection_pid = self.pgcon.get_backend_pid()
+                self.max_connections = self._get_max_connections()
+            stat_data = self._read_pg_stat_activity()
+        except psycopg2.OperationalError as e:
+            logger.info("failed to query the server: {}".format(e))
+            if self.pgcon and not self.pgcon.closed:
+                self.pgcon.close()
+            self.pgcon = None
+            self._do_refresh([])
+            return
         logger.info("new refresh round")
         for pid in self.pids:
             if pid == self.connection_pid:
@@ -1426,13 +1442,18 @@ class PgstatCollector(StatCollector):
         return ret
 
     def ncurses_produce_prefix(self):
-        return "{dbname} {version} {role} connections: {conns} of {max_conns} allocated, {active_conns} active\n".\
-            format(dbname=self.dbname,
-                   version=self.server_version,
-                   role=self.recovery_status,
-                   conns=self.total_connections,
-                   max_conns=self.max_connections,
-                   active_conns=self.active_connections)
+        if self.pgcon:
+            return "{dbname} {version} {role} connections: {conns} of {max_conns} allocated, {active_conns} active\n".\
+                format(dbname=self.dbname,
+                       version=self.server_version,
+                       role=self.recovery_status,
+                       conns=self.total_connections,
+                       max_conns=self.max_connections,
+                       active_conns=self.active_connections)
+        else:
+            return "{dbname} {version} (offline)\n".\
+                format(dbname=self.dbname,
+                       version=self.server_version)
 
     @staticmethod
     def process_sort_key(process):
@@ -2843,10 +2864,16 @@ def process_single_collector(st):
     if isinstance(st, PgstatCollector):
         st.set_aux_processes_filter(filter_aux)
     st.tick()
-    if st.needs_refresh() and not freeze:
-        st.refresh()
-    if st.needs_diffs() and not freeze:
-        st.diff()
+    if not freeze:
+        if st.needs_refresh():
+            st.refresh()
+        if st.needs_diffs():
+            st.diff()
+        else:
+            # if the server goes offline, we need to clear diffs here,
+            # otherwise rows from the last successful reading will be
+            # displayed forever
+            st.clear_diffs()
 
 
 def process_groups(groups):
@@ -3147,7 +3174,6 @@ def establish_user_defined_connection(instance, conn, clusters):
     """ connect the database and get all necessary options like pid and work_directory
         we use port, host and socket_directory, prefering socket over TCP connections
     """
-
     pgcon = None
     # establish a new connection
     try:
@@ -3180,16 +3206,29 @@ def establish_user_defined_connection(instance, conn, clusters):
                      'for databases {0} and {1}, same pid {2}, skipping {0}'.format(instance, duplicate_instance, pid))
         pgcon.close()
         return True
-    # now we have all components to create the result
-    result = {
-        'name': instance,
-        'ver': dbver,
-        'wd': work_directory,
+    # now we have all components to create a cluster descriptor
+    desc = make_cluster_desc(name=instance, version=dbver, workdir=work_directory,
+                             pid=pid, pgcon=pgcon, conn=conn)
+    clusters.append(desc)
+    return True
+
+
+def make_cluster_desc(name, version, workdir, pid, pgcon, conn):
+    """Create cluster descriptor, complete with the reconnect function."""
+
+    def reconnect():
+        pgcon = psycopg2.connect(**conn)
+        pid = read_postmaster_pid(workdir, name)
+        return (pgcon, pid)
+
+    return {
+        'name': name,
+        'ver': version,
+        'wd': workdir,
         'pid': pid,
         'pgcon': pgcon,
+        'reconnect': reconnect
     }
-    clusters.append(result)
-    return True
 
 
 class ProcNetParser():
@@ -3395,13 +3434,9 @@ def main():
                 logger.error('PostgreSQL exception {0}'.format(e))
                 pgcon = None
             if pgcon:
-                clusters.append({
-                    'name': dbname,
-                    'ver': dbver,
-                    'wd': result_work_dir,
-                    'pid': ppid,
-                    'pgcon': pgcon,
-                })
+                desc = make_cluster_desc(name=dbname, version=dbver, workdir=result_work_dir,
+                                         pid=ppid, pgcon=pgcon, conn=conn)
+                clusters.append(desc)
     collectors = []
     groups = {}
     try:
@@ -3423,7 +3458,7 @@ def main():
         collectors.append(MemoryStatCollector())
         for cl in clusters:
             part = PartitionStatCollector(cl['name'], cl['ver'], cl['wd'], consumer)
-            pg = PgstatCollector(cl['pgcon'], cl['pid'], cl['name'], cl['ver'], options.pid)
+            pg = PgstatCollector(cl['pgcon'], cl['reconnect'], cl['pid'], cl['name'], cl['ver'], options.pid)
             groupname = cl['wd']
             groups[groupname] = {'pg': pg, 'partitions': part}
             collectors.append(part)

@@ -1193,6 +1193,8 @@ class PgstatCollector(StatCollector):
                 self.pgcon, self.postmaster_pid = self.reconnect()
                 self.connection_pid = self.pgcon.get_backend_pid()
                 self.max_connections = self._get_max_connections()
+                self.dbver = dbversion_as_float(self.pgcon)
+                self.server_version = self.pgcon.get_parameter_status('server_version')
             stat_data = self._read_pg_stat_activity()
         except psycopg2.OperationalError as e:
             logger.info("failed to query the server: {}".format(e))
@@ -3219,6 +3221,12 @@ def detect_db_connection_arguments(work_directory, pid, version):
     return result
 
 
+def dbversion_as_float(pgcon):
+    version_num = pgcon.server_version
+    version_num /= 100
+    return float('{0}.{1}'.format(version_num / 100, version_num % 100))
+
+
 def establish_user_defined_connection(instance, conn, clusters):
     """ connect the database and get all necessary options like pid and work_directory
         we use port, host and socket_directory, prefering socket over TCP connections
@@ -3232,9 +3240,7 @@ def establish_user_defined_connection(instance, conn, clusters):
         logger.error('PostgreSQL exception: {0}'.format(e))
         return None
     # get the database version from the pgcon properties
-    version_num = pgcon.server_version
-    version_num /= 100
-    dbver = float('{0}.{1}'.format(version_num / 100, version_num % 100))
+    dbver = dbversion_as_float(pgcon)
     cur = pgcon.cursor()
     cur.execute('show data_directory')
     work_directory = cur.fetchone()[0]

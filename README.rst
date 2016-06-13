@@ -93,9 +93,10 @@ Usage
 see ``python pg_view --help``
 
 pg_view supports three output methods:
-* ncurses (default)
-* console (``-o console``)
-* json (``-o json``)
+
+- ncurses (default)
+- console (``-o console``)
+- json (``-o json``)
 
 Descriptions of some of the options:
 

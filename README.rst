@@ -132,7 +132,6 @@ Hotkeys:
 - **f**: instantly freezes the output. Press ``f`` a second time to resume.
 - **h**: shows the help screen.
 - **u**: toggle display of measurement units.
-    toggle display of measurement units.
 
 Releasing
 ---------

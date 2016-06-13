@@ -121,8 +121,7 @@ Descriptions of some of the options:
     - **db**: the database the process runs on.
     - **query**: the query the process executes.
     - **read, write**: The amount of data read or written from the partition in MB/s.
-    - **s**: process state. ``R`` - 'running', ``S`` - 'sleeping', ``D`` - 'uninterruptable sleep'; see ``man ps``
-            for more details.
+    - **s**: process state. ``R`` - 'running', ``S`` - 'sleeping', ``D`` - 'uninterruptable sleep'; see ``man ps`` for more details.
     - **type**: either a system process (autovacuum launcher, logger, archiver, etc.) or a process that executes queries (backend or autovacuum). By default, only user processes are shown in curses mode (press 's' to show all of them), and all in the console one.
     - **utime, stime, guest**: consumption of CPU resources by process. PostgreSQL backends can't use more than one CPU, so the percentage of a single CPU time is shown here.
 

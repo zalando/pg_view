@@ -116,45 +116,34 @@ Descriptions of some of the options:
     - **total, left, read, write**: the amount of disk space available and allocated, as well as the read and write rates (MB/s) on a given partition. Write rate is different from fill rate, in that it considers the whole partition, not only the Postgres directories. Also, it shows data modifications. File deletion at the rate of 10MB/s will be shown as a positive write rate.
     - **type**: either containing database data (data) or WAL (xlog).
     - **until_full**: the time remaining before the current partition will run out of space, *if* we only consider writes to the corresponding data directory (``/data`` or ``/pg_xlog``). This column is only shown during the warning (3h) or critical (1h) conditions, and only considers momentary writes. If a single process writes 100MB/s on a partition with 100GB left for only two seconds, it will show a critical status during those two seconds.
-  
-* postgres processes
-    * type
-            either a system process (autovacuum launcher, logger, archiver, etc) or a process that
-            executes queries (backend or autovacuum). By default, only user processes are shown (press
-            's' to show all of them) in curses mode, and all in the console one.
-    * s
-            process state (``R`` - 'running', ``S`` - 'sleeping', ``D`` - 'uninterruptable sleep', see ``man ps``
+- **postgres processes**
+    - **age**: length of time since the process started.
+    - **db**: the database the process runs on.
+    - **query**: the query the process executes.
+    - **read, write**: The amount of data read or written from the partition in MB/s.
+    - **s**: process state (``R`` - 'running', ``S`` - 'sleeping', ``D`` - 'uninterruptable sleep'; see ``man ps``
             for more details).
-    * utime, stime, guest
-            consumption of CPU resources by process. Since PostgreSQL backends can't use more than one
-            CPU, the percentage of a single CPU time is shown here.
-    * read, write
-            amount of data read or written from the partition (in MB/s).
-    * age
-            time from the process start
-    * db
-            the database the process runs on
-    * query
-            the query the process executes.
-
+    - **type**: either a system process (autovacuum launcher, logger, archiver, etc.) or a process that executes queries (backend or autovacuum). By default, only user processes are shown in curses mode (press 's' to show all of them), and all in the console one.
+    - **utime, stime, guest**: consumption of CPU resources by process. PostgreSQL backends can't use more than one CPU, so the percentage of a single CPU time is shown here.
 
 Hotkeys:
+--------
 
-* f
-    instantly freeze the output. Press ``f`` for the second time to resume.
-* u
+- **a**: auto-hide fields from the PostgreSQL output. Turning on this option hides the following fields: ``type``, ``s``, ``utime``, ``stime``, ``guest``.
+- **f**: instantly freezes the output. Press ``f`` a second time to resume.
+- **h**: shows the help screen.
+- **u**: toggle display of measurement units.
     toggle display of measurement units.
-* a
-    auto-hide some of the fields from the PostgreSQL output. Currently, if this option is turned to on, the following fields can
-    be hidden to leave space for the remaining ones: ``type``, ``s``, ``utime``, ``stime``, ``guest``
-* h
-    show the help screen
 
 Releasing
 ---------
 
     $ ./release.sh <NEW-VERSION>
 
+Contributing
+---------
+
+pg_view welcomes contributions; simply make a pull request.
 
 License
 -------

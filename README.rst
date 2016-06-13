@@ -26,6 +26,11 @@ pg_view shows these types of data:
 
 pg_view can be especially helpful when you’re monitoring system load, query locks and I/O utilization during lengthy data migrations. It’s also useful when you’re running servers 24x7 and aiming for zero downtime. Learn more about it at `tech.zalando.com <https://tech.zalando.com/blog/getting-a-quick-view-of-your-postgresql-stats/>`_.
 
+.. contents::
+    :local:
+    :depth: 1
+    :backlinks: none
+
 Installation and Configuration
 ------------
 
@@ -100,11 +105,6 @@ pg_view supports three output methods:
 
 Descriptions of some of the options:
 
-- **system**
-    - **ctxt**: the number of context switches in the system.
-    - **iowait**: the percent of the CPU resources waiting on I/O.
-    - **run, block**: the number of running and waiting processes.
-    - For other parameters, please refer to man 5 proc and look for /proc/stat.
 - **memory**
     - **as** (CommittedAs): the total amount of memory required to store the workload in the worst-case scenario (i.e., if all applications actually allocate all the memory they ask for during the startup).
     - **dirty**: the total amount of memory waiting to be written on-disk. The higher the value, the more one has to wait during the flush.
@@ -124,6 +124,11 @@ Descriptions of some of the options:
     - **s**: process state. ``R`` - 'running', ``S`` - 'sleeping', ``D`` - 'uninterruptable sleep'; see ``man ps`` for more details.
     - **type**: either a system process (autovacuum launcher, logger, archiver, etc.) or a process that executes queries (backend or autovacuum). By default, only user processes are shown in curses mode (press 's' to show all of them), and all in the console one.
     - **utime, stime, guest**: consumption of CPU resources by process. PostgreSQL backends can't use more than one CPU, so the percentage of a single CPU time is shown here.
+- **system**
+    - **ctxt**: the number of context switches in the system.
+    - **iowait**: the percent of the CPU resources waiting on I/O.
+    - **run, block**: the number of running and waiting processes.
+    - For other parameters, please refer to man 5 proc and look for /proc/stat.
 
 Hotkeys:
 --------

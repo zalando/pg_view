@@ -26,25 +26,27 @@ pg_view shows these types of data:
 
 pg_view can be especially helpful when you’re monitoring system load, query locks and I/O utilization during lengthy data migrations. It’s also useful when you’re running servers 24x7 and aiming for zero downtime. Learn more about it at `tech.zalando.com <https://tech.zalando.com/blog/getting-a-quick-view-of-your-postgresql-stats/>`_.
 
-Requirements
+Installation and Configuration
 ------------
 
-Linux 2.6, python 2.6, psycopg2, curses
+To run pg_view, you’ll need:
 
-By default, pg_view assumes it's able to connect to the local PostgreSQL instance with the user postgres and no password. On some systems it might be necessary to change your pg_hba.conf or set the password in .pgpass. A different user name can be specified in the configuration file, although specifying that file (with -c) turns off autodetection of connection parameters and available databases.
+- Linux 2.6
+- Python >= 2.6
+- psycopg2
+- curses
 
-How it works:
+By default, pg_view assumes that it can connect to a local PostgreSQL instance with the user postgres and no password. Some systems might require you to change your pg_hba.conf file or set the password in .pgpass. You can use (-c) to specify a different user name in the configuration file, although specifying the file will turn off autodetection of connection parameters and available databases.
 
-The program queries system /process information files once every tick (by default the tick is 1s). It also
-runs some external programs, like df or du to get filesystem information. The latter might put an extra
-load on a disk subsystem.
+How pg_view Works:
+------------
 
-Screenshot
------------
+pg_view queries system/process information files once per second. It also runs external programs — df, du, etc. — to obtain filesystem information. Please note that the latter function might add an extra load to your disk subsystem.
+
 .. image:: https://raw.github.com/zalando/pg_view/master/images/pg_view_screenshot.png
    :alt: pg_view screenshot
 
-Connection arguments
+Connection Arguments
 --------------------
 
 By default, pg_view tries to autodetect all PostgreSQL clusters running on the host it's running at. To achieve

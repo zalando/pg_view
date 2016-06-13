@@ -1,4 +1,4 @@
-pg_view
+pg_view: PostgreSQL Real-Time Activity View Utility
 =======
 
 .. image:: https://travis-ci.org/zalando/pg_view.svg?branch=master
@@ -11,15 +11,20 @@ pg_view
       :target: https://pypi.python.org/pypi/pg-view
       :alt: License
 
-PostgreSQL Activity View Utility
 
-Synopsis
+Intro
 --------
 
-``pg_view`` is a command-line tool to display the state to the PostgreSQL processes.
-It shows the per-process statistics combined with ``pg_stat_activity`` output for the processes
-that have the rows there, global system stats, per-partition information and the memory stats.
-You can find a blog post about it at `tech.zalando.com <https://tech.zalando.com/blog/getting-a-quick-view-of-your-postgresql-stats/>`_.
+**pg_view** is a powerful command-line tool that offers a detailed, real-time view of your PostgreSQL database and system metrics. It combines the indicators commonly displayed by sar or iostat with output from PostgreSQL’s process activity view, and presents global and per-process statistics in an easy-to-interpret way. 
+
+pg_view shows these types of data:
+
+- per-process statistics, combined with ``pg_stat_activity`` view output for the backend and autovacuum processes
+- global system stats
+- per-partition information
+- memory stats
+
+pg_view can be especially helpful when you’re monitoring system load, query locks and I/O utilization during lengthy data migrations. It’s also useful when you’re running servers 24x7 and aiming for zero downtime. Learn more about it at `tech.zalando.com <https://tech.zalando.com/blog/getting-a-quick-view-of-your-postgresql-stats/>`_.
 
 Requirements
 ------------

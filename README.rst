@@ -1,4 +1,4 @@
-pg_view: PostgreSQL Real-Time Activity View Utility
+pg_view: Postgres Real-Time Activity View Utility
 =======
 
 .. image:: https://travis-ci.org/zalando/pg_view.svg?branch=master
@@ -100,43 +100,23 @@ pg_view supports three output methods:
 
 Descriptions of some of the options:
 
-- system
-    - **ctxt**: the number of context switches in the system
-    - **iowait**: the percent of the CPU resources waiting on I/O
-    - **run, block**: the number of running and waiting processes
-    - For other parameters, please, refer to man 5 proc and look for /proc/stat
-* memory
-    * dirty
-            the total amount of memory waiting to be written on disk.
-            The higher the value is, the more one has to wait during the flush.
-    * as
-            (CommittedAs) the total amount of memory required to store the workload
-            in the worst case scenario.
-    * limit
-            maximum amount of memory that can be physically allocated. If ``as`` is higher
-            than the ``limit`` - the processes will start getting out of memory errors,
-            which will lead to PostgreSQL shutdown (but not to the data corruption.
-
-      For the explanation of other parameters, please, refer to the
-      `Linux kernel documentation <http://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/Documentation/filesystems/proc.txt>`_
-
-* partitions
-    * type
-            either containing database data (data) or WAL (xlog)
-    * fill
-            the rate of adding new data to the corresponding directory (``/data`` or ``/pg_xlog``).
-    * until_full
-            the time until the current partition will run out of space if we only consider writes
-            to the corresponding data directory (``/data`` or ``/pg_xlog``). This column is only shown
-            during the warning (3h) or critical (1h) conditions. This column only considers momentary
-            writes, so if a single process writes 100MB/s on a partition with remaining 100GB left for
-            only 2 seconds, it will show a critial status during those 2 seconds.
-    * total, left, read, write
-            the amount of space total, free, read and write rate (MB/s) on a partition. Note that write rate is different from
-            fill rate: it considers the whole partition, not only Postgres directories and shows data modifications, i.e deletion of files at the rate of 10MB/s will be shown as a positive write rate.
-    * path_size
-            size of the corresponding PostgreSQL directory.
-
+- **system**
+    - **ctxt**: the number of context switches in the system.
+    - **iowait**: the percent of the CPU resources waiting on I/O.
+    - **run, block**: the number of running and waiting processes.
+    - For other parameters, please refer to man 5 proc and look for /proc/stat.
+- **memory**
+    - **as** (CommittedAs): the total amount of memory required to store the workload in the worst-case scenario (i.e., if all applications actually allocate all the memory they ask for during the startup).
+    - **dirty**: the total amount of memory waiting to be written on-disk. The higher the value, the more one has to wait during the flush.
+    - **limit**: the maximum amount of memory that can be physically allocated. If memory exceeds the limit, you will start seeing “out of memory” errors, which will lead to a PostgreSQL shutdown.
+    - For an explanation of other parameters, please refer to the `Linux kernel documentation <http://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/Documentation/filesystems/proc.txt>`_.
+- **partitions**
+    - **fill**: the rate of adding new data to the corresponding directory (``/data`` or ``/pg_xlog``).
+    - **path_size**: the size of the corresponding PostgreSQL directory.
+    - **total, left, read, write**: the amount of disk space available and allocated, as well as the read and write rates (MB/s) on a given partition. Write rate is different from fill rate, in that it considers the whole partition, not only the Postgres directories. Also, it shows data modifications. File deletion at the rate of 10MB/s will be shown as a positive write rate.
+    - **type**: either containing database data (data) or WAL (xlog).
+    - **until_full**: the time remaining before the current partition will run out of space, *if* we only consider writes to the corresponding data directory (``/data`` or ``/pg_xlog``). This column is only shown during the warning (3h) or critical (1h) conditions, and only considers momentary writes. If a single process writes 100MB/s on a partition with 100GB left for only two seconds, it will show a critical status during those two seconds.
+  
 * postgres processes
     * type
             either a system process (autovacuum launcher, logger, archiver, etc) or a process that

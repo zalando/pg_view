@@ -26,6 +26,9 @@ pg_view shows these types of data:
 
 pg_view can be especially helpful when you’re monitoring system load, query locks and I/O utilization during lengthy data migrations. It’s also useful when you’re running servers 24x7 and aiming for zero downtime. Learn more about it at `tech.zalando.com <https://tech.zalando.com/blog/getting-a-quick-view-of-your-postgresql-stats/>`_.
 
+Table of Contents
+--------
+
 .. contents::
     :local:
     :depth: 1

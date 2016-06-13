@@ -31,8 +31,9 @@ pg_view can be especially helpful when you’re monitoring system load, query lo
     :depth: 1
     :backlinks: none
 
+==============
 Installation and Configuration
-------------
+==============
 
 To run pg_view, you’ll need:
 
@@ -43,16 +44,18 @@ To run pg_view, you’ll need:
 
 By default, pg_view assumes that it can connect to a local PostgreSQL instance with the user postgres and no password. Some systems might require you to change your pg_hba.conf file or set the password in .pgpass. You can use (-c) to specify a different user name in the configuration file, although specifying the file will turn off autodetection of connection parameters and available databases.
 
+==============
 How pg_view Works:
-------------
+==============
 
 pg_view queries system/process information files once per second. It also runs external programs — df, du, etc. — to obtain filesystem information. Please note that the latter function might add an extra load to your disk subsystem.
 
 .. image:: https://raw.github.com/zalando/pg_view/master/images/pg_view_screenshot.png
    :alt: pg_view screenshot
 
+==============
 Connection Arguments
---------------------
+==============
 
 By default, pg_view tries to autodetect all PostgreSQL clusters running on the same host by performing the following steps (in order):
 
@@ -93,8 +96,10 @@ Upon reading this file, the application will try using port 5435 (database postg
 
 If the auto-detection code works for you, you can select a single database by specifying the database instance name (in most cases, it will match the last component of $PGDATA) with the ``-i`` command-line option. If there is more than a single instance with the same name, you can additionally specify the required PG version with ``-V``.
 
+==============
 Usage
------
+==============
+
 see ``python pg_view --help``
 
 pg_view supports three output methods:
@@ -130,25 +135,29 @@ Descriptions of some of the options:
     - **run, block**: the number of running and waiting processes.
     - For other parameters, please refer to man 5 proc and look for /proc/stat.
 
+==============
 Hotkeys:
---------
+==============
 
 - **a**: auto-hide fields from the PostgreSQL output. Turning on this option hides the following fields: ``type``, ``s``, ``utime``, ``stime``, ``guest``.
 - **f**: instantly freezes the output. Press ``f`` a second time to resume.
 - **h**: shows the help screen.
 - **u**: toggle display of measurement units.
 
+==============
 Releasing
----------
+==============
 
     $ ./release.sh <NEW-VERSION>
 
+==============
 Contributing
----------
+==============
 
 pg_view welcomes contributions; simply make a pull request.
 
+==============
 License
--------
+==============
 
 `Apache 2.0 <http://www.apache.org/licenses/LICENSE-2.0>`_

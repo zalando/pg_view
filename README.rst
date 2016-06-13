@@ -15,7 +15,7 @@ pg_view: PostgreSQL Real-Time Activity View Utility
 Intro
 --------
 
-**pg_view** is a powerful command-line tool that offers a detailed, real-time view of your PostgreSQL database and system metrics. It combines the indicators commonly displayed by sar or iostat with output from PostgreSQL’s process activity view, and presents global and per-process statistics in an easy-to-interpret way. 
+**pg_view** is a powerful command-line tool that offers a detailed, real-time view of your PostgreSQL database and system metrics. It combines the indicators commonly displayed by sar or iostat with output from PostgreSQL’s process activity view, and presents global and per-process statistics in an easy-to-interpret way.
 
 pg_view shows these types of data:
 
@@ -49,24 +49,23 @@ pg_view queries system/process information files once per second. It also runs e
 Connection Arguments
 --------------------
 
-By default, pg_view tries to autodetect all PostgreSQL clusters running on the host it's running at. To achieve
-this it performs the following steps:
+By default, pg_view tries to autodetect all PostgreSQL clusters running on the same host by performing the following steps (in order):
 
-* read /proc/ filesystem and detect pid files for the postmaster processes
-* get the working directories from the symlink at /proc/pid/cwd
-* get to the working directories and read PG_VERSION for PostgreSQL verions. If we can't, assume it's not a PostgreSQL directory and skip.
-* try to get all sockets the process is listening to from /proc/net/unix, /proc/net/tcp and /proc/net/tcp6
-* if that fails and version is 9.1 or above, read connection arguments from postmaster.pid
-* check all arguments, picking the first one that allows us to establish a connection
-* if we can't get either the port/host or port/socket_directory pair, bail out.
+- reads /proc/ filesystem and detects pid files for the postmaster processes
+- gets the working directories from the symlink at /proc/pid/cwd
+- reads the PG_VERSION for PostgreSQL versions (If it doesn’t, assume it's not a PostgreSQL directory, and skip)
+- tries to collect from /proc/net/unix, /proc/net/tcp and /proc/net/tcp6 all the sockets the process is listening to
+    - if that fails, and you are using version 9.1 or above, reads the connection arguments from postmaster.pid
+- checks all arguments, picking the first that allows it to establish a connection
+- if pg_view can't get either the port/host or port/socket_directory pair, bail out
 
-If the program is unable to detect connection arguments using the algorithm above it's possible to specify
-those arguments manually using the configuration file supplied with -c option. This file should consist of
-one or more sections, containing key = value pairs. Each section's title represents a database cluster name,
-this name is only used to for display purposes (the actual name of the DB to connect to can be specified by the dbname parameter and is 'postgres' by default), and the key - value pairs should contain connection parameters. The valid keys are:
+If the program can’t detect your connection arguments using the algorithm above, you can specify those arguments manually using the configuration file supplied with the -c option. This file should consist of one or more sections, each containing a key = value pair.
 
-host
-    hostname or ip address, or unix_socket_directory path of the database server
+The title of each section represents a database cluster name (this name is for display purposes only). The dbname parameter is “postgres” by default, and specifies the actual name of the database to connect to. The key-value pairs should contain connection parameters. 
+
+**The valid keys are:**
+
+- **host**: hostname or ip address, or unix_socket_directory path of the database server
 
 port
     the port the database server listsens on

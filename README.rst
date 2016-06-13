@@ -86,7 +86,7 @@ The special 'DEFAULT' section contains the parameters that apply for every datab
 
 Upon reading this file, the application will try using port 5435 (database postgres) to connect to both testdb and testdb2 clusters, and—using the database name ‘test’—port 5433 to connect to testdb3.
 
-If the auto-detection code works for you, you can select a single database by specifying the database instance name (in most cases, it will match the last component of $PGDATA) with the ``-i`` command-line option. If there are more than a single instance with the same name, you can additionally specify the required PG version with ``-V``.
+If the auto-detection code works for you, you can select a single database by specifying the database instance name (in most cases, it will match the last component of $PGDATA) with the ``-i`` command-line option. If there is more than a single instance with the same name, you can additionally specify the required PG version with ``-V``.
 
 Usage
 -----

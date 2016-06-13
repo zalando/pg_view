@@ -54,8 +54,7 @@ By default, pg_view tries to autodetect all PostgreSQL clusters running on the s
 - reads /proc/ filesystem and detects pid files for the postmaster processes
 - gets the working directories from the symlink at /proc/pid/cwd
 - reads the PG_VERSION for PostgreSQL versions (If it doesn’t, assume it's not a PostgreSQL directory, and skip)
-- tries to collect from /proc/net/unix, /proc/net/tcp and /proc/net/tcp6 all the sockets the process is listening to
-    * if that fails, and you are using version 9.1 or above, reads the connection arguments from postmaster.pid
+- tries to collect from /proc/net/unix, /proc/net/tcp and /proc/net/tcp6 all the sockets the process is listening to. If that fails, and you are using version 9.1 or above, reads the connection arguments from postmaster.pid
 - checks all arguments, picking the first that allows it to establish a connection
 - if pg_view can't get either the port/host or port/socket_directory pair, bail out
 

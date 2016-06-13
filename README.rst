@@ -66,15 +66,10 @@ The title of each section represents a database cluster name (this name is for d
 **The valid keys are:**
 
 - **host**: hostname or ip address, or unix_socket_directory path of the database server
+- **port**: the port the database server listens to
+- **user**: the database role name
 
-port
-    the port the database server listsens on
-
-user
-    database role name
-
-The special 'DEFAULT' contains the parameters that apply for every database cluster if the corresponding parameter
-is missing from the database-specific section. For instance::
+The special 'DEFAULT' section contains the parameters that apply for every database cluster if the corresponding parameter is missing from the database-specific section. For instance::
 
     [DEFAULT]
     port=5435
@@ -90,31 +85,26 @@ is missing from the database-specific section. For instance::
     port=5433
     dbname=test
 
-The application will try to connect to both testdb and testdb2 clusters using port 5435 (database postgres) upon reading this file, while testdb3 will be reached using port 5433 and database name 'test'.
+Upon reading this file, the application will try using port 5435 (database postgres) to connect to both testdb and testdb2 clusters, and—using the database name ‘test’—port 5433 to connect to testdb3.
 
-Finally, if the auto-detection code works for you, it's possible to select only a single database by specifying
-the database instance name (in most cases mathes the last component of $PGDATA) with ``-i`` command-line option. If there are more thana single instance with the same name - you can additionally specify the required PG version with ``-V``.
+If the auto-detection code works for you, you can select a single database by specifying the database instance name (in most cases, it will match the last component of $PGDATA) with the ``-i`` command-line option. If there are more than a single instance with the same name, you can additionally specify the required PG version with ``-V``.
 
 Usage
 -----
 see ``python pg_view --help``
 
-Output:
-The tool supports 3 output methods:
+pg_view supports three output methods:
 * ncurses (default)
 * console (``-o console``)
-* json (``-o json``).
+* json (``-o json``)
 
-Below is the description of some of the options:
+Descriptions of some of the options:
 
-* system
-    * iowait
-            the percent of the CPU resources waiting on I/O
-    * ctxt
-            the number of context switches in the system
-    * run, block
-            the number of running and waiting processes.
-    * For other parameters, please, refer to man 5 proc and look for /proc/stat
+- system
+    - **ctxt**: the number of context switches in the system
+    - **iowait**: the percent of the CPU resources waiting on I/O
+    - **run, block**: the number of running and waiting processes
+    - For other parameters, please, refer to man 5 proc and look for /proc/stat
 * memory
     * dirty
             the total amount of memory waiting to be written on disk.

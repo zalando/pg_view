@@ -53,7 +53,7 @@ How pg_view works:
 
 pg_view queries system/process information files once per second. It also queries the filesystem to obtain postgres data directory and xlog usage statistics. Please note that the latter function might add an extra load to your disk subsystem.
 
-.. image:: https://raw.github.com/zalando/pg_view/master/images/pg_view_screenshot.png
+.. image:: https://raw.github.com/zalando/pg_view/master/images/pg_view_screenshot_new.png
    :alt: pg_view screenshot
 
 ==============

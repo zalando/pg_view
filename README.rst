@@ -45,10 +45,10 @@ To run pg_view, you’ll need:
 - psycopg2
 - curses
 
-By default, pg_view assumes that it can connect to a local PostgreSQL instance with the user postgres and no password. Some systems might require you to change your pg_hba.conf file or set the password in .pgpass. You can override the default user name with -U command-line option or by setting the user key in the configuration file (see below).
+By default, pg_view assumes that it can connect to a local PostgreSQL instance with the user postgres and no password. Some systems might require you to change your pg_hba.conf file or set the password in .pgpass. You can override the default user name with the -U command-line option or by setting the user key in the configuration file (see below).
 
 ==============
-How pg_view works:
+How pg_view works
 ==============
 
 pg_view queries system/process information files once per second. It also queries the filesystem to obtain postgres data directory and xlog usage statistics. Please note that the latter function might add an extra load to your disk subsystem.
@@ -139,7 +139,7 @@ Descriptions of some of the options:
     - For other parameters, please refer to man 5 proc and look for /proc/stat.
 
 ==============
-Hotkeys:
+Hotkeys
 ==============
 
 - **a**: auto-hide fields from the PostgreSQL output. Turning on this option hides the following fields: ``type``, ``s``, ``utime``, ``stime``, ``guest``.

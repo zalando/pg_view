@@ -45,13 +45,13 @@ To run pg_view, you’ll need:
 - psycopg2
 - curses
 
-By default, pg_view assumes that it can connect to a local PostgreSQL instance with the user postgres and no password. Some systems might require you to change your pg_hba.conf file or set the password in .pgpass. You can use (-c) to specify a different user name in the configuration file, although specifying the file will turn off autodetection of connection parameters and available databases.
+By default, pg_view assumes that it can connect to a local PostgreSQL instance with the user postgres and no password. Some systems might require you to change your pg_hba.conf file or set the password in .pgpass. You can override the default user name with -U command-line option or by setting the user key in the configuration file (see below).
 
 ==============
-How pg_view Works:
+How pg_view works:
 ==============
 
-pg_view queries system/process information files once per second. It also runs external programs — df, du, etc. — to obtain filesystem information. Please note that the latter function might add an extra load to your disk subsystem.
+pg_view queries system/process information files once per second. It also queries the filesystem to obtain postgres data directory and xlog usage statistics. Please note that the latter function might add an extra load to your disk subsystem.
 
 .. image:: https://raw.github.com/zalando/pg_view/master/images/pg_view_screenshot.png
    :alt: pg_view screenshot
@@ -64,7 +64,7 @@ By default, pg_view tries to autodetect all PostgreSQL clusters running on the s
 
 - reads /proc/ filesystem and detects pid files for the postmaster processes
 - gets the working directories from the symlink at /proc/pid/cwd
-- reads the PG_VERSION for PostgreSQL versions (If it doesn’t, assume it's not a PostgreSQL directory, and skip)
+- reads the PG_VERSION for PostgreSQL versions (if it doesn’t exist, assume it's not a PostgreSQL directory, and skip)
 - tries to collect from /proc/net/unix, /proc/net/tcp and /proc/net/tcp6 all the sockets the process is listening to. If that fails, and you are using version 9.1 or above, reads the connection arguments from postmaster.pid
 - checks all arguments, picking the first that allows it to establish a connection
 - if pg_view can't get either the port/host or port/socket_directory pair, bail out
@@ -103,7 +103,7 @@ If the auto-detection code works for you, you can select a single database by sp
 Usage
 ==============
 
-see ``python pg_view --help``
+You can get a short description of available configuration options with ``pg_view --help``
 
 pg_view supports three output methods:
 
@@ -130,7 +130,7 @@ Descriptions of some of the options:
     - **query**: the query the process executes.
     - **read, write**: The amount of data read or written from the partition in MB/s.
     - **s**: process state. ``R`` - 'running', ``S`` - 'sleeping', ``D`` - 'uninterruptable sleep'; see ``man ps`` for more details.
-    - **type**: either a system process (autovacuum launcher, logger, archiver, etc.) or a process that executes queries (backend or autovacuum). By default, only user processes are shown in curses mode (press 's' to show all of them), and all in the console one.
+    - **type**: either a system process (autovacuum launcher, logger, archiver, etc.) or a process that executes queries (backend or autovacuum). By default, only user processes are shown in curses output mode (press 's' to add the system processes). Both system and user processes are shown in the console mode.
     - **utime, stime, guest**: consumption of CPU resources by process. PostgreSQL backends can't use more than one CPU, so the percentage of a single CPU time is shown here.
 - **system**
     - **ctxt**: the number of context switches in the system.

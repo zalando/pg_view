@@ -2,9 +2,7 @@ from pg_view.models.base import StatCollector, logger
 
 
 class SystemStatCollector(StatCollector):
-
     """ Collect global system statistics, i.e. CPU/IO usage, not including memory. """
-
     PROC_STAT_FILENAME = '/proc/stat'
 
     def __init__(self):

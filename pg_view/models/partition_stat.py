@@ -2,9 +2,7 @@ from pg_view.models.base import StatCollector, COLALIGN, logger
 
 
 class PartitionStatCollector(StatCollector):
-
     """Collect statistics about PostgreSQL partitions """
-
     DISK_STAT_FILE = '/proc/diskstats'
     DATA_NAME = 'data'
     XLOG_NAME = 'xlog'

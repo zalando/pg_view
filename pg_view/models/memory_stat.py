@@ -2,10 +2,9 @@ from pg_view.models.base import StatCollector, logger
 
 
 class MemoryStatCollector(StatCollector):
-
     """ Collect memory-related statistics """
-
     MEMORY_STAT_FILE = '/proc/meminfo'
+    UNIT_COLUMN = 2
 
     def __init__(self):
         super(MemoryStatCollector, self).__init__(produce_diffs=False)
@@ -127,11 +126,7 @@ class MemoryStatCollector(StatCollector):
                 if len(vals) >= 2:
                     name, val = vals[:2]
                     # if we have units of measurement different from kB - transform the result
-                    if len(vals) == 3 and vals[2] in ('mB', 'gB'):
-                        if vals[2] == 'mB':
-                            val += '0' * 3
-                        if vals[2] == 'gB':
-                            val += '0' * 6
+                    val = self.transform_by_unit(val, vals)
                     if len(str(name)) > 1:
                         result[str(name)[:-1]] = val
                     else:
@@ -144,6 +139,14 @@ class MemoryStatCollector(StatCollector):
         finally:
             fp.close()
         return result
+
+    def transform_by_unit(self, val, vals):
+        if len(vals) == 3 and vals[self.UNIT_COLUMN] in ('mB', 'gB'):
+            if vals[self.UNIT_COLUMN] == 'mB':
+                val += '0' * 3
+            if vals[self.UNIT_COLUMN] == 'gB':
+                val += '0' * 6
+        return val
 
     def calculate_kb_left_until_limit(self, colname, row, optional):
         result = (int(row['CommitLimit']) - int(row['Committed_AS']) if row.get('CommitLimit', None) is not None and

@@ -21,3 +21,9 @@ class UnitConverter(object):
     @staticmethod
     def time_diff_to_percent(timediff_val):
         return float(timediff_val) * 100 if timediff_val is not None else None
+
+
+def read_file(file_path):
+    with open(file_path, 'rU') as f:
+        splitted_data = f.read().split()
+        return splitted_data

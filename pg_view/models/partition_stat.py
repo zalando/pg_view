@@ -132,8 +132,8 @@ class PartitionStatCollector(StatCollector):
         for pname in PartitionStatCollector.DATA_NAME, PartitionStatCollector.XLOG_NAME:
             result[pname] = self._transform_input(df_out[pname], self.df_list_transformation)
 
-        io_out = self.get_io_data([result[PartitionStatCollector.DATA_NAME]['dev'],
-                                  result[PartitionStatCollector.XLOG_NAME]['dev']])
+        io_out = self.get_io_data(
+            [result[PartitionStatCollector.DATA_NAME]['dev'], result[PartitionStatCollector.XLOG_NAME]['dev']])
 
         for pname in PartitionStatCollector.DATA_NAME, PartitionStatCollector.XLOG_NAME:
             if result[pname]['dev'] in io_out:
@@ -143,7 +143,9 @@ class PartitionStatCollector(StatCollector):
             # set the type manually
             result[pname]['type'] = pname
 
-        self._do_refresh([result[PartitionStatCollector.DATA_NAME], result[PartitionStatCollector.XLOG_NAME]])
+        new_rows = [result[PartitionStatCollector.DATA_NAME], result[PartitionStatCollector.XLOG_NAME]]
+        self._do_refresh(new_rows)
+        return new_rows
 
     def calculate_time_until_full(self, colname, prev, cur):
         # both should be expressed in common units, guaranteed by BLOCK_SIZE

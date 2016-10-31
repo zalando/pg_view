@@ -155,6 +155,7 @@ class SystemStatCollector(StatCollector):
         result.update(cpu_data)
         self._refresh_cpu_time_values(cpu_data)
         self._do_refresh([result])
+        return result
 
     def _refresh_cpu_time_values(self, cpu_data):
         # calculate the sum of all CPU indicators and store it.

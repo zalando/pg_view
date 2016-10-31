@@ -113,10 +113,17 @@ class MemoryStatCollector(StatCollector):
         memdata = self._read_memory_data()
         raw_result = self._transform_input(memdata)
         self._do_refresh([raw_result])
+        return raw_result
 
     def _read_memory_data(self):
         """ Read relevant data from /proc/meminfo. We are interesed in the following fields:
-            MemTotal, MemFree, Buffers, Cached, Dirty, CommitLimit, Committed_AS
+            MemTotal,
+            MemFree,
+            Buffers,
+            Cached,
+            Dirty,
+            CommitLimit,
+            Committed_AS
         """
         result = {}
         try:
@@ -149,11 +156,13 @@ class MemoryStatCollector(StatCollector):
         return val
 
     def calculate_kb_left_until_limit(self, colname, row, optional):
-        result = (int(row['CommitLimit']) - int(row['Committed_AS']) if row.get('CommitLimit', None) is not None and
-                  row.get('Committed_AS', None) is not None else None)
+        result = (int(row['CommitLimit']) - int(row['Committed_AS']) if self._is_commit(row) else None)
         if result is None and not optional:
             self.warn_non_optional_column(colname)
         return result
+
+    def _is_commit(self, row):
+        return row.get('CommitLimit') is not None and row.get('Committed_AS') is not None
 
     def output(self, method):
         return super(self.__class__, self).output(method, before_string='Memory statistics:', after_string='\n')

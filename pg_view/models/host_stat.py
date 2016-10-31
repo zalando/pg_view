@@ -10,7 +10,6 @@ from pg_view.models.base import StatCollector, COLHEADER, COLSTATUS, logger
 
 class HostStatCollector(StatCollector):
     """ General system-wide statistics """
-    UPTIME_FILE = '/proc/uptime'
 
     def __init__(self):
         super(HostStatCollector, self).__init__(produce_diffs=False)

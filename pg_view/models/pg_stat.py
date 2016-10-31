@@ -2,10 +2,12 @@ import resource
 import sys
 
 import psycopg2
+import psycopg2.extras
 import re
 
 from pg_view.models.base import StatCollector, COLALIGN, logger, COLSTATUS
-from pg_view.sqls import SELECT_PGSTAT_VERSION_LESS_92, SELECT_PGSTAT_VERSION_LESS_THAN_96, SELECT_PGSTAT_NEVER_VERSION
+from pg_view.sqls import SELECT_PGSTAT_VERSION_LESS_THAN_92, SELECT_PGSTAT_VERSION_LESS_THAN_96, SELECT_PGSTAT_NEVER_VERSION, \
+    SELECT_PG_IS_IN_RECOVERY, SHOW_MAX_CONNECTIONS
 
 MEM_PAGE_SIZE = resource.getpagesize()
 if sys.hexversion >= 0x03000000:
@@ -15,12 +17,12 @@ else:
     maxsize = sys.maxint
 
 
-class PgstatCollector(StatCollector):
+class PgStatCollector(StatCollector):
     """ Collect PostgreSQL-related statistics """
     STATM_FILENAME = '/proc/{0}/statm'
 
     def __init__(self, pgcon, reconnect, pid, dbname, dbver, always_track_pids):
-        super(PgstatCollector, self).__init__()
+        super(PgStatCollector, self).__init__()
         self.postmaster_pid = pid
         self.pgcon = pgcon
         self.reconnect = reconnect
@@ -63,7 +65,9 @@ class PgstatCollector(StatCollector):
         ]
 
         self.transform_dict_data = [
-            {'out': 'read_bytes', 'fn': int, 'optional': True}, {'out': 'write_bytes', 'fn': int, 'optional': True}]
+            {'out': 'read_bytes', 'fn': int, 'optional': True},
+            {'out': 'write_bytes', 'fn': int, 'optional': True}
+        ]
 
         self.diff_generator_data = [
             {'out': 'pid', 'diff': False},
@@ -292,7 +296,6 @@ class PgstatCollector(StatCollector):
 
     def refresh(self):
         """ Reads data from /proc and PostgreSQL stats """
-
         result = []
         # fetch up-to-date list of subprocess PIDs
         self.get_subprocesses_pid()
@@ -332,10 +335,10 @@ class PgstatCollector(StatCollector):
                 result.append(result_row)
         # and refresh the rows with this data
         self._do_refresh(result)
+        return result
 
     def _read_proc(self, pid, is_backend, is_active):
         """ see man 5 proc for details (/proc/[pid]/stat) """
-
         result = {}
         raw_result = {}
 
@@ -354,8 +357,7 @@ class PgstatCollector(StatCollector):
                     for line in fp:
                         x = [e.strip(':') for e in line.split()]
                         if len(x) < 2:
-                            logger.error('{0} content not in the "name: value" form: {1}'.format(fname.format(pid),
-                                                                                                 line))
+                            logger.error('{0} content not in the "name: value" form: {1}'.format(fname.format(pid), line))
                             continue
                         else:
                             proc_stat_io_read[x[0]] = int(x[1])
@@ -408,55 +410,55 @@ class PgstatCollector(StatCollector):
         return uss
 
     def _get_max_connections(self):
-        """ Read max connections from the database """
-
-        cur = self.pgcon.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute('show max_connections')
-        result = cur.fetchone()
-        cur.close()
+        result = self._execute_fetchone_query(SHOW_MAX_CONNECTIONS)
         return int(result.get('max_connections', 0))
 
     def _get_recovery_status(self):
-        """ Determine whether the Postgres process is in recovery """
+        result = self._execute_fetchone_query(SELECT_PG_IS_IN_RECOVERY)
+        return result.get('role', 'unknown')
 
+    def _execute_fetchone_query(self, query):
         cur = self.pgcon.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("select case when pg_is_in_recovery() then 'standby' else 'master' end as role")
+        cur.execute(query)
         result = cur.fetchone()
         cur.close()
-        return result.get('role', 'unknown')
+        return result
 
     def _read_pg_stat_activity(self):
         """ Read data from pg_stat_activity """
-
         self.recovery_status = self._get_recovery_status()
         cur = self.pgcon.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-
-        # the pg_stat_activity format has been changed to 9.2, avoiding ambigiuous meanings for some columns.
-        # since it makes more sense then the previous layout, we 'cast' the former versions to 9.2
-        if self.dbver < 9.2:
-            cur.execute(SELECT_PGSTAT_VERSION_LESS_92)
-        elif self.dbver < 9.6:
-            cur.execute(SELECT_PGSTAT_VERSION_LESS_THAN_96)
-        else:
-            cur.execute(SELECT_PGSTAT_NEVER_VERSION)
+        sql_pgstat = self.get_sql_by_pg_version()
+        cur.execute(sql_pgstat)
         results = cur.fetchall()
+
         # fill in the number of total connections, including ourselves
         self.total_connections = len(results) + 1
         self.active_connections = 0
-        ret = {}
-        for r in results:
+        formatted_results = {}
+        for result in results:
             # stick multiline queries together
-            if r.get('query', None):
-                if r['query'] != 'idle':
-                    if r['pid'] != self.connection_pid:
+            #TODO: Simplify it
+            if result.get('query', None):
+                if result['query'] != 'idle':
+                    if result['pid'] != self.connection_pid:
                         self.active_connections += 1
-                lines = r['query'].splitlines()
+                lines = result['query'].splitlines()
                 newlines = [re.sub('\s+', ' ', l.strip()) for l in lines]
-                r['query'] = ' '.join(newlines)
-            ret[r['pid']] = r
+                result['query'] = ' '.join(newlines)
+            formatted_results[result['pid']] = result
         self.pgcon.commit()
         cur.close()
-        return ret
+        return formatted_results
+
+    def get_sql_by_pg_version(self):
+        # the pg_stat_activity format has been changed to 9.2, avoiding ambigiuous meanings for some columns.
+        # since it makes more sense then the previous layout, we 'cast' the former versions to 9.2
+        if self.dbver < 9.2:
+            return SELECT_PGSTAT_VERSION_LESS_THAN_92
+        elif self.dbver < 9.6:
+            return SELECT_PGSTAT_VERSION_LESS_THAN_96
+        return SELECT_PGSTAT_NEVER_VERSION
 
     def ncurses_produce_prefix(self):
         if self.pgcon:
@@ -468,17 +470,14 @@ class PgstatCollector(StatCollector):
                        max_conns=self.max_connections,
                        active_conns=self.active_connections)
         else:
-            return "{dbname} {version} (offline)\n".\
-                format(dbname=self.dbname,
-                       version=self.server_version)
+            return "{dbname} {version} (offline)\n".format(dbname=self.dbname, version=self.server_version)
 
     @staticmethod
     def process_sort_key(process):
-        return process['age'] if process['age'] is not None else maxsize
+        return process.get('age', maxsize)
 
     def diff(self):
         """ we only diff backend processes if new one is not idle and use pid to identify processes """
-
         self.rows_diff = []
         self.running_diffs = []
         self.blocked_diffs = {}

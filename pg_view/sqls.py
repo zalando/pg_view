@@ -1,4 +1,4 @@
-SELECT_PGSTAT_VERSION_LESS_92 = """
+SELECT_PGSTAT_VERSION_LESS_THAN_92 = """
     SELECT datname,
            procpid as pid,
            usename,
@@ -148,3 +148,6 @@ SELECT_PGSTAT_NEVER_VERSION = """
     WHERE a.pid != pg_backend_pid()
     GROUP BY 1,2,3,4,5,6,7,9
 """
+
+SELECT_PG_IS_IN_RECOVERY = "SELECT case WHEN pg_is_in_recovery() THEN 'standby' ELSE 'master' END AS role"
+SHOW_MAX_CONNECTIONS = 'SHOW max_connections'

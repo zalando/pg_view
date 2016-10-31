@@ -1,4 +1,12 @@
-from pg_view.models.base import StatCollector, COLALIGN, logger
+import glob
+import time
+from multiprocessing import Process
+
+import os
+
+from pg_view.models.base import StatCollector, COLALIGN, logger, TICK_LENGTH
+
+BLOCK_SIZE = 1024
 
 
 class PartitionStatCollector(StatCollector):
@@ -14,12 +22,20 @@ class PartitionStatCollector(StatCollector):
         self.dbver = dbversion
         self.queue_consumer = consumer
         self.work_directory = work_directory
-        self.df_list_transformation = [{'out': 'dev', 'in': 0, 'fn': self._dereference_dev_name},
-                                       {'out': 'space_total', 'in': 1, 'fn': int},
-                                       {'out': 'space_left', 'in': 2, 'fn': int}]
-        self.io_list_transformation = [{'out': 'sectors_read', 'in': 5, 'fn': int}, {'out': 'sectors_written', 'in': 9,
-                                       'fn': int}, {'out': 'await', 'in': 13, 'fn': int}]
-        self.du_list_transformation = [{'out': 'path_size', 'in': 0, 'fn': int}, {'out': 'path', 'in': 1}]
+        self.df_list_transformation = [
+            {'out': 'dev', 'in': 0, 'fn': self._dereference_dev_name},
+            {'out': 'space_total', 'in': 1, 'fn': int},
+            {'out': 'space_left', 'in': 2, 'fn': int}
+        ]
+        self.io_list_transformation = [
+            {'out': 'sectors_read', 'in': 5, 'fn': int},
+            {'out': 'sectors_written', 'in': 9, 'fn': int},
+            {'out': 'await', 'in': 13, 'fn': int}
+        ]
+        self.du_list_transformation = [
+            {'out': 'path_size', 'in': 0, 'fn': int},
+            {'out': 'path', 'in': 1}
+        ]
 
         self.diff_generator_data = [
             {'out': 'type', 'diff': False},
@@ -182,3 +198,146 @@ class PartitionStatCollector(StatCollector):
 
     def output(self, method):
         return super(self.__class__, self).output(method, before_string='PostgreSQL partitions:', after_string='\n')
+
+
+class DetachedDiskStatCollector(Process):
+    """ This class runs in a separate process and runs du and df """
+    def __init__(self, q, work_directories):
+        super(DetachedDiskStatCollector, self).__init__()
+        self.work_directories = work_directories
+        self.q = q
+        self.daemon = True
+        self.df_cache = {}
+
+    def run(self):
+        while True:
+            # wait until the previous data is consumed
+            self.q.join()
+            result = {}
+            self.df_cache = {}
+            for work_directory in self.work_directories:
+                du_data = self.get_du_data(work_directory)
+                df_data = self.get_df_data(work_directory)
+                result[work_directory] = [du_data, df_data]
+            self.q.put(result)
+            time.sleep(TICK_LENGTH)
+
+    def get_du_data(self, work_directory):
+        result = {'data': [], 'xlog': []}
+        try:
+            data_size = self.run_du(work_directory, BLOCK_SIZE)
+            xlog_size = self.run_du(work_directory + '/pg_xlog/', BLOCK_SIZE)
+        except Exception as e:
+            logger.error('Unable to read free space information for the pg_xlog and data directories for the directory\
+             {0}: {1}'.format(work_directory, e))
+        else:
+            # XXX: why do we pass the block size there?
+            result['data'] = str(data_size), work_directory
+            result['xlog'] = str(xlog_size), work_directory + '/pg_xlog'
+        return result
+
+    @staticmethod
+    def run_du(pathname, block_size=BLOCK_SIZE, exclude=None):
+        if exclude is None:
+            exclude = ['lost+found']
+        size = 0
+        folders = [pathname]
+        root_dev = os.lstat(pathname).st_dev
+        while len(folders):
+            c = folders.pop()
+            for e in os.listdir(c):
+                e = os.path.join(c, e)
+                try:
+                    st = os.lstat(e)
+                except os.error:
+                    # don't care about files removed while we are trying to read them.
+                    continue
+                # skip data on different partition
+                if st.st_dev != root_dev:
+                    continue
+                mode = st.st_mode & 0xf000  # S_IFMT
+                if mode == 0x4000:  # S_IFDIR
+                    if e in exclude:
+                        continue
+                    folders.append(e)
+                    size += st.st_size
+                if mode == 0x8000:  # S_IFREG
+                    size += st.st_size
+        return long(size / block_size)
+
+    def get_df_data(self, work_directory):
+        """ Retrive raw data from df (transformations are performed via df_list_transformation) """
+
+        result = {'data': [], 'xlog': []}
+        # obtain the device names
+        data_dev = self.get_mounted_device(self.get_mount_point(work_directory))
+        xlog_dev = self.get_mounted_device(self.get_mount_point(work_directory + '/pg_xlog/'))
+        if data_dev not in self.df_cache:
+            data_vfs = os.statvfs(work_directory)
+            self.df_cache[data_dev] = data_vfs
+        else:
+            data_vfs = self.df_cache[data_dev]
+
+        if xlog_dev not in self.df_cache:
+            xlog_vfs = os.statvfs(work_directory + '/pg_xlog/')
+            self.df_cache[xlog_dev] = xlog_vfs
+        else:
+            xlog_vfs = self.df_cache[xlog_dev]
+
+        data_vfs_blocks = data_vfs.f_bsize / BLOCK_SIZE
+        result['data'] = (data_dev, data_vfs.f_blocks * data_vfs_blocks, data_vfs.f_bavail * data_vfs_blocks)
+        if data_dev != xlog_dev:
+            xlog_vfs_blocks = (xlog_vfs.f_bsize / BLOCK_SIZE)
+            result['xlog'] = (xlog_dev, xlog_vfs.f_blocks * xlog_vfs_blocks, xlog_vfs.f_bavail * xlog_vfs_blocks)
+        else:
+            result['xlog'] = result['data']
+        return result
+
+    @staticmethod
+    def get_mounted_device(pathname):
+        """Get the device mounted at pathname"""
+        # uses "/proc/mounts"
+        raw_dev_name = None
+        dev_name = None
+        pathname = os.path.normcase(pathname)  # might be unnecessary here
+        try:
+            with open('/proc/mounts', 'r') as ifp:
+                for line in ifp:
+                    fields = line.rstrip('\n').split()
+                    # note that line above assumes that
+                    # no mount points contain whitespace
+                    if fields[1] == pathname and (fields[0])[:5] == '/dev/':
+                        raw_dev_name = dev_name = fields[0]
+                        break
+        except EnvironmentError:
+            pass
+        if raw_dev_name is not None and raw_dev_name[:11] == '/dev/mapper':
+            # we have to read the /sys/block/*/*/name and match with the rest of the device
+            for fname in glob.glob('/sys/block/*/*/name'):
+                try:
+                    with open(fname) as f:
+                        block_dev_name = f.read().strip()
+                except IOError:
+                    # ignore those files we couldn't read (lack of permissions)
+                    continue
+                if raw_dev_name[12:] == block_dev_name:
+                    # we found the proper device name, get the 3rd comonent of the path
+                    # i.e. /sys/block/dm-0/dm/name
+                    components = fname.split('/')
+                    if len(components) >= 4:
+                        dev_name = components[3]
+                    break
+        return dev_name
+
+    @staticmethod
+    def get_mount_point(pathname):
+        """Get the mounlst point of the filesystem containing pathname"""
+        pathname = os.path.normcase(os.path.realpath(pathname))
+        parent_device = path_device = os.stat(pathname).st_dev
+        while parent_device == path_device:
+            mount_point = pathname
+            pathname = os.path.dirname(pathname)
+            if pathname == mount_point:
+                break
+            parent_device = os.stat(pathname).st_dev
+        return mount_point

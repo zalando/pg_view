@@ -11,7 +11,7 @@ import socket
 import sys
 import time
 import traceback
-from multiprocessing import Process, JoinableQueue  # for then number of cpus
+from multiprocessing import JoinableQueue  # for then number of cpus
 from operator import itemgetter
 from optparse import OptionParser
 
@@ -23,19 +23,19 @@ sys.path.insert(0, path)
 
 if sys.hexversion >= 0x03000000:
     import configparser as ConfigParser
-    from queue import Empty
 else:
     import ConfigParser
-    from Queue import Empty
 
-from pg_view.models.base import StatCollector, COLSTATUS, COLALIGN, COLTYPES, COLHEADER, OUTPUT_METHOD, enum
+from pg_view.models.base import StatCollector, COLSTATUS, COLALIGN, COLTYPES, COLHEADER, OUTPUT_METHOD, enum, \
+    TICK_LENGTH
 import pg_view.models.base
 from pg_view.models.host_stat import HostStatCollector
 from pg_view.models.memory_stat import MemoryStatCollector
-from pg_view.models.partition_stat import PartitionStatCollector
+from pg_view.models.partition_stat import PartitionStatCollector, DetachedDiskStatCollector
 from pg_view.models.pg_stat import PgStatCollector, dbversion_as_float
 from pg_view.models.system_stat import SystemStatCollector
 from pg_view.validators import get_valid_output_methods, output_method_is_valid
+from pg_view.consumers import DiskCollectorConsumer
 
 __appname__ = 'pg_view'
 __version__ = '1.3.0'
@@ -59,11 +59,9 @@ except ImportError:
 
 
 STAT_FIELD = enum(st_pid=0, st_process_name=1, st_state=2, st_ppid=3, st_start_time=21)
-BLOCK_SIZE = 1024
 MEM_PAGE_SIZE = resource.getpagesize()
 
 # setup system constants
-TICK_LENGTH = 1
 output_method = OUTPUT_METHOD.curses
 options = None
 
@@ -1024,8 +1022,8 @@ def establish_user_defined_connection(instance, conn, clusters):
         pgcon.close()
         return True
     # now we have all components to create a cluster descriptor
-    desc = make_cluster_desc(name=instance, version=dbver, workdir=work_directory,
-                             pid=pid, pgcon=pgcon, conn=conn)
+    desc = make_cluster_desc(
+        name=instance, version=dbver, workdir=work_directory, pid=pid, pgcon=pgcon, conn=conn)
     clusters.append(desc)
     return True
 
@@ -1065,10 +1063,10 @@ class ProcNetParser():
         self.unix_socket_header_len = 0
         # initialize the sockets hash with the contents of unix
         # and tcp sockets. tcp IPv6 is also read if it's present
-        for fname in (ProcNetParser.NET_UNIX_FILENAME, ProcNetParser.NET_TCP_FILENAME):
+        for fname in (self.NET_UNIX_FILENAME, self.NET_TCP_FILENAME):
             self.read_socket_file(fname)
-        if os.access(ProcNetParser.NET_TCP6_FILENAME, os.R_OK):
-            self.read_socket_file(ProcNetParser.NET_TCP6_FILENAME)
+        if os.access(self.NET_TCP6_FILENAME, os.R_OK):
+            self.read_socket_file(self.NET_TCP6_FILENAME)
 
     @staticmethod
     def _hex_to_int_str(val):
@@ -1159,14 +1157,14 @@ class ProcNetParser():
 
 
 def main():
-    global TICK_LENGTH, logger, options
+    global logger, options
     # bail out if we are not running Linux
     if platform.system() != 'Linux':
         print('Non Linux database hosts are not supported at the moment. Can not continue')
         sys.exit(243)
 
     options, args = parse_args()
-    TICK_LENGTH = options.tick
+    pg_view.models.base.TICK_LENGTH = options.tick
     output_method = options.output_method
 
     if not output_method_is_valid(output_method):
@@ -1197,7 +1195,7 @@ def main():
 
             if not establish_user_defined_connection(instance, conn, clusters):
                 pg_view.models.base.logger.error('failed to acquire details about ' +
-                             'the database cluster {0}, the server will be skipped'.format(instance))
+                    'the database cluster {0}, the server will be skipped'.format(instance))
     elif options.host:
         # try to connet to the database specified by command-line options
         conn = build_connection(options.host, options.port, options.username, options.dbname)
@@ -1291,181 +1289,6 @@ def setup_logger(options):
     log_stderr = logging.StreamHandler()
     pg_view.models.base.logger.addHandler(log_stderr)
     return log_stderr
-
-
-class DetachedDiskStatCollector(Process):
-    """ This class runs in a separate process and runs du and df """
-    def __init__(self, q, work_directories):
-        super(DetachedDiskStatCollector, self).__init__()
-        self.work_directories = work_directories
-        self.q = q
-        self.daemon = True
-        self.df_cache = {}
-
-    def run(self):
-        while True:
-            # wait until the previous data is consumed
-            self.q.join()
-            result = {}
-            self.df_cache = {}
-            for wd in self.work_directories:
-                du_data = self.get_du_data(wd)
-                df_data = self.get_df_data(wd)
-                result[wd] = [du_data, df_data]
-            self.q.put(result)
-            time.sleep(TICK_LENGTH)
-
-    def get_du_data(self, wd):
-        result = {'data': [], 'xlog': []}
-        try:
-            data_size = self.run_du(wd, BLOCK_SIZE)
-            xlog_size = self.run_du(wd + '/pg_xlog/', BLOCK_SIZE)
-        except Exception as e:
-            logger.error('Unable to read free space information for the pg_xlog and data directories for the directory\
-             {0}: {1}'.format(wd, e))
-        else:
-            # XXX: why do we pass the block size there?
-            result['data'] = str(data_size), wd
-            result['xlog'] = str(xlog_size), wd + '/pg_xlog'
-        return result
-
-    @staticmethod
-    def run_du(pathname, block_size=BLOCK_SIZE, exclude=['lost+found']):
-        size = 0
-        folders = [pathname]
-        root_dev = os.lstat(pathname).st_dev
-        while len(folders):
-            c = folders.pop()
-            for e in os.listdir(c):
-                e = os.path.join(c, e)
-                try:
-                    st = os.lstat(e)
-                except os.error:
-                    # don't care about files removed while we are trying to read them.
-                    continue
-                # skip data on different partition
-                if st.st_dev != root_dev:
-                    continue
-                mode = st.st_mode & 0xf000  # S_IFMT
-                if mode == 0x4000:  # S_IFDIR
-                    if e in exclude:
-                        continue
-                    folders.append(e)
-                    size += st.st_size
-                if mode == 0x8000:  # S_IFREG
-                    size += st.st_size
-        return long(size / block_size)
-
-    def get_df_data(self, work_directory):
-        """ Retrive raw data from df (transformations are performed via df_list_transformation) """
-
-        result = {'data': [], 'xlog': []}
-        # obtain the device names
-        data_dev = self.get_mounted_device(self.get_mount_point(work_directory))
-        xlog_dev = self.get_mounted_device(self.get_mount_point(work_directory + '/pg_xlog/'))
-        if data_dev not in self.df_cache:
-            data_vfs = os.statvfs(work_directory)
-            self.df_cache[data_dev] = data_vfs
-        else:
-            data_vfs = self.df_cache[data_dev]
-
-        if xlog_dev not in self.df_cache:
-            xlog_vfs = os.statvfs(work_directory + '/pg_xlog/')
-            self.df_cache[xlog_dev] = xlog_vfs
-        else:
-            xlog_vfs = self.df_cache[xlog_dev]
-
-        result['data'] = (data_dev, data_vfs.f_blocks * (data_vfs.f_bsize / BLOCK_SIZE),
-                          data_vfs.f_bavail * (data_vfs.f_bsize / BLOCK_SIZE))
-        if data_dev != xlog_dev:
-            result['xlog'] = (xlog_dev, xlog_vfs.f_blocks * (xlog_vfs.f_bsize / BLOCK_SIZE),
-                              xlog_vfs.f_bavail * (xlog_vfs.f_bsize / BLOCK_SIZE))
-        else:
-            result['xlog'] = result['data']
-        return result
-
-    @staticmethod
-    def get_mounted_device(pathname):
-        """Get the device mounted at pathname"""
-
-        # uses "/proc/mounts"
-        raw_dev_name = None
-        dev_name = None
-        pathname = os.path.normcase(pathname)  # might be unnecessary here
-        try:
-            with open('/proc/mounts', 'r') as ifp:
-                for line in ifp:
-                    fields = line.rstrip('\n').split()
-                    # note that line above assumes that
-                    # no mount points contain whitespace
-                    if fields[1] == pathname and (fields[0])[:5] == '/dev/':
-                        raw_dev_name = dev_name = fields[0]
-                        break
-        except EnvironmentError:
-            pass
-        if raw_dev_name is not None and raw_dev_name[:11] == '/dev/mapper':
-            # we have to read the /sys/block/*/*/name and match with the rest of the device
-            for fname in glob.glob('/sys/block/*/*/name'):
-                try:
-                    with open(fname) as f:
-                        block_dev_name = f.read().strip()
-                except IOError:
-                    # ignore those files we couldn't read (lack of permissions)
-                    continue
-                if raw_dev_name[12:] == block_dev_name:
-                    # we found the proper device name, get the 3rd comonent of the path
-                    # i.e. /sys/block/dm-0/dm/name
-                    components = fname.split('/')
-                    if len(components) >= 4:
-                        dev_name = components[3]
-                    break
-        return dev_name
-
-    @staticmethod
-    def get_mount_point(pathname):
-        """Get the mounlst point of the filesystem containing pathname"""
-
-        pathname = os.path.normcase(os.path.realpath(pathname))
-        parent_device = path_device = os.stat(pathname).st_dev
-        while parent_device == path_device:
-            mount_point = pathname
-            pathname = os.path.dirname(pathname)
-            if pathname == mount_point:
-                break
-            parent_device = os.stat(pathname).st_dev
-        return mount_point
-
-
-class DiskCollectorConsumer(object):
-    """ consumes information from the disk collector and provides it for the local
-        collector classes running in the same subprocess.
-    """
-    def __init__(self, q):
-        self.result = {}
-        self.cached_result = {}
-        self.q = q
-
-    def consume(self):
-        # if we haven't consumed the previous value
-        if len(self.result) != 0:
-            return
-        try:
-            self.result = self.q.get_nowait()
-            self.cached_result = self.result.copy()
-        except Empty:
-            # we are too fast, just do nothing.
-            pass
-        else:
-            self.q.task_done()
-
-    def fetch(self, wd):
-        data = None
-        if wd in self.result:
-            data = self.result[wd]
-            del self.result[wd]
-        elif wd in self.cached_result:
-            data = self.cached_result[wd]
-        return data
 
 
 if __name__ == '__main__':

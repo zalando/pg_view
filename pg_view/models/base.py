@@ -719,3 +719,6 @@ class StatCollector(object):
 
     def clear_diffs(self):
         self.rows_diff = []
+
+
+TICK_LENGTH = 1

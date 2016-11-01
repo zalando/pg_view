@@ -659,12 +659,12 @@ class StatCollector(object):
         self._calculate_dynamic_width(rows, method=OUTPUT_METHOD.curses)
 
         raw_result = {}
-        for k in StatCollector.NCURSES_DEFAULTS.keys():
+        for k in self.NCURSES_DEFAULTS.keys():
             raw_result[k] = []
 
         for col in self.output_transform_data:
-            for opt in StatCollector.NCURSES_DEFAULTS.keys():
-                raw_result[opt].append((col[opt] if opt in col else StatCollector.NCURSES_DEFAULTS[opt]))
+            for opt in self.NCURSES_DEFAULTS.keys():
+                raw_result[opt].append((col[opt] if opt in col else self.NCURSES_DEFAULTS[opt]))
 
         result_header = self._output_row_for_curses(None, 'h')
         result_rows = []
@@ -690,9 +690,9 @@ class StatCollector(object):
             'highlights': dict(zip(result_header, self._get_highlights())),
             'types': types_row
         }
-        for x in StatCollector.NCURSES_CUSTOM_OUTPUT_FIELDS:
+        for x in self.NCURSES_CUSTOM_OUTPUT_FIELDS:
             result[x] = self.ncurses_custom_fields.get(x, None)
-        for k in StatCollector.NCURSES_DEFAULTS.keys():
+        for k in self.NCURSES_DEFAULTS.keys():
             if k == 'noautohide' and self.ignore_autohide:
                 result[k] = dict.fromkeys(result_header, True)
             else:

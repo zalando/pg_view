@@ -306,6 +306,7 @@ class PgStatCollector(StatCollector):
             self.pgcon = None
             self._do_refresh([])
             return
+
         logger.info("new refresh round")
         for pid in self.pids:
             if pid == self.connection_pid:

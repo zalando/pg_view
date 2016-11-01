@@ -1,18 +1,22 @@
 from pg_view import consts
 
+BYTES_IN_MB = 1048576
+SECTORS_IN_MB = 2048
+KB_IN_MB = 1024
+
 
 class UnitConverter(object):
     @staticmethod
     def kb_to_mbytes(kb):
-        return float(kb) / 1024 if kb is not None else None
+        return float(kb) / KB_IN_MB if kb is not None else None
 
     @staticmethod
     def sectors_to_mbytes(sectors):
-        return float(sectors) / 2048 if sectors is not None else None
+        return float(sectors) / SECTORS_IN_MB if sectors is not None else None
 
     @staticmethod
     def bytes_to_mbytes(bytes_val):
-        return float(bytes_val) / 1048576 if bytes_val is not None else None
+        return float(bytes_val) / BYTES_IN_MB if bytes_val is not None else None
 
     @staticmethod
     def ticks_to_seconds(tick_value_str):

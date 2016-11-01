@@ -145,13 +145,13 @@ class PartitionStatCollector(StatCollector):
         if queue_data:
             (du_out, df_out) = queue_data
 
-        for pname in PartitionStatCollector.DATA_NAME, PartitionStatCollector.XLOG_NAME:
+        for pname in self.DATA_NAME, self.XLOG_NAME:
             result[pname] = self._transform_input(df_out[pname], self.df_list_transformation)
 
         io_out = self.get_io_data(
-            [result[PartitionStatCollector.DATA_NAME]['dev'], result[PartitionStatCollector.XLOG_NAME]['dev']])
+            [result[self.DATA_NAME]['dev'], result[self.XLOG_NAME]['dev']])
 
-        for pname in PartitionStatCollector.DATA_NAME, PartitionStatCollector.XLOG_NAME:
+        for pname in self.DATA_NAME, self.XLOG_NAME:
             if result[pname]['dev'] in io_out:
                 result[pname].update(self._transform_input(io_out[result[pname]['dev']], self.io_list_transformation))
             if pname in du_out:
@@ -159,7 +159,7 @@ class PartitionStatCollector(StatCollector):
             # set the type manually
             result[pname]['type'] = pname
 
-        new_rows = [result[PartitionStatCollector.DATA_NAME], result[PartitionStatCollector.XLOG_NAME]]
+        new_rows = [result[self.DATA_NAME], result[self.XLOG_NAME]]
         self._do_refresh(new_rows)
         return new_rows
 
@@ -177,8 +177,7 @@ class PartitionStatCollector(StatCollector):
         found = 0  # stop if we found records for all partitions
         total = len(pnames)
         try:
-            fp = None
-            fp = open(PartitionStatCollector.DISK_STAT_FILE, 'rU')
+            fp = open(self.DISK_STAT_FILE, 'rU')
             for l in fp:
                 elements = l.split()
                 for pname in pnames:
@@ -190,7 +189,7 @@ class PartitionStatCollector(StatCollector):
                 if found == total:
                     break
         except:
-            logger.error('Unable to read {0}'.format(PartitionStatCollector.DISK_STAT_FILE))
+            logger.error('Unable to read {0}'.format(self.DISK_STAT_FILE))
             result = {}
         finally:
             fp and fp.close()

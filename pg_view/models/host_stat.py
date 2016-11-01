@@ -13,9 +13,15 @@ class HostStatCollector(StatCollector):
 
     def __init__(self):
         super(HostStatCollector, self).__init__(produce_diffs=False)
-        self.transform_list_data = [{'out': 'loadavg', 'infn': self._concat_load_avg}]
-        self.transform_uptime_data = [{'out': 'uptime', 'in': 0, 'fn': self._uptime_to_str}]
-        self.transform_uname_data = [{'out': 'sysname', 'infn': self._construct_sysname}]
+        self.transform_list_data = [
+            {'out': 'loadavg', 'infn': self._concat_load_avg}
+        ]
+        self.transform_uptime_data = [
+            {'out': 'uptime', 'in': 0, 'fn': self._uptime_to_str}
+        ]
+        self.transform_uname_data = [
+            {'out': 'sysname', 'infn': self._construct_sysname}
+        ]
 
         self.output_transform_data = [
             {

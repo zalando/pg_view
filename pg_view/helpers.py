@@ -23,10 +23,13 @@ class UnitConverter(object):
         return float(timediff_val) * 100 if timediff_val is not None else None
 
 
+def open_universal(file_path):
+    return open(file_path, 'rU')
+
+
 def read_file(file_path):
-    with open(file_path, 'rU') as f:
-        data = f.read()
-        return data
+    with open_universal(file_path) as f:
+        return f.read()
 
 
 def process_groups(groups):

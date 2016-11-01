@@ -11,32 +11,12 @@ class MemoryStatCollector(StatCollector):
         self.transform_dict_data = [
             {'in': 'MemTotal', 'out': 'total', 'fn': int},
             {'in': 'MemFree', 'out': 'free', 'fn': int},
-            {
-                'in': 'Buffers',
-                'out': 'buffers',
-                'fn': int,
-                'optional': True,
-            },
+            {'in': 'Buffers', 'out': 'buffers', 'fn': int, 'optional': True},
             {'in': 'Cached', 'out': 'cached', 'fn': int},
             {'in': 'Dirty', 'out': 'dirty', 'fn': int},
-            {
-                'in': 'CommitLimit',
-                'out': 'commit_limit',
-                'fn': int,
-                'optional': True,
-            },
-            {
-                'in': 'Committed_AS',
-                'out': 'committed_as',
-                'fn': int,
-                'optional': True,
-            },
-            {
-                'infn': self.calculate_kb_left_until_limit,
-                'out': 'commit_left',
-                'fn': int,
-                'optional': True,
-            },
+            {'in': 'CommitLimit', 'out': 'commit_limit', 'fn': int, 'optional': True},
+            {'in': 'Committed_AS', 'out': 'committed_as', 'fn': int, 'optional': True},
+            {'infn': self.calculate_kb_left_until_limit, 'out': 'commit_left', 'fn': int, 'optional': True}
         ]
 
         self.output_transform_data = [

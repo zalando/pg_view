@@ -14,7 +14,7 @@ class PgstatCollectorTest(TestCase):
     def setUp(self):
 
         pg_con = mock.Mock()
-        # pg_con.fetch_one.return_value = 1
+        pg_con.fetch_one.return_value = 1
         self.collector = PgStatCollector(
             pgcon=pg_con,
             reconnect='',

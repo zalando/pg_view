@@ -25,5 +25,12 @@ class UnitConverter(object):
 
 def read_file(file_path):
     with open(file_path, 'rU') as f:
-        splitted_data = f.read().split()
-        return splitted_data
+        data = f.read()
+        return data
+
+
+def process_groups(groups):
+    for name in groups:
+        part = groups[name]['partitions']
+        pg = groups[name]['pg']
+        part.ncurses_set_prefix(pg.ncurses_produce_prefix())

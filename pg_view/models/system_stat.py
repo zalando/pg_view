@@ -142,17 +142,16 @@ class SystemStatCollector(StatCollector):
         self.current_total_cpu_time = 0
         self.cpu_time_diff = 0
         self.ncurses_custom_fields = {'header': False, 'prefix': 'sys: ', 'prepend_column_headers': True}
-
         self.postinit()
 
     def refresh(self):
         """ Read data from global /proc/stat """
-
         result = {}
         stat_data = self._read_proc_stat()
         cpu_data = self._read_cpu_data(stat_data.get('cpu', []))
         result.update(stat_data)
         result.update(cpu_data)
+
         self._refresh_cpu_time_values(cpu_data)
         self._do_refresh([result])
         return result
@@ -167,7 +166,6 @@ class SystemStatCollector(StatCollector):
 
     def _read_proc_stat(self):
         """ see man 5 proc for details (/proc/stat). We don't parse cpu info here """
-
         raw_result = {}
         result = {}
         try:
@@ -185,15 +183,13 @@ class SystemStatCollector(StatCollector):
             logger.error('Unable to read {0}, global data will be unavailable'.format(self.PROC_STAT_FILENAME))
         return result
 
-    def _cpu_time_diff(self, colname, cur, prev):
-        if cur.get(colname, None) and prev.get(colname, None) and self.cpu_time_diff > 0:
-            return (cur[colname] - prev[colname]) / self.cpu_time_diff
+    def _cpu_time_diff(self, colname, current, previous):
+        if current.get(colname) and previous.get(colname) and self.cpu_time_diff > 0:
+            return (current[colname] - previous[colname]) / self.cpu_time_diff
         else:
             return None
 
     def _read_cpu_data(self, cpu_row):
-        """ Parse the cpu row from /proc/stat """
-
         return self._transform_input(cpu_row)
 
     def output(self, method):

@@ -21,6 +21,19 @@ COLALIGN = enum(ca_none=0, ca_left=1, ca_center=2, ca_right=3)
 COLTYPES = enum(ct_string=0, ct_number=1)
 COLHEADER = enum(ch_default=0, ch_prepend=1, ch_append=2)
 OUTPUT_METHOD = enum(console='console', json='json', curses='curses')
+TICK_LENGTH = 1
+
+
+def warn_non_optional_column(colname):
+    logger.error('Column {0} is not optional, but input row has no value for it'.format(colname))
+
+
+def _remap_params(psutil_data, mapping):
+    mapped_data = dict.fromkeys(mapping.values(), 0.0)
+    for param, value in psutil_data.items():
+        if param in mapping.keys():
+            mapped_data[mapping[param]] = value
+    return mapped_data
 
 
 class ColumnType(namedtuple('ColumnType', 'value header header_position')):
@@ -217,10 +230,6 @@ class StatCollector(object):
         elif num <= col['warning']:
             return {-1: COLSTATUS.cs_warning}
         return {-1: COLSTATUS.cs_ok}
-
-    @staticmethod
-    def warn_non_optional_column(colname):
-        logger.error('Column {0} is not optional, but input row has no value for it'.format(colname))
 
     def set_units_display(self, status):
         self.show_units = status
@@ -474,7 +483,7 @@ class StatCollector(object):
                         # nothing at all from them - then the problem is elsewhere and there is no need
                         # to bleat here for each missing column.
                         if not col.get('optional', False) and len(l) > 0:
-                            self.warn_non_optional_column(incol)
+                            warn_non_optional_column(incol)
                     else:
                         result[attname] = l[incol]
                 # if transformation function is supplied - apply it to the input data.
@@ -508,7 +517,7 @@ class StatCollector(object):
                     result[attname] = None
                     # see the comment at _transform_list on why we do complain here.
                     if not col.get('optional', False) and len(l) > 0:
-                        self.warn_non_optional_column(incol)
+                        warn_non_optional_column(incol)
                 else:
                     result[attname] = l[incol]
                 if 'fn' in col and result[attname] is not None:
@@ -719,6 +728,3 @@ class StatCollector(object):
 
     def clear_diffs(self):
         self.rows_diff = []
-
-
-TICK_LENGTH = 1

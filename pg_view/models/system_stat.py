@@ -1,16 +1,7 @@
 import psutil
-from psutil import LINUX
 from psutil._pslinux import CLOCK_TICKS, open_binary, get_procfs_path
 
-from pg_view.models.base import StatCollector
-
-
-def _remap_params(psutil_data, mapping):
-    mapped_data = dict.fromkeys(mapping.values(), 0.0)
-    for param, value in psutil_data.items():
-        if param in mapping.keys():
-            mapped_data[mapping[param]] = value
-    return mapped_data
+from pg_view.models.base import StatCollector, _remap_params
 
 
 class SystemStatCollector(StatCollector):
@@ -196,7 +187,7 @@ class SystemStatCollector(StatCollector):
             'procs_blocked': 'blocked',
         }
         cpu_stats = psutil.cpu_stats()._asdict()
-        if LINUX:
+        if psutil.LINUX:
             refreshed_cpu_stats = self.get_missing_cpu_stat_from_file()
             cpu_stats.update(refreshed_cpu_stats)
         return _remap_params(cpu_stats, default_key_mapping)

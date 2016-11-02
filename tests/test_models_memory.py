@@ -1,8 +1,12 @@
-import os
+import sys
+from collections import namedtuple
 from unittest import TestCase
 
 import mock
-import sys
+import os
+
+from pg_view.helpers import open_universal
+from tests.common import TEST_DIR
 
 path = os.path.dirname(os.path.dirname(__file__))
 sys.path.insert(0, path)
@@ -25,3 +29,66 @@ class MemoryStatCollectorTest(TestCase):
         self.assertIn('total', refreshed_data)
         self.assertIn('buffers', refreshed_data)
         self.assertIn('committed_as', refreshed_data)
+
+    @mock.patch('pg_view.models.system_stat.psutil.virtual_memory')
+    @mock.patch('pg_view.models.memory_stat.psutil.LINUX', False)
+    def test_read_memory_data_should_return_data_when_cpu_virtual_memory_for_macos(self, mocked_virtual_memory):
+        linux_svmem = namedtuple('linux_svmem', 'total free buffers cached')
+        mocked_virtual_memory.return_value = linux_svmem(
+            total=2048 * 1024, free=1024 * 1024, buffers=3072 * 1024, cached=4096 * 1024
+        )
+        refreshed_cpu = self.collector.read_memory_data()
+        expected_data = {
+            'MemTotal': 2048,
+            'MemFree': 1024,
+            'Buffers': 3072,
+            'Cached': 4096,
+            'Dirty': 0,
+            'CommitLimit': 0,
+            'Committed_AS': 0,
+        }
+        self.assertEqual(expected_data, refreshed_cpu)
+
+    @mock.patch('pg_view.models.memory_stat.open_binary')
+    @mock.patch('pg_view.models.system_stat.psutil.virtual_memory')
+    def test__read_memory_data_should_parse_data_from_proc_meminfo(self, mocked_virtual_memory, mocked_open_universal):
+        meminfo_ok_path = os.path.join(TEST_DIR, 'meminfo_ok')
+        linux_svmem = namedtuple('linux_svmem', 'total free buffers cached')
+        mocked_open_universal.return_value = open_universal(meminfo_ok_path)
+        mocked_virtual_memory.return_value = linux_svmem(
+            total=2048 * 1024, free=1024 * 1024, buffers=3072 * 1024, cached=4096 * 1024
+        )
+        expected_data = {
+            'MemTotal': 2048,
+            'Cached': 4096,
+            'MemFree': 1024,
+            'Buffers': 3072,
+            'CommitLimit': 250852,
+            'Dirty': 36,
+            'Committed_AS': 329264
+        }
+
+        refreshed_data = self.collector.read_memory_data()
+        self.assertEqual(expected_data, refreshed_data)
+
+    def test__is_commit_should_return_false_when_both_none(self):
+        self.assertFalse(self.collector._is_commit({}))
+
+    def test__is_commit_should_return_false_when_commit_limit_none(self):
+        self.assertFalse(self.collector._is_commit({'Commited_AS': 10}))
+
+    def test__is_commit_should_return_false_when_commited_as_none(self):
+        self.assertFalse(self.collector._is_commit({'CommitLimit': 10}))
+
+    def test__is_commit_should_return_true_when_both_exist(self):
+        self.assertFalse(self.collector._is_commit({'CommitLimit': 10, 'Commited_AS': 20}))
+
+    def test__calculate_kb_left_until_limit_should_return_result(self):
+        data = self.collector.calculate_kb_left_until_limit('commit_left', {'CommitLimit': 30, 'Committed_AS': 20}, True)
+        self.assertEqual(10, data)
+
+    @mock.patch('pg_view.models.base.logger')
+    def test__calculate_kb_left_until_limit_should_log_warn_when_non_optional_and_not_commit(self, mocked_logger):
+        data = self.collector.calculate_kb_left_until_limit('commit_left', {}, False)
+        self.assertIsNone(data)
+        mocked_logger.error.assert_called_with('Column commit_left is not optional, but input row has no value for it')

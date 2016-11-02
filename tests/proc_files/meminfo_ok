@@ -1,0 +1,9 @@
+MemTotal:         501708 kB
+MemFree:          233776 kB
+Buffers:           17176 kB
+Cached:           109216 kB
+Dirty:                36 kB
+CommitLimit:      250852 kB
+Committed_AS:     329264 kB
+Hugepagesize:       2048 mB
+DirectMap4k:       38848 gB

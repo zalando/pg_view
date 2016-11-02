@@ -1,10 +1,11 @@
-from pg_view.models.base import StatCollector, logger
+import psutil
+from psutil._pslinux import get_procfs_path, open_binary
+
+from pg_view.models.base import StatCollector, warn_non_optional_column, _remap_params
 
 
 class MemoryStatCollector(StatCollector):
     """ Collect memory-related statistics """
-    MEMORY_STAT_FILE = '/proc/meminfo'
-    UNIT_COLUMN = 2
 
     def __init__(self):
         super(MemoryStatCollector, self).__init__(produce_diffs=False)
@@ -90,56 +91,43 @@ class MemoryStatCollector(StatCollector):
 
     def refresh(self):
         """ Read statistics from /proc/meminfo """
-        memdata = self._read_memory_data()
+        memdata = self.read_memory_data()
         raw_result = self._transform_input(memdata)
         self._do_refresh([raw_result])
         return raw_result
 
-    def _read_memory_data(self):
-        """ Read relevant data from /proc/meminfo. We are interesed in the following fields:
-            MemTotal,
-            MemFree,
-            Buffers,
-            Cached,
-            Dirty,
-            CommitLimit,
-            Committed_AS
-        """
-        result = {}
-        try:
-            fp = open(MemoryStatCollector.MEMORY_STAT_FILE, 'rU')
-            for l in fp:
-                vals = l.strip().split()
-                if len(vals) >= 2:
-                    name, val = vals[:2]
-                    # if we have units of measurement different from kB - transform the result
-                    val = self.transform_by_unit(val, vals)
-                    if len(str(name)) > 1:
-                        result[str(name)[:-1]] = val
-                    else:
-                        logger.error('name is too short: {0}'.format(str(name)))
-                else:
-                    logger.error('/proc/meminfo string is not name value: {0}'.format(vals))
-        except:
-            logger.error('Unable to read /proc/meminfo memory statistics. Check your permissions')
-            return result
-        finally:
-            fp.close()
-        return result
+    def read_memory_data(self):
+        default_memory_mapping = {
+            'total': 'MemTotal',
+            'free': 'MemFree',
+            'buffers': 'Buffers',
+            'cached': 'Cached',
+            'CommitLimit:': 'CommitLimit',
+            'Dirty:': 'Dirty',
+            'Committed_AS:': 'Committed_AS',
+        }
 
-    def transform_by_unit(self, val, vals):
-        if len(vals) == 3 and vals[self.UNIT_COLUMN] in ('mB', 'gB'):
-            if vals[self.UNIT_COLUMN] == 'mB':
-                val += '0' * 3
-            if vals[self.UNIT_COLUMN] == 'gB':
-                val += '0' * 6
-        return val
+        memory_stats = psutil.virtual_memory()._asdict()
+        memory_st = {k: v / 1024 for k, v in memory_stats.items()}
+        if psutil.LINUX:
+            refreshed_memory_stats = self.get_missing_memory_stat_from_file()
+            memory_st.update(refreshed_memory_stats)
+        return _remap_params(memory_st, default_memory_mapping)
+
+    def get_missing_memory_stat_from_file(self):
+        missing_data = dict.fromkeys(['Dirty:', 'CommitLimit:', 'Committed_AS:'], 0)
+        with open_binary('%s/meminfo' % get_procfs_path()) as f:
+            for line in f:
+                fields = line.split()
+                if fields[0] in missing_data.keys():
+                    missing_data[fields[0]] = int(fields[1])
+        return missing_data
 
     def calculate_kb_left_until_limit(self, colname, row, optional):
-        result = (int(row['CommitLimit']) - int(row['Committed_AS']) if self._is_commit(row) else None)
-        if result is None and not optional:
-            self.warn_non_optional_column(colname)
-        return result
+        memory_left = (int(row['CommitLimit']) - int(row['Committed_AS']) if self._is_commit(row) else None)
+        if memory_left is None and not optional:
+            warn_non_optional_column(colname)
+        return memory_left
 
     def _is_commit(self, row):
         return row.get('CommitLimit') is not None and row.get('Committed_AS') is not None

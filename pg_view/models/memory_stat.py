@@ -90,7 +90,6 @@ class MemoryStatCollector(StatCollector):
         self.postinit()
 
     def refresh(self):
-        """ Read statistics from /proc/meminfo """
         memdata = self.read_memory_data()
         raw_result = self._transform_input(memdata)
         self._do_refresh([raw_result])

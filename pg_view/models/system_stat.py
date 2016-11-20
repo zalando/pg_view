@@ -6,7 +6,6 @@ from pg_view.models.base import StatCollector, _remap_params
 
 class SystemStatCollector(StatCollector):
     """ Collect global system statistics, i.e. CPU/IO usage, not including memory. """
-    PROC_STAT_FILENAME = '/proc/stat'
 
     def __init__(self):
         super(SystemStatCollector, self).__init__()
@@ -136,7 +135,6 @@ class SystemStatCollector(StatCollector):
         self.postinit()
 
     def refresh(self):
-        """ Read data from global /proc/stat """
         cpu_times = self.read_cpu_times()
         cpu_stats = self.read_cpu_stats()
         result = dict(cpu_times, **cpu_stats)

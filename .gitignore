@@ -35,5 +35,7 @@ htmlcov
 .mr.developer.cfg
 .project
 .pydevproject
-
+.idea/
+.vagrant/
+Vagrantfile
 pg_view.log

@@ -1,3 +1,5 @@
+import ConfigParser
+
 from pg_view import consts
 
 BYTES_IN_MB = 1048576
@@ -41,3 +43,28 @@ def process_groups(groups):
         part = groups[name]['partitions']
         pg = groups[name]['pg']
         part.ncurses_set_prefix(pg.ncurses_produce_prefix())
+
+
+def read_configuration(config_file_name):
+    # read PostgreSQL connection options
+    config_data = {}
+    if not config_file_name:
+        return None
+    config = ConfigParser.ConfigParser()
+    f = config.read(config_file_name)
+    if not f:
+        from pg_view.models.base import logger
+        logger.error('Configuration file {0} is empty or not found'.format(config_file_name))
+        return None
+    # get through all defined databases
+    for section in config.sections():
+        config_data[section] = {}
+        for argname in ('port', 'host', 'user', 'dbname'):
+            try:
+                val = config.get(section, argname)
+            except ConfigParser.NoOptionError:
+                val = None
+            # might happen also if the option is there, but the value is not set
+            if val is not None:
+                config_data[section][argname] = val
+    return config_data

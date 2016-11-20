@@ -5,7 +5,6 @@ from __future__ import absolute_import
 
 import logging
 import platform
-import resource
 import sys
 import time
 import traceback
@@ -28,9 +27,10 @@ from pg_view.models.pg_stat import PgStatCollector
 from pg_view.models.system_stat import SystemStatCollector
 from pg_view.validators import get_valid_output_methods, output_method_is_valid
 from pg_view.consumers import DiskCollectorConsumer
-from pg_view.models.db_client import establish_user_defined_connection, make_cluster_desc, build_connection, \
-    read_configuration, detect_db_connection_arguments, get_postmasters_directories
-from pg_view.helpers import process_groups
+from pg_view.models.db_client import make_cluster_desc, DBClient, \
+    NotConnectedException, NotPidConnectionException, DuplicatedConnectionError
+from pg_view.models.proc_reader import ProcWorker
+from pg_view.helpers import process_groups, read_configuration
 
 __appname__ = 'pg_view'
 __version__ = '1.3.0'
@@ -730,23 +730,33 @@ def main():
             if user_dbname and instance != user_dbname:
                 continue
             # pass already aquired connections to make sure we only list unique clusters.
-            host = config[instance].get('host')
-            port = config[instance].get('port')
-            conn = build_connection(
-                host, port, config[instance].get('user'), config[instance].get('dbname'))
+            db_client = DBClient.from_config(config[instance])
+            try:
+                cluster = db_client.establish_user_defined_connection(instance, clusters)
+            except (NotConnectedException, NotPidConnectionException):
+                pg_view.models.base.logger.error('failed to acquire details about the database cluster '
+                                                 '{0}, the server will be skipped'.format(instance))
+            except DuplicatedConnectionError:
+                pass
+            else:
+                clusters.append(cluster)
 
-            if not establish_user_defined_connection(instance, conn, clusters):
-                pg_view.models.base.logger.error('failed to acquire details about ' +
-                    'the database cluster {0}, the server will be skipped'.format(instance))
     elif options.host:
-        # try to connet to the database specified by command-line options
-        conn = build_connection(options.host, options.port, options.username, options.dbname)
+        # try to connect to the database specified by command-line options
         instance = options.instance or "default"
-        if not establish_user_defined_connection(instance, conn, clusters):
+        db_client = DBClient.from_options(options)
+        try:
+            cluster = db_client.establish_user_defined_connection(instance, clusters)
+        except (NotConnectedException, NotPidConnectionException):
             pg_view.models.base.logger.error("unable to continue with cluster {0}".format(instance))
+        except DuplicatedConnectionError:
+            pass
+        else:
+            clusters.append(cluster)
     else:
         # do autodetection
-        postmasters = get_postmasters_directories()
+
+        postmasters = ProcWorker().get_postmasters_directories()
 
         # get all PostgreSQL instances
         for result_work_dir, data in postmasters.items():
@@ -758,12 +768,11 @@ def main():
                 if user_dbver is not None and dbver != user_dbver:
                     continue
             try:
-                conndata = detect_db_connection_arguments(result_work_dir, ppid, dbver, options.username, options.dbname)
-                if conndata is None:
+                db_client = DBClient.from_postmasters(result_work_dir, ppid, dbver, options)
+                if db_client is None:
                     continue
-                host = conndata['host']
-                port = conndata['port']
-                conn = build_connection(host, port, options.username, options.dbname)
+
+                conn = db_client.connection.build_connection()
                 pgcon = psycopg2.connect(**conn)
             except Exception as e:
                 pg_view.models.base.logger.error('PostgreSQL exception {0}'.format(e))
@@ -778,10 +787,10 @@ def main():
     collectors = []
     groups = {}
     try:
-        if len(clusters) == 0:
+        if not clusters:
             pg_view.models.base.logger.error('No suitable PostgreSQL instances detected, exiting...')
-            pg_view.models.base.logger.error('hint: use -v for details, ' +
-                         'or specify connection parameters manually in the configuration file (-c)')
+            pg_view.models.base.logger.error('hint: use -v for details, or specify connection parameters '
+                                             'manually in the configuration file (-c)')
             sys.exit(1)
 
         # initialize the disks stat collector process and create an exchange queue
@@ -797,12 +806,12 @@ def main():
         collectors.append(MemoryStatCollector())
 
         for cluster in clusters:
-            part = PartitionStatCollector(cluster['name'], cluster['ver'], cluster['wd'], consumer)
-            pg = PgStatCollector(cluster['pgcon'], cluster['reconnect'], cluster['pid'], cluster['name'], cluster['ver'], options.pid)
+            partition_collector = PartitionStatCollector(cluster['name'], cluster['ver'], cluster['wd'], consumer)
+            pg_collector = PgStatCollector(cluster['pgcon'], cluster['reconnect'], cluster['pid'], cluster['name'], cluster['ver'], options.pid)
 
-            groups[cluster['wd']] = {'pg': pg, 'partitions': part}
-            collectors.append(part)
-            collectors.append(pg)
+            groups[cluster['wd']] = {'pg': pg_collector, 'partitions': partition_collector}
+            collectors.append(partition_collector)
+            collectors.append(pg_collector)
 
         # we don't want to mix diagnostics messages with useful output, so we log the former into a file.
         pg_view.models.base.logger.removeHandler(log_stderr)

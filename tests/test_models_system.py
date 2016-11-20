@@ -59,7 +59,7 @@ class SystemStatCollectorTest(TestCase):
 
     @mock.patch('pg_view.models.system_stat.open_binary')
     def test_get_missing_cpu_stat_from_file_should_parse_data_from_proc_stat(self, mocked_open):
-        cpu_info_ok = os.path.join(TEST_DIR, 'cpu_info_ok')
+        cpu_info_ok = os.path.join(TEST_DIR, 'proc_files', 'cpu_info_ok')
         mocked_open.return_value = open(cpu_info_ok, "rU")
         refreshed_data = self.collector.get_missing_cpu_stat_from_file()
         self.assertEqual({'procs_blocked': 0, 'procs_running': 1}, refreshed_data)

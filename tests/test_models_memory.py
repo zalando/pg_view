@@ -52,7 +52,7 @@ class MemoryStatCollectorTest(TestCase):
     @mock.patch('pg_view.models.memory_stat.open_binary')
     @mock.patch('pg_view.models.system_stat.psutil.virtual_memory')
     def test__read_memory_data_should_parse_data_from_proc_meminfo(self, mocked_virtual_memory, mocked_open_universal):
-        meminfo_ok_path = os.path.join(TEST_DIR, 'meminfo_ok')
+        meminfo_ok_path = os.path.join(TEST_DIR, 'proc_files', 'meminfo_ok')
         linux_svmem = namedtuple('linux_svmem', 'total free buffers cached')
         mocked_open_universal.return_value = open_universal(meminfo_ok_path)
         mocked_virtual_memory.return_value = linux_svmem(

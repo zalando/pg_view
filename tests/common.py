@@ -2,7 +2,7 @@ from StringIO import StringIO
 
 import os
 
-TEST_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'proc_files'))
+TEST_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__)))
 
 
 class ContextualStringIO(StringIO):

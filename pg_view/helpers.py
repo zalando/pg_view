@@ -1,6 +1,7 @@
 import ConfigParser
 
 from pg_view import consts
+from pg_view.exceptions import InvalidConnParam
 
 BYTES_IN_MB = 1048576
 SECTORS_IN_MB = 2048
@@ -38,6 +39,11 @@ def read_file(file_path):
         return f.read()
 
 
+def readlines_file(file_path):
+    with open_universal(file_path) as f:
+        return f.readlines()
+
+
 def process_groups(groups):
     for name in groups:
         part = groups[name]['partitions']
@@ -68,3 +74,11 @@ def read_configuration(config_file_name):
             if val is not None:
                 config_data[section][argname] = val
     return config_data
+
+
+def validate_autodetected_conn_param(user_dbname, user_dbver, result_work_dir, connection_params):
+    if user_dbname:
+        if connection_params.dbname != user_dbname or not result_work_dir or not connection_params.pid:
+            raise InvalidConnParam
+        if user_dbver is not None and user_dbname != connection_params.version:
+            raise InvalidConnParam

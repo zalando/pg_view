@@ -1,18 +1,13 @@
 import sys
 
-from pg_view.models.proc_reader import ProcWorker
-
 if sys.hexversion >= 0x03000000:
     pass
 else:
     pass
-import glob
 
-import os
 import psycopg2
-import re
 
-from pg_view.models.parsers import ProcNetParser
+from pg_view.models.parsers import ProcNetParser, ProcWorker
 from pg_view.models.pg_stat import dbversion_as_float
 from pg_view.models.base import logger
 
@@ -86,6 +81,8 @@ class DBConnection(object):
 
 
 class DBConnectionFinder(object):
+    CONN_TYPES = ('unix', 'tcp', 'tcp6')
+
     def __init__(self, result_work_dir, ppid, dbver, username, dbname):
         self.work_directory = result_work_dir
         self.pid = ppid
@@ -119,8 +116,8 @@ class DBConnectionFinder(object):
     def pick_connection_arguments(self, conn_args):
         """ go through all decected connections, picking the first one that actually works """
         result = {}
-        for conn_type in ('unix', 'tcp', 'tcp6'):
-            if len(result) > 0:
+        for conn_type in self.CONN_TYPES:
+            if result:
                 break
             for arg in conn_args.get(conn_type, []):
                 connection_candidate = DBConnection(*arg, user=self.username, database=self.dbname)
@@ -140,35 +137,12 @@ class DBConnectionFinder(object):
         return True
 
     def detect_with_proc_net(self):
-        inodes = self.fetch_socket_inodes_for_process()
-        parser = ProcNetParser()
-        result = parser.match_socket_inodes(inodes)
-        if not result or len(result) == 0:
+        parser = ProcNetParser(self.pid)
+        result = parser.get_connections_from_sockets()
+        if not result:
             logger.error('could not detect connection string from /proc/net for postgres process {0}'.format(self.pid))
             return None
         return result
-
-    def fetch_socket_inodes_for_process(self):
-        """ read /proc/[pid]/fd and get those that correspond to sockets """
-        inodes = []
-        fd_dir = '/proc/{0}/fd'.format(self.pid)
-        if not os.access(fd_dir, os.R_OK):
-            logger.warning("unable to read {0}".format(fd_dir))
-        else:
-            for link in glob.glob('{0}/*'.format(fd_dir)):
-                if not os.access(link, os.F_OK):
-                    logger.warning("unable to access link {0}".format(link))
-                    continue
-                try:
-                    target = os.readlink(link)
-                except:
-                    logger.error('coulnd\'t read link {0}'.format(link))
-                else:
-                    # socket:[8430]
-                    match = re.search(r'socket:\[(\d+)\]', target)
-                    if match:
-                        inodes.append(int(match.group(1)))
-        return inodes
 
 
 class DBClient(object):

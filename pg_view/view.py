@@ -29,8 +29,9 @@ from pg_view.validators import get_valid_output_methods, output_method_is_valid
 from pg_view.consumers import DiskCollectorConsumer
 from pg_view.models.db_client import make_cluster_desc, DBClient, \
     NotConnectedException, NotPidConnectionException, DuplicatedConnectionError
-from pg_view.models.proc_reader import ProcWorker
-from pg_view.helpers import process_groups, read_configuration
+from pg_view.models.parsers import ProcWorker
+from pg_view.helpers import process_groups, read_configuration, validate_autodetected_conn_param
+from pg_view.exceptions import InvalidConnParam
 
 __appname__ = 'pg_view'
 __version__ = '1.3.0'
@@ -755,32 +756,32 @@ def main():
             clusters.append(cluster)
     else:
         # do autodetection
-
         postmasters = ProcWorker().get_postmasters_directories()
-
         # get all PostgreSQL instances
-        for result_work_dir, data in postmasters.items():
-            (ppid, dbver, dbname) = data
+        for result_work_dir, connection_params in postmasters.items():
             # if user requested a specific database name and version - don't try to connect to others
-            if user_dbname:
-                if dbname != user_dbname or not result_work_dir or not ppid:
-                    continue
-                if user_dbver is not None and dbver != user_dbver:
-                    continue
             try:
-                db_client = DBClient.from_postmasters(result_work_dir, ppid, dbver, options)
-                if db_client is None:
-                    continue
-
-                conn = db_client.connection.build_connection()
+                validate_autodetected_conn_param(user_dbname, user_dbver, result_work_dir, connection_params)
+            except InvalidConnParam:
+                continue
+            db_client = DBClient.from_postmasters(
+                result_work_dir, connection_params.pid, connection_params.version, options)
+            if db_client is None:
+                continue
+            conn = db_client.connection.build_connection()
+            try:
                 pgcon = psycopg2.connect(**conn)
             except Exception as e:
                 pg_view.models.base.logger.error('PostgreSQL exception {0}'.format(e))
                 pgcon = None
             if pgcon:
                 desc = make_cluster_desc(
-                    name=dbname, version=dbver, workdir=result_work_dir,
-                    pid=ppid, pgcon=pgcon, conn=conn
+                    name=connection_params.dbname,
+                    version=connection_params.version,
+                    workdir=result_work_dir,
+                    pid=connection_params.pid,
+                    pgcon=pgcon,
+                    conn=conn
                 )
                 clusters.append(desc)
 
@@ -807,7 +808,7 @@ def main():
 
         for cluster in clusters:
             partition_collector = PartitionStatCollector(cluster['name'], cluster['ver'], cluster['wd'], consumer)
-            pg_collector = PgStatCollector(cluster['pgcon'], cluster['reconnect'], cluster['pid'], cluster['name'], cluster['ver'], options.pid)
+            pg_collector = PgStatCollector.from_cluster(cluster, options.pid)
 
             groups[cluster['wd']] = {'pg': pg_collector, 'partitions': partition_collector}
             collectors.append(partition_collector)

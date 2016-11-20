@@ -1,0 +1,2 @@
+class InvalidConnParam(Exception):
+    pass

@@ -17,6 +17,12 @@ else:
     maxsize = sys.maxint
 
 
+def dbversion_as_float(pgcon):
+    version_num = pgcon.server_version
+    version_num /= 100
+    return float('{0}.{1}'.format(version_num / 100, version_num % 100))
+
+
 class PgStatCollector(StatCollector):
     """ Collect PostgreSQL-related statistics """
     STATM_FILENAME = '/proc/{0}/statm'
@@ -204,6 +210,10 @@ class PgStatCollector(StatCollector):
         self.ncurses_custom_fields = {'header': True, 'prefix': None}
         self.postinit()
 
+    @classmethod
+    def from_cluster(cls, cluster, pid):
+        return cls(cluster['pgcon'], cluster['reconnect'], cluster['pid'], cluster['name'], cluster['ver'], pid)
+
     def get_subprocesses_pid(self):
         ppid = self.postmaster_pid
         result = self.exec_command_with_output('ps -o pid --ppid {0} --noheaders'.format(ppid))
@@ -270,9 +280,7 @@ class PgStatCollector(StatCollector):
 
     @staticmethod
     def _is_auxiliary_process(pstype):
-        if pstype == 'backend' or pstype == 'autovacuum':
-            return False
-        return True
+        return pstype not in ('backend', 'autovacuum')
 
     def set_aux_processes_filter(self, newval):
         self.filter_aux_processes = newval
@@ -528,9 +536,3 @@ class PgStatCollector(StatCollector):
 
     def output(self, method):
         return super(self.__class__, self).output(method, before_string='PostgreSQL processes:', after_string='\n')
-
-
-def dbversion_as_float(pgcon):
-    version_num = pgcon.server_version
-    version_num /= 100
-    return float('{0}.{1}'.format(version_num / 100, version_num % 100))

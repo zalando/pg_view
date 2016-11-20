@@ -1,9 +1,92 @@
-import socket
+from collections import defaultdict, namedtuple
 
 import os
+import psutil
 import re
 
+from pg_view.helpers import readlines_file
 from pg_view.models.base import logger
+
+
+connection_params = namedtuple('connection_params', ['pid', 'version', 'dbname'])
+
+
+def get_dbname_from_path(db_path):
+    m = re.search(r'/pgsql_(.*?)(/\d+.\d+)?/data/?', db_path)
+    return m.group(1) if m else db_path
+
+
+class ProcWorker(object):
+    def get_postmasters_directories(self):
+        """ detect all postmasters running and get their pids """
+        postmasters = {}
+        process_candidates = [p for p in psutil.process_iter() if p.name() in ('postgres', 'postmaster')]
+        process_candidates_pids = [p.pid for p in process_candidates]
+
+        # Omitting start_time, I assume that lower pid is started earlier
+        for proc in process_candidates:
+            ppid = proc.ppid()
+            # if parent is also a postgres process - no way this is a postmaster
+            if ppid in process_candidates_pids:
+                continue
+            pg_dir = proc.cwd()
+            if pg_dir in postmasters:
+                continue
+
+            try:
+                value, version = self._get_version_from_exe(proc)
+            except Exception as e:
+                continue
+            except ValueError:
+                logger.error("PG_VERSION doesn't contain a valid version number: {0}".format(value))
+                continue
+            else:
+                dbname = get_dbname_from_path(pg_dir)
+                postmasters[pg_dir] = connection_params(pid=proc.pid, version=version, dbname=dbname)
+        return postmasters
+
+    # TODO: fix by reading it from file
+    def _get_version_from_exe(self, proc):
+        value = proc.exe().split('/')[-3]
+        if value is not None and len(value) >= 3:
+            version = float(value)
+        return value, version
+
+    def detect_with_postmaster_pid(self, work_directory, version):
+        # PostgreSQL 9.0 doesn't have enough data
+        result = {}
+        if version is None or version == 9.0:
+            return None
+        PID_FILE = '{0}/postmaster.pid'.format(work_directory)
+
+        # try to access the socket directory
+        if not os.access(work_directory, os.R_OK | os.X_OK):
+            logger.warning('cannot access PostgreSQL cluster directory {0}: permission denied'.format(work_directory))
+            return None
+        try:
+            lines = readlines_file(PID_FILE)
+        except os.error as e:
+            logger.error('could not read {0}: {1}'.format(PID_FILE, e))
+            return None
+
+        if len(lines) < 6:
+            logger.error('{0} seems to be truncated, unable to read connection information'.format(PID_FILE))
+            return None
+
+        port = lines[3].strip()
+        unix_socket_path = lines[4].strip()
+        if unix_socket_path != '':
+            result['unix'] = [(unix_socket_path, port)]
+
+        tcp_address = lines[5].strip()
+        if tcp_address != '':
+            if tcp_address == '*':
+                tcp_address = '127.0.0.1'
+            result['tcp'] = [(tcp_address, port)]
+        if not result:
+            logger.error('could not acquire a socket postmaster at {0} is listening on'.format(work_directory))
+            return None
+        return result
 
 
 class ProcNetParser(object):
@@ -11,103 +94,40 @@ class ProcNetParser(object):
         pairs given the set of socket descriptors belonging to the object.
         The result is grouped by the socket type in a dictionary.
     """
-    NET_UNIX_FILENAME = '/proc/net/unix'
-    NET_TCP_FILENAME = '/proc/net/tcp'
-    NET_TCP6_FILENAME = '/proc/net/tcp6'
+    ALLOWED_NET_CONNECTIONS = ('unix', 'tcp', 'tcp6')
 
-    def __init__(self):
-        self.sockets = {}
+    def __init__(self, pid):
+        self.pid = pid
         self.unix_socket_header_len = 0
-        # initialize the sockets hash with the contents of unix
-        # and tcp sockets. tcp IPv6 is also read if it's present
-        for fname in (self.NET_UNIX_FILENAME, self.NET_TCP_FILENAME):
-            self.read_socket_file(fname)
-        if os.access(self.NET_TCP6_FILENAME, os.R_OK):
-            self.read_socket_file(self.NET_TCP6_FILENAME)
+        self.sockets = self.get_socket_connections()
 
-    @staticmethod
-    def _hex_to_int_str(val):
-        return str(int(val, 16))
+    def get_socket_connections(self):
+        sockets = {}
+        for conn_type in self.ALLOWED_NET_CONNECTIONS:
+            sockets[conn_type] = self.get_connections_for_pid(conn_type)
+        return sockets
 
-    @staticmethod
-    def _hex_to_ip(val):
-        newval = format(socket.ntohl(int(val, 16)), '08X')
-        return '.'.join([str(int(newval[i: i + 2], 16)) for i in range(0, 8, 2)])
+    def get_connections_for_pid(self, conn_type):
+        return [c for c in psutil.net_connections(conn_type) if c.pid == self.pid]
 
-    @staticmethod
-    def _hex_to_ipv6(val):
-        newval_list = [format(socket.ntohl(int(val[x: x + 8], 16)), '08X') for x in range(0, 32, 8)]
-        return ':'.join([':'.join((x[:4], x[4:])) for x in newval_list])
+    def get_connections_from_sockets(self):
+        connections_by_type = defaultdict(list)
+        for conn_type, sockets in self.sockets.items():
+            for socket in sockets:
+                addr_tuple = self._get_connection_by_type(conn_type, socket)
+                if addr_tuple:
+                    connections_by_type[conn_type].append(addr_tuple)
+        return connections_by_type
 
-    def match_socket_inodes(self, inodes):
-        """ return the dictionary with socket types as strings,
-            containing addresses (or unix path names) and port
-        """
-        result = {}
-        for inode in inodes:
-            if inode in self.sockets:
-                addr_tuple = self.parse_single_line(inode)
-                if addr_tuple is None:
-                    continue
-                socket_type = addr_tuple[0]
-                if socket_type in result:
-                    result[socket_type].append(addr_tuple[1:])
-                else:
-                    result[socket_type] = [addr_tuple[1:]]
-        return result
-
-    def read_socket_file(self, filename):
-        """ read file content, produce a dict of socket inode -> line """
-        socket_type = filename.split('/')[-1]
-        try:
-            with open(filename) as fp:
-                data = fp.readlines()
-        except os.error as e:
-            logger.error('unable to read from {0}: OS reported {1}'.format(filename, e))
-        # remove the header
-        header = (data.pop(0)).split()
-        if socket_type == 'unix':
-            self.unix_socket_header_len = len(header)
-        indexes = [i for i, name in enumerate(header) if name.lower() == 'inode']
-        if len(indexes) != 1:
-            logger.error('attribute \'inode\' in the header of {0} is not unique or missing: {1}'.format(
-                         filename, header))
-        else:
-            inode_idx = indexes[0]
-            if socket_type != 'unix':
-                # for a tcp socket, 2 pairs of fields (tx_queue:rx_queue and tr:tm->when
-                # are separated by colons and not spaces)
-                inode_idx -= 2
-            for line in data:
-                fields = line.split()
-                inode = int(fields[inode_idx])
-                self.sockets[inode] = [socket_type, line]
-
-    def parse_single_line(self, inode):
-        """ apply socket-specific parsing rules """
-        result = None
-        (socket_type, line) = self.sockets[inode]
-        if socket_type == 'unix':
-            # we are interested in everything in the last field
-            # note that it may contain spaces or other separator characters
-            fields = line.split(None, self.unix_socket_header_len - 1)
-            socket_path = fields[-1]
-            # check that it looks like a PostgreSQL socket
-            match = re.search(r'(.*?)/\.s\.PGSQL\.(\d+)$', socket_path)
+    def _get_connection_by_type(self, conn_type, sconn):
+        if conn_type == 'unix':
+            match = re.search(r'(.*?)/\.s\.PGSQL\.(\d+)$', sconn.laddr)
             if match:
-                # path - port
-                result = (socket_type,) + match.groups(1)
+                address, port = match.groups(1)
+                return address, port
             else:
-                logger.warning('unix socket name is not recognized as belonging to PostgreSQL: {0}'.format(socket_path))
-        else:
-            address_port = line.split()[1]
-            (address_hex, port_hex) = address_port.split(':')
-            port = self._hex_to_int_str(port_hex)
-            if socket_type == 'tcp6':
-                address = self._hex_to_ipv6(address_hex)
-            elif socket_type == 'tcp':
-                address = self._hex_to_ip(address_hex)
-            else:
-                logger.error('unrecognized socket type: {0}'.format(socket_type))
-            result = (socket_type, address, port)
-        return result
+                logger.warning('unix socket name is not recognized as belonging to PostgreSQL: {0}'.format(sconn))
+        elif conn_type in ('tcp', 'tcp6'):
+            address, port = sconn.laddr
+            return address, port
+        return None

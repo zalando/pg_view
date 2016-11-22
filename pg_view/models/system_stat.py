@@ -1,5 +1,6 @@
 import psutil
-from psutil._pslinux import CLOCK_TICKS, open_binary, get_procfs_path
+if psutil.LINUX:
+    from psutil._pslinux import CLOCK_TICKS, open_binary, get_procfs_path
 
 from pg_view.models.base import StatCollector, _remap_params
 
@@ -155,8 +156,12 @@ class SystemStatCollector(StatCollector):
             'user': 'utime',
         }
 
+        #TODO: Fix it
         cpu_from_psutil_dict = psutil.cpu_times()._asdict()
-        cpu_times = {k: v * CLOCK_TICKS for k, v in cpu_from_psutil_dict.items()}
+        if psutil.LINUX:
+            cpu_times = {k: v * CLOCK_TICKS for k, v in cpu_from_psutil_dict.items()}
+        else:
+            cpu_times = {k: v for k, v in cpu_from_psutil_dict.items()}
         return _remap_params(cpu_times, default_key_mapping)
 
     def _refresh_cpu_time_values(self, cpu_times):

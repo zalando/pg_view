@@ -1,5 +1,7 @@
 import psutil
-from psutil._pslinux import get_procfs_path, open_binary
+
+if psutil.LINUX:
+    from psutil._pslinux import get_procfs_path, open_binary
 
 from pg_view.models.base import StatCollector, warn_non_optional_column, _remap_params
 
@@ -115,6 +117,7 @@ class MemoryStatCollector(StatCollector):
 
     def get_missing_memory_stat_from_file(self):
         missing_data = dict.fromkeys(['Dirty:', 'CommitLimit:', 'Committed_AS:'], 0)
+
         with open_binary('%s/meminfo' % get_procfs_path()) as f:
             for line in f:
                 fields = line.split()

@@ -87,7 +87,11 @@ class DBConnectionFinder(object):
         self.work_directory = result_work_dir
         self.pid = ppid
         self.version = dbver
+
+        # self.username = username or 'radek'
         self.username = username
+
+        # self.dbname = dbname or 'atlas'
         self.dbname = dbname
         self.proc_worker = ProcWorker()
 
@@ -107,7 +111,7 @@ class DBConnectionFinder(object):
                 return None
         # try all acquired connection arguments, starting from unix, then tcp, then tcp over ipv6
         result = self.pick_connection_arguments(conn_args)
-        if len(result) == 0:
+        if not result:
             logger.error('unable to connect to PostgreSQL cluster at {0} using any of the detected connection '
                          'options: {1}'.format(self.work_directory, conn_args))
             return None
@@ -214,5 +218,6 @@ class DBClient(object):
         if connection_data is None:
             return None
         connection = DBConnection(
+            # connection_data['host'], connection_data['port'], options.username or 'radek', options.dbname or 'atlas')
             connection_data['host'], connection_data['port'], options.username, options.dbname)
         return cls(connection)

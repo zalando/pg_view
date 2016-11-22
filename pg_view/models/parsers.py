@@ -33,17 +33,31 @@ class ProcWorker(object):
             if pg_dir in postmasters:
                 continue
 
-            try:
-                value, version = self._get_version_from_exe(proc)
-            except Exception as e:
-                continue
-            except ValueError:
-                logger.error("PG_VERSION doesn't contain a valid version number: {0}".format(value))
-                continue
-            else:
-                dbname = get_dbname_from_path(pg_dir)
-                postmasters[pg_dir] = connection_params(pid=proc.pid, version=version, dbname=dbname)
+            params = self.get_pg_version_from_file(proc, pg_dir)
+            if params:
+                postmasters[pg_dir] = params
         return postmasters
+
+    def get_pg_version_from_file(self, proc, pg_dir):
+        # if PG_VERSION file is missing, this is not a postgres directory
+        PG_VERSION_FILENAME = '{0}/PG_VERSION'.format(pg_dir)
+        if not os.access(PG_VERSION_FILENAME, os.R_OK):
+            logger.warning('PostgreSQL candidate directory {0} is missing PG_VERSION file, '
+                           'have to skip it'.format(pg_dir))
+            return None
+        try:
+            fp = open(PG_VERSION_FILENAME, 'rU')
+            value = fp.read().strip()
+            if value is not None and len(value) >= 3:
+                version = float(value)
+        except os.error as e:
+            logger.error('unable to read version number from PG_VERSION directory {0}, have to skip it'.format(pg_dir))
+        except ValueError:
+            logger.error("PG_VERSION doesn't contain a valid version number: {0}".format(value))
+        else:
+            dbname = get_dbname_from_path(pg_dir)
+            return connection_params(pid=proc.pid, version=version, dbname=dbname)
+        return None
 
     # TODO: fix by reading it from file
     def _get_version_from_exe(self, proc):

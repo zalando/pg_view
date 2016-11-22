@@ -701,10 +701,6 @@ def process_single_collector(collector, filter_aux):
 
 def main():
     global logger, options
-    # bail out if we are not running Linux
-    if platform.system() != 'Linux':
-        print('Non Linux database hosts are not supported at the moment. Can not continue')
-        sys.exit(243)
 
     options, args = parse_args()
     pg_view.models.base.TICK_LENGTH = options.tick

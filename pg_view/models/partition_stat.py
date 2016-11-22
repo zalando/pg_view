@@ -22,16 +22,19 @@ class PartitionStatCollector(StatCollector):
         self.dbver = dbversion
         self.queue_consumer = consumer
         self.work_directory = work_directory
+
         self.df_list_transformation = [
             {'out': 'dev', 'in': 0, 'fn': self._dereference_dev_name},
             {'out': 'space_total', 'in': 1, 'fn': int},
             {'out': 'space_left', 'in': 2, 'fn': int}
         ]
+
         self.io_list_transformation = [
             {'out': 'sectors_read', 'in': 5, 'fn': int},
             {'out': 'sectors_written', 'in': 9, 'fn': int},
             {'out': 'await', 'in': 13, 'fn': int}
         ]
+
         self.du_list_transformation = [
             {'out': 'path_size', 'in': 0, 'fn': int},
             {'out': 'path', 'in': 1}
@@ -174,6 +177,7 @@ class PartitionStatCollector(StatCollector):
         """ Retrieve raw data from /proc/diskstat (transformations are perfromed via io_list_transformation)"""
 
         result = {}
+        return {}
         found = 0  # stop if we found records for all partitions
         total = len(pnames)
         try:

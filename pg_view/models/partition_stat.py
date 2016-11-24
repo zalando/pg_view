@@ -1,20 +1,18 @@
-import glob
 import time
 from multiprocessing import Process
 
 import os
+import psutil
 
 from pg_view.models.base import StatCollector, COLALIGN, logger, TICK_LENGTH
 
-BLOCK_SIZE = 1024
+SECTOR_SIZE = 512
 
 
 class PartitionStatCollector(StatCollector):
     """Collect statistics about PostgreSQL partitions """
-    DISK_STAT_FILE = '/proc/diskstats'
     DATA_NAME = 'data'
     XLOG_NAME = 'xlog'
-    BLOCK_SIZE = 1024
 
     def __init__(self, dbname, dbversion, work_directory, consumer):
         super(PartitionStatCollector, self).__init__(ticks_per_refresh=1)
@@ -27,12 +25,6 @@ class PartitionStatCollector(StatCollector):
             {'out': 'dev', 'in': 0, 'fn': self._dereference_dev_name},
             {'out': 'space_total', 'in': 1, 'fn': int},
             {'out': 'space_left', 'in': 2, 'fn': int}
-        ]
-
-        self.io_list_transformation = [
-            {'out': 'sectors_read', 'in': 5, 'fn': int},
-            {'out': 'sectors_written', 'in': 9, 'fn': int},
-            {'out': 'await', 'in': 13, 'fn': int}
         ]
 
         self.du_list_transformation = [
@@ -132,6 +124,10 @@ class PartitionStatCollector(StatCollector):
         self.ncurses_custom_fields = {'header': True, 'prefix': None}
         self.postinit()
 
+    @classmethod
+    def from_cluster(cls, cluster, consumer):
+        return cls(['name'], cluster['ver'], cluster['wd'], consumer)
+
     def ident(self):
         return '{0} ({1}/{2})'.format(super(PartitionStatCollector, self).ident(), self.dbname, self.dbver)
 
@@ -151,12 +147,11 @@ class PartitionStatCollector(StatCollector):
         for pname in self.DATA_NAME, self.XLOG_NAME:
             result[pname] = self._transform_input(df_out[pname], self.df_list_transformation)
 
-        io_out = self.get_io_data(
-            [result[self.DATA_NAME]['dev'], result[self.XLOG_NAME]['dev']])
+        io_out = self.get_io_data([result[self.DATA_NAME]['dev'], result[self.XLOG_NAME]['dev']])
 
         for pname in self.DATA_NAME, self.XLOG_NAME:
             if result[pname]['dev'] in io_out:
-                result[pname].update(self._transform_input(io_out[result[pname]['dev']], self.io_list_transformation))
+                result[pname].update(io_out.get(result[pname]['dev']))
             if pname in du_out:
                 result[pname].update(self._transform_input(du_out[pname], self.du_list_transformation))
             # set the type manually
@@ -174,30 +169,15 @@ class PartitionStatCollector(StatCollector):
         return None
 
     def get_io_data(self, pnames):
-        """ Retrieve raw data from /proc/diskstat (transformations are perfromed via io_list_transformation)"""
-
-        result = {}
-        return {}
-        found = 0  # stop if we found records for all partitions
-        total = len(pnames)
-        try:
-            fp = open(self.DISK_STAT_FILE, 'rU')
-            for l in fp:
-                elements = l.split()
-                for pname in pnames:
-                    if pname in elements:
-                        result[pname] = elements
-                        found += 1
-                        if found == total:
-                            break
-                if found == total:
-                    break
-        except:
-            logger.error('Unable to read {0}'.format(self.DISK_STAT_FILE))
-            result = {}
-        finally:
-            fp and fp.close()
-        return result
+        io_counters = psutil.disk_io_counters(perdisk=True)
+        stats_perdisk = {}
+        for disk, stats in io_counters.items():
+            stats_perdisk[disk] = {
+                'sectors_read': stats.read_bytes / SECTOR_SIZE,
+                'sectors_written': stats.write_bytes / SECTOR_SIZE,
+                'await': 0
+        }
+        return stats_perdisk
 
     def output(self, method):
         return super(self.__class__, self).output(method, before_string='PostgreSQL partitions:', after_string='\n')
@@ -205,6 +185,8 @@ class PartitionStatCollector(StatCollector):
 
 class DetachedDiskStatCollector(Process):
     """ This class runs in a separate process and runs du and df """
+    BLOCK_SIZE = 1024
+
     def __init__(self, q, work_directories):
         super(DetachedDiskStatCollector, self).__init__()
         self.work_directories = work_directories
@@ -228,8 +210,8 @@ class DetachedDiskStatCollector(Process):
     def get_du_data(self, work_directory):
         result = {'data': [], 'xlog': []}
         try:
-            data_size = self.run_du(work_directory, BLOCK_SIZE)
-            xlog_size = self.run_du(work_directory + '/pg_xlog/', BLOCK_SIZE)
+            data_size = self.run_du(work_directory, self.BLOCK_SIZE)
+            xlog_size = self.run_du(work_directory + '/pg_xlog/', self.BLOCK_SIZE)
         except Exception as e:
             logger.error('Unable to read free space information for the pg_xlog and data directories for the directory\
              {0}: {1}'.format(work_directory, e))
@@ -287,10 +269,10 @@ class DetachedDiskStatCollector(Process):
         else:
             xlog_vfs = self.df_cache[xlog_dev]
 
-        data_vfs_blocks = data_vfs.f_bsize / BLOCK_SIZE
+        data_vfs_blocks = data_vfs.f_bsize / self.BLOCK_SIZE
         result['data'] = (data_dev, data_vfs.f_blocks * data_vfs_blocks, data_vfs.f_bavail * data_vfs_blocks)
         if data_dev != xlog_dev:
-            xlog_vfs_blocks = (xlog_vfs.f_bsize / BLOCK_SIZE)
+            xlog_vfs_blocks = (xlog_vfs.f_bsize / self.BLOCK_SIZE)
             result['xlog'] = (xlog_dev, xlog_vfs.f_blocks * xlog_vfs_blocks, xlog_vfs.f_bavail * xlog_vfs_blocks)
         else:
             result['xlog'] = result['data']
@@ -298,39 +280,10 @@ class DetachedDiskStatCollector(Process):
 
     @staticmethod
     def get_mounted_device(pathname):
-        """Get the device mounted at pathname"""
-        # uses "/proc/mounts"
-        raw_dev_name = None
-        dev_name = None
-        pathname = os.path.normcase(pathname)  # might be unnecessary here
-        try:
-            with open('/proc/mounts', 'r') as ifp:
-                for line in ifp:
-                    fields = line.rstrip('\n').split()
-                    # note that line above assumes that
-                    # no mount points contain whitespace
-                    if fields[1] == pathname and (fields[0])[:5] == '/dev/':
-                        raw_dev_name = dev_name = fields[0]
-                        break
-        except EnvironmentError:
-            pass
-        if raw_dev_name is not None and raw_dev_name[:11] == '/dev/mapper':
-            # we have to read the /sys/block/*/*/name and match with the rest of the device
-            for fname in glob.glob('/sys/block/*/*/name'):
-                try:
-                    with open(fname) as f:
-                        block_dev_name = f.read().strip()
-                except IOError:
-                    # ignore those files we couldn't read (lack of permissions)
-                    continue
-                if raw_dev_name[12:] == block_dev_name:
-                    # we found the proper device name, get the 3rd comonent of the path
-                    # i.e. /sys/block/dm-0/dm/name
-                    components = fname.split('/')
-                    if len(components) >= 4:
-                        dev_name = components[3]
-                    break
-        return dev_name
+        mounted_devices = [d.device for d in psutil.disk_partitions() if d.mountpoint == pathname]
+        if len(mounted_devices) == 1:
+            return mounted_devices[0]
+        return None
 
     @staticmethod
     def get_mount_point(pathname):

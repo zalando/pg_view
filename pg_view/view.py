@@ -4,7 +4,6 @@
 from __future__ import absolute_import
 
 import logging
-import platform
 import sys
 import time
 import traceback
@@ -26,9 +25,9 @@ from pg_view.models.partition_stat import PartitionStatCollector, DetachedDiskSt
 from pg_view.models.pg_stat import PgStatCollector
 from pg_view.models.system_stat import SystemStatCollector
 from pg_view.validators import get_valid_output_methods, output_method_is_valid
-from pg_view.consumers import DiskCollectorConsumer
-from pg_view.models.db_client import make_cluster_desc, DBClient, \
-    NotConnectedException, NotPidConnectionException, DuplicatedConnectionError
+from pg_view.models.consumers import DiskCollectorConsumer
+from pg_view.models.db_client import make_cluster_desc, DBClient
+from pg_view.models.exceptions import NotConnectedException, NotPidConnectionException, DuplicatedConnectionError
 from pg_view.models.parsers import ProcWorker
 from pg_view.helpers import process_groups, read_configuration, validate_autodetected_conn_param
 from pg_view.exceptions import InvalidConnParam
@@ -803,7 +802,7 @@ def main():
         collectors.append(MemoryStatCollector())
 
         for cluster in clusters:
-            partition_collector = PartitionStatCollector(cluster['name'], cluster['ver'], cluster['wd'], consumer)
+            partition_collector = PartitionStatCollector.from_cluster(cluster, consumer)
             pg_collector = PgStatCollector.from_cluster(cluster, options.pid)
 
             groups[cluster['wd']] = {'pg': pg_collector, 'partitions': partition_collector}

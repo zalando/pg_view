@@ -1,5 +1,7 @@
 import sys
 
+from pg_view.models.exceptions import NotConnectedException, NotPidConnectionException, DuplicatedConnectionError
+
 if sys.hexversion >= 0x03000000:
     pass
 else:
@@ -46,18 +48,6 @@ def make_cluster_desc(name, version, workdir, pid, pgcon, conn):
         'pgcon': pgcon,
         'reconnect': reconnect
     }
-
-
-class NotConnectedException(Exception):
-    pass
-
-
-class NotPidConnectionException(Exception):
-    pass
-
-
-class DuplicatedConnectionError(Exception):
-    pass
 
 
 class DBConnection(object):

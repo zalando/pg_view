@@ -1,12 +1,10 @@
-import os
+import sys
+from multiprocessing import JoinableQueue
 from unittest import TestCase
 
-import mock
-import sys
+import os
 
-from multiprocessing import JoinableQueue
-
-from pg_view.consumers import DiskCollectorConsumer
+from pg_view.models.consumers import DiskCollectorConsumer
 
 path = os.path.dirname(os.path.dirname(__file__))
 sys.path.insert(0, path)

@@ -1,9 +1,7 @@
 import json
 import logging
-import subprocess
 import time
 from collections import namedtuple
-from datetime import timedelta, datetime
 from numbers import Number
 
 from pg_view.helpers import UnitConverter
@@ -49,9 +47,7 @@ class StatCollector(object):
         produce diffs and emit output rows.
     """
 
-    BYTE_MAP = [('TB', 1073741824), ('GB', 1048576), ('MB', 1024)]
     RD = 1
-
     NCURSES_DEFAULTS = {
         'pos': -1,
         'noautohide': False,
@@ -113,16 +109,6 @@ class StatCollector(object):
         return result
 
     @staticmethod
-    def exec_command_with_output(cmdline):
-        """ Execute comand (including shell ones), return a tuple with error code (1 element) and output (rest) """
-
-        proc = subprocess.Popen(cmdline, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-        ret = proc.wait()
-        if ret != 0:
-            logger.info('The command {cmd} returned a non-zero exit code'.format(cmd=cmdline))
-        return ret, proc.stdout.read().strip()
-
-    @staticmethod
     def validate_list_out(l):
         """ If the list element doesn't supply an out column - remove it """
 
@@ -130,106 +116,6 @@ class StatCollector(object):
             if 'out' not in col:
                 el = l.pop(l.index(col))
                 logger.error('Removed {0} column because it did not specify out value'.format(el))
-
-    @staticmethod
-    def kb_pretty_print(b):
-        """ Show memory size as a float value in the biggest measurement units  """
-
-        r = []
-        for l, n in StatCollector.BYTE_MAP:
-            if b > n:
-                v = round(float(b) / n, 1)
-                r.append(str(v) + l)
-                break
-        if len(r) == 0:
-            return '{0}KB'.format(str(b))
-        else:
-            return ' '.join(r)
-
-    @staticmethod
-    def time_interval_pretty_print(start_time, is_delta):
-        """Returns a human readable string that shows a time between now and the timestamp passed as an argument.
-        The passed argument can be a timestamp (returned by time.time() call) a datetime object or a timedelta object.
-        In case it is a timedelta object, then it is formatted only
-        """
-
-        if isinstance(start_time, Number):
-            if is_delta:
-                delta = timedelta(seconds=int(time.time() - start_time))
-            else:
-                delta = timedelta(seconds=start_time)
-        elif isinstance(start_time, datetime):
-            if is_delta:
-                delta = datetime.now() - start_time
-            else:
-                delta = start_time
-        elif isinstance(start_time, timedelta):
-            delta = start_time
-        else:
-            raise ValueError('passed value should be either a number of seconds ' +
-                             'from year 1970 or datetime instance of timedelta instance')
-
-        delta = abs(delta)
-
-        secs = delta.seconds
-        mins = int(secs / 60)
-        secs %= 60
-        hrs = int(mins / 60)
-        mins %= 60
-        hrs %= 24
-        result = ''
-        if delta.days:
-            result += str(delta.days) + 'd'
-        if hrs:
-            if hrs < 10:
-                result += '0'
-            result += str(hrs)
-            result += ':'
-        if mins < 10:
-            result += '0'
-        result += str(mins)
-        result += ':'
-        if secs < 10:
-            result += '0'
-        result += str(secs)
-        if not result:
-            result = str(int(delta.microseconds / 1000)) + 'ms'
-        return result
-
-    @staticmethod
-    def time_pretty_print(start_time):
-        return StatCollector.time_interval_pretty_print(start_time, False)
-
-    @staticmethod
-    def time_field_to_seconds(val):
-        result = 0
-        num = 0
-        accum_digits = []
-        semicolons_no = val.count(':')
-        for c in val:
-            if c.isdigit():
-                accum_digits.append(c)
-            else:
-                if len(accum_digits) > 0:
-                    num = int(''.join(accum_digits))
-                    if c == 'd':
-                        num *= 86400
-                    elif c == ':':
-                        num *= 60 ** semicolons_no
-                        semicolons_no -= 1
-                result += num
-                num = 0
-                accum_digits = []
-        return result
-
-    def time_field_status(self, row, col):
-        val = row[self.output_column_positions[col['out']]]
-        num = StatCollector.time_field_to_seconds(val)
-        if num <= col['critical']:
-            return {-1: COLSTATUS.cs_critical}
-        elif num <= col['warning']:
-            return {-1: COLSTATUS.cs_warning}
-        return {-1: COLSTATUS.cs_ok}
 
     def set_units_display(self, status):
         self.show_units = status

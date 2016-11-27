@@ -1,13 +1,15 @@
-import os
 import resource
 import sys
 
+import os
 import psutil
 import psycopg2
 import psycopg2.extras
 import re
 
-from pg_view.models.base import StatCollector, COLALIGN, logger, COLSTATUS
+from pg_view.helpers import exec_command_with_output
+from pg_view.models.base import StatCollector, COLALIGN, logger
+from pg_view.models.formatters import StatusFormatter
 from pg_view.sqls import SELECT_PGSTAT_VERSION_LESS_THAN_92, SELECT_PGSTAT_VERSION_LESS_THAN_96, \
     SELECT_PGSTAT_NEVER_VERSION, SELECT_PG_IS_IN_RECOVERY, SHOW_MAX_CONNECTIONS
 
@@ -21,10 +23,14 @@ else:
     maxsize = sys.maxint
 
 
-def dbversion_as_float(pgcon):
-    version_num = pgcon.server_version
+def dbversion_as_float(server_version):
+    version_num = server_version
     version_num /= 100
     return float('{0}.{1}'.format(version_num / 100, version_num % 100))
+
+
+def process_sort_key(process):
+    return process.get('age', maxsize)
 
 
 class PgStatCollector(StatCollector):
@@ -35,8 +41,8 @@ class PgStatCollector(StatCollector):
         self.postmaster_pid = pid
         self.pgcon = pgcon
         self.reconnect = reconnect
-        self.pids = []
         self.rows_diff = []
+        self.status_formatter = StatusFormatter(self)
 
         # figure out our backend pid
         self.connection_pid = pgcon.get_backend_pid()
@@ -109,7 +115,7 @@ class PgStatCollector(StatCollector):
                 'out': 's',
                 'in': 'state',
                 'pos': 2,
-                'status_fn': self.check_ps_state,
+                'status_fn': self.status_formatter.check_ps_state,
                 'warning': 'D',
             },
             {
@@ -178,8 +184,8 @@ class PgStatCollector(StatCollector):
                 'in': 'age',
                 'noautohide': True,
                 'pos': 9,
-                'fn': StatCollector.time_pretty_print,
-                'status_fn': self.age_status_fn,
+                'fn': self.status_formatter.time_pretty_print,
+                'status_fn': self.status_formatter.age_status_fn,
                 'align': COLALIGN.ca_right,
                 'warning': 300,
             },
@@ -207,13 +213,12 @@ class PgStatCollector(StatCollector):
                 'out': 'query',
                 'pos': 12,
                 'noautohide': True,
-                'fn': self.idle_format_fn,
+                'fn': self.status_formatter.idle_format_fn,
                 'warning': 'idle in transaction',
                 'critical': 'locked',
-                'status_fn': self.query_status_fn,
+                'status_fn': self.status_formatter.query_status_fn,
             },
         ]
-
         self.ncurses_custom_fields = {'header': True, 'prefix': None}
         self.postinit()
 
@@ -222,68 +227,28 @@ class PgStatCollector(StatCollector):
         return cls(cluster['pgcon'], cluster['reconnect'], cluster['pid'], cluster['name'], cluster['ver'], pid)
 
     def get_subprocesses_pid(self):
-        ppid = self.postmaster_pid
-        result = self.exec_command_with_output('ps -o pid --ppid {0} --noheaders'.format(ppid))
+        result = exec_command_with_output('ps -o pid --ppid {0} --noheaders'.format(self.postmaster_pid))
         if result[0] != 0:
-            logger.info("Couldn't determine the pid of subprocesses for {0}".format(ppid))
-            self.pids = []
-        self.pids = [int(x) for x in result[1].split()]
-
-    def check_ps_state(self, row, col):
-        if row[self.output_column_positions[col['out']]] == col.get('warning', ''):
-            return {0: COLSTATUS.cs_warning}
-        return {0: COLSTATUS.cs_ok}
-
-    def age_status_fn(self, row, col):
-        age_string = row[self.output_column_positions[col['out']]]
-        age_seconds = self.time_field_to_seconds(age_string)
-        if 'critical' in col and col['critical'] < age_seconds:
-            return {-1: COLSTATUS.cs_critical}
-        if 'warning' in col and col['warning'] < age_seconds:
-            return {-1: COLSTATUS.cs_warning}
-        return {-1: COLSTATUS.cs_ok}
-
-    def idle_format_fn(self, text):
-        r = re.match(r'idle in transaction (\d+)', text)
-        if not r:
-            return text
-        else:
-            if self.dbver >= 9.2:
-                return 'idle in transaction for ' + StatCollector.time_pretty_print(int(r.group(1)))
-            else:
-                return 'idle in transaction ' + StatCollector.time_pretty_print(int(r.group(1))) \
-                       + ' since the last query start'
-
-    def query_status_fn(self, row, col):
-        if row[self.output_column_positions['w']] is True:
-            return {-1: COLSTATUS.cs_critical}
-        else:
-            val = row[self.output_column_positions[col['out']]]
-            if val and val.startswith(col.get('warning', '!')):
-                return {-1: COLSTATUS.cs_warning}
-        return {-1: COLSTATUS.cs_ok}
+            logger.info("Couldn't determine the pid of subprocesses for {0}".format(self.postmaster_pid))
+            return []
+        return [int(x) for x in result[1].split()]
 
     def ident(self):
         return '{0} ({1}/{2})'.format('postgres', self.dbname, self.dbver)
 
     @staticmethod
     def _get_psinfo(cmdline):
-        """ gets PostgreSQL process type from the command-line."""
-        pstype = 'unknown'
-        action = None
-        if cmdline is not None and len(cmdline) > 0:
-            # postgres: stats collector process
-            m = re.match(r'postgres:\s+(.*)\s+process\s*(.*)$', cmdline)
-            if m:
-                pstype = m.group(1)
-                action = m.group(2)
-            else:
-                if re.match(r'postgres:.*', cmdline):
-                    # assume it's a backend process
-                    pstype = 'backend'
-        if pstype == 'autovacuum worker':
-            pstype = 'autovacuum'
-        return pstype, action
+        if not cmdline:
+            return 'unknown', None
+        m = re.match(r'postgres:\s+(.*)\s+process\s*(.*)$', cmdline)
+        if m:
+            pstype = m.group(1)
+            action = m.group(2)
+            return 'autovacuum' if pstype == 'autovacuum worker' else pstype, action
+        elif re.match(r'postgres:.*', cmdline):
+            # assume it's a backend process
+            return 'backend', None
+        return 'unknown', None
 
     @staticmethod
     def _is_auxiliary_process(pstype):
@@ -296,19 +261,9 @@ class PgStatCollector(StatCollector):
         return self._is_auxiliary_process(row['type']) if self.filter_aux_processes else False
 
     def refresh(self):
-        """ Reads data from /proc and PostgreSQL stats """
-        result = []
-        # fetch up-to-date list of subprocess PIDs
-        self.get_subprocesses_pid()
         try:
             if not self.pgcon:
-                # if we've lost the connection, try to reconnect and
-                # re-initialize all connection invariants
-                self.pgcon, self.postmaster_pid = self.reconnect()
-                self.connection_pid = self.pgcon.get_backend_pid()
-                self.max_connections = self._get_max_connections()
-                self.dbver = dbversion_as_float(self.pgcon)
-                self.server_version = self.pgcon.get_parameter_status('server_version')
+                self._try_reconnect()
             stat_data = self._read_pg_stat_activity()
         except psycopg2.OperationalError as e:
             logger.info("failed to query the server: {}".format(e))
@@ -316,18 +271,21 @@ class PgStatCollector(StatCollector):
                 self.pgcon.close()
             self.pgcon = None
             self._do_refresh([])
-            return
+            return None
 
+        # fetch up-to-date list of subprocess PIDs
+        pids = self.get_subprocesses_pid()
         logger.info("new refresh round")
-        for pid in self.pids:
+
+        result = []
+        for pid in pids:
             if pid == self.connection_pid:
                 continue
-            is_backend = pid in stat_data
-            is_active = is_backend and (stat_data[pid]['query'] != 'idle' or pid in self.always_track_pids)
             result_row = {}
             # for each pid, get hash row from /proc/
-            proc_data = self._read_proc(pid, is_backend, is_active)
+            proc_data = self._read_proc(pid)
             if proc_data:
+                self.get_additional_info(pid, proc_data, stat_data)
                 result_row.update(proc_data)
             if stat_data and pid in stat_data:
                 # ditto for the pg_stat_activity
@@ -339,26 +297,49 @@ class PgStatCollector(StatCollector):
         self._do_refresh(result)
         return result
 
-    def _read_proc(self, pid, is_backend, is_active):
-        """ see man 5 proc for details (/proc/[pid]/stat) """
+    def get_additional_info(self, pid, proc_data, stat_data):
+        is_backend = pid in stat_data
+        is_active = is_backend and (stat_data[pid]['query'] != 'idle' or pid in self.always_track_pids)
+        if is_backend:
+            proc_data['type'] = 'backend'
+        else:
+            proc_data['type'], action = self._get_psinfo(proc_data['cmdline'])
+            if action:
+                proc_data['query'] = action
+        if is_active or not is_backend:
+            proc_data['uss'] = self._get_memory_usage(pid)
+        return proc_data
+
+    def _try_reconnect(self):
+        # if we've lost the connection, try to reconnect and re-initialize all connection invariants
+        self.pgcon, self.postmaster_pid = self.reconnect()
+        self.connection_pid = self.pgcon.get_backend_pid()
+        self.max_connections = self._get_max_connections()
+        self.dbver = dbversion_as_float(self.pgcon)
+        self.server_version = self.pgcon.get_parameter_status('server_version')
+
+    def _read_proc(self, pid):
         result = {}
         process = psutil.Process(pid)
         io_stats = process.io_counters()
+
+        cpu_times = process.cpu_times()
+        memory_info = process.memory_info()
 
         proc_stats = {
             'read_bytes': io_stats.read_bytes,
             'write_bytes': io_stats.write_bytes,
 
             'pid': process.pid,
-            'status': process.status(),
-            'utime': process.cpu_times().user,
-            'stime': process.cpu_times().system,
-            'rss': process.memory_info().rss / PAGESIZE,
+            'status': process.status()[0],
+            'utime': cpu_times.user,
+            'stime': cpu_times.system,
+            'rss': memory_info.rss / PAGESIZE,
             'priority': process.nice(),
-            'vsize': process.memory_info().vms,
+            'vsize': memory_info.vms,
 
             # TODO: Check if correct
-            'locked_by': process.username,
+            'locked_by': process.username(),
             'guest_time': 0.0,
             'starttime': 911L,
             'delayacct_blkio_ticks': 1,
@@ -367,15 +348,6 @@ class PgStatCollector(StatCollector):
         # Assume we managed to read the row if we can get its PID
         result.update(self._transform_input(proc_stats))
         result['cmdline'] = process.cmdline()[0].strip()
-
-        if not is_backend:
-            result['type'], action = self._get_psinfo(result['cmdline'])
-            if action:
-                result['query'] = action
-        else:
-            result['type'] = 'backend'
-        if is_active or not is_backend:
-            result['uss'] = self._get_memory_usage(pid)
         return result
 
     def _get_memory_usage(self, pid):
@@ -388,8 +360,7 @@ class PgStatCollector(StatCollector):
         # we use statm instead of /proc/smaps because of performance considerations. statm is much faster,
         # while providing slightly outdated results.
         memory_info = psutil.Process(pid).memory_info()
-        uss = long(memory_info.rss) - long(memory_info.shared)
-        return uss
+        return long(memory_info.rss) - long(memory_info.shared)
 
     def _get_max_connections(self):
         result = self._execute_fetchone_query(SHOW_MAX_CONNECTIONS)
@@ -410,8 +381,7 @@ class PgStatCollector(StatCollector):
         """ Read data from pg_stat_activity """
         self.recovery_status = self._get_recovery_status()
         cur = self.pgcon.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        sql_pgstat = self.get_sql_by_pg_version()
-        cur.execute(sql_pgstat)
+        cur.execute(self.get_sql_pgstat_by_version())
         results = cur.fetchall()
 
         # fill in the number of total connections, including ourselves
@@ -432,7 +402,7 @@ class PgStatCollector(StatCollector):
         cur.close()
         return formatted_results
 
-    def get_sql_by_pg_version(self):
+    def get_sql_pgstat_by_version(self):
         # the pg_stat_activity format has been changed to 9.2, avoiding ambigiuous meanings for some columns.
         # since it makes more sense then the previous layout, we 'cast' the former versions to 9.2
         if self.dbver < 9.2:
@@ -452,10 +422,6 @@ class PgStatCollector(StatCollector):
                        active_conns=self.active_connections)
         else:
             return "{dbname} {version} (offline)\n".format(dbname=self.dbname, version=self.server_version)
-
-    @staticmethod
-    def process_sort_key(process):
-        return process.get('age', maxsize)
 
     def diff(self):
         """ we only diff backend processes if new one is not idle and use pid to identify processes """
@@ -489,7 +455,7 @@ class PgStatCollector(StatCollector):
         # order the result rows by the start time value
         if len(self.blocked_diffs) == 0:
             self.rows_diff = self.running_diffs
-            self.rows_diff.sort(key=self.process_sort_key, reverse=True)
+            self.rows_diff.sort(key=process_sort_key, reverse=True)
         else:
             blocked_temp = []
             # we traverse the tree of blocked processes in a depth-first order, building a list
@@ -498,10 +464,10 @@ class PgStatCollector(StatCollector):
             # by the current one from the plain list of process information rows, that's why
             # we use a dictionary of lists of blocked processes with a blocker pid as a key
             # and effectively build a separate tree for each blocker.
-            self.running_diffs.sort(key=self.process_sort_key, reverse=True)
+            self.running_diffs.sort(key=process_sort_key, reverse=True)
             # sort elements in the blocked lists, so that they still appear in the latest to earliest order
             for key in self.blocked_diffs:
-                self.blocked_diffs[key].sort(key=self.process_sort_key)
+                self.blocked_diffs[key].sort(key=process_sort_key)
             for parent_row in self.running_diffs:
                 self.rows_diff.append(parent_row)
                 # if no processes blocked by this one - just skip to the next row

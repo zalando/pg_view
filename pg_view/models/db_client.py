@@ -23,8 +23,7 @@ def read_postmaster_pid(work_directory, dbname):
     except:
         # XXX: do not bail out in case we are collecting data for multiple PostgreSQL clusters
         logger.error('Unable to read postmaster.pid for {name} at {wd}\n HINT: \
-            make sure Postgres is running'.format(name=dbname,
-                     wd=work_directory))
+            make sure Postgres is running'.format(name=dbname, wd=work_directory))
         return None
     finally:
         if fp is not None:
@@ -67,6 +66,7 @@ class DBConnection(object):
             result['user'] = self.user
         if self.database:
             result['database'] = self.database
+        # result['user'] = 'radek'
         return result
 
 
@@ -81,7 +81,7 @@ class DBConnectionFinder(object):
         # self.username = username or 'radek'
         self.username = username
 
-        # self.dbname = dbname or 'atlas'
+        self.dbname = dbname or 'atlas'
         self.dbname = dbname
         self.proc_worker = ProcWorker()
 
@@ -123,10 +123,12 @@ class DBConnectionFinder(object):
     def can_connect_with_connection_arguments(self, connection):
         """ check that we can connect given the specified arguments """
         conn = connection.build_connection()
+        # conn.update({'user': 'radek'})
         try:
             test_conn = psycopg2.connect(**conn)
             test_conn.close()
-        except psycopg2.OperationalError:
+        except psycopg2.OperationalError as e:
+            logger.error(e)
             return False
         return True
 
@@ -157,7 +159,7 @@ class DBClient(object):
             raise NotConnectedException
 
         # get the database version from the pgcon properties
-        dbver = dbversion_as_float(pgcon)
+        dbver = dbversion_as_float(pgcon.server_version)
         cur = pgcon.cursor()
         cur.execute('show data_directory')
         work_directory = cur.fetchone()[0]

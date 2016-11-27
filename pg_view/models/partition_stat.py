@@ -5,6 +5,7 @@ import os
 import psutil
 
 from pg_view.models.base import StatCollector, COLALIGN, logger, TICK_LENGTH
+from pg_view.models.formatters import StatusFormatter
 
 SECTOR_SIZE = 512
 
@@ -20,6 +21,7 @@ class PartitionStatCollector(StatCollector):
         self.dbver = dbversion
         self.queue_consumer = consumer
         self.work_directory = work_directory
+        self.status_formatter = StatusFormatter(self)
 
         self.df_list_transformation = [
             {'out': 'dev', 'in': 0, 'fn': self._dereference_dev_name},
@@ -63,8 +65,8 @@ class PartitionStatCollector(StatCollector):
                 'in': 'time_until_full',
                 'pos': 3,
                 'noautohide': True,
-                'status_fn': self.time_field_status,
-                'fn': StatCollector.time_pretty_print,
+                'status_fn': self.status_formatter.time_field_status,
+                'fn': self.status_formatter.time_pretty_print,
                 'warning': 10800,
                 'critical': 3600,
                 'hide_if_ok': True,
@@ -73,7 +75,7 @@ class PartitionStatCollector(StatCollector):
             {
                 'out': 'total',
                 'in': 'space_total',
-                'fn': self.kb_pretty_print,
+                'fn': self.status_formatter.kb_pretty_print,
                 'pos': 4,
                 'minw': 5,
                 'align': COLALIGN.ca_right,
@@ -81,7 +83,7 @@ class PartitionStatCollector(StatCollector):
             {
                 'out': 'left',
                 'in': 'space_left',
-                'fn': self.kb_pretty_print,
+                'fn': self.status_formatter.kb_pretty_print,
                 'pos': 5,
                 'noautohide': False,
                 'minw': 5,
@@ -114,7 +116,7 @@ class PartitionStatCollector(StatCollector):
             },
             {
                 'out': 'path_size',
-                'fn': self.kb_pretty_print,
+                'fn': self.status_formatter.kb_pretty_print,
                 'pos': 9,
                 'noautohide': True,
                 'align': COLALIGN.ca_right,

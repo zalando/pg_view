@@ -1,4 +1,5 @@
 import ConfigParser
+import subprocess
 
 from pg_view import consts
 from pg_view.exceptions import InvalidConnParam
@@ -53,7 +54,6 @@ def process_groups(groups):
 
 def read_configuration(config_file_name):
     # read PostgreSQL connection options
-    config_data = {}
     if not config_file_name:
         return None
     config = ConfigParser.ConfigParser()
@@ -62,6 +62,8 @@ def read_configuration(config_file_name):
         from pg_view.models.base import logger
         logger.error('Configuration file {0} is empty or not found'.format(config_file_name))
         return None
+
+    config_data = {}
     # get through all defined databases
     for section in config.sections():
         config_data[section] = {}
@@ -82,3 +84,13 @@ def validate_autodetected_conn_param(user_dbname, user_dbver, result_work_dir, c
             raise InvalidConnParam
         if user_dbver is not None and user_dbname != connection_params.version:
             raise InvalidConnParam
+
+
+def exec_command_with_output(cmdline):
+    """ Execute comand (including shell ones), return a tuple with error code (1 element) and output (rest) """
+    proc = subprocess.Popen(cmdline, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+    ret = proc.wait()
+    if ret != 0:
+        from pg_view.models.base import logger
+        logger.info('The command {cmd} returned a non-zero exit code'.format(cmd=cmdline))
+    return ret, proc.stdout.read().strip()

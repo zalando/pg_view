@@ -331,7 +331,7 @@ class PgStatCollector(StatCollector):
             'write_bytes': io_stats.write_bytes,
 
             'pid': process.pid,
-            'status': process.status()[0],
+            'status': process.status(),
             'utime': cpu_times.user,
             'stime': cpu_times.system,
             'rss': memory_info.rss / PAGESIZE,

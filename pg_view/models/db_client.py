@@ -22,8 +22,8 @@ def read_postmaster_pid(work_directory, dbname):
         pid = fp.readline().strip()
     except:
         # XXX: do not bail out in case we are collecting data for multiple PostgreSQL clusters
-        logger.error('Unable to read postmaster.pid for {name} at {wd}\n HINT: \
-            make sure Postgres is running'.format(name=dbname, wd=work_directory))
+        msg = 'Unable to read postmaster.pid for {name} at {wd}\n HINT: make sure Postgres is running'
+        logger.error(msg.format(name=dbname, wd=work_directory))
         return None
     finally:
         if fp is not None:
@@ -96,8 +96,8 @@ class DBConnectionFinder(object):
             # perhaps we'll get better luck with just peeking into postmaster.pid.
             conn_args = self.proc_worker.detect_with_postmaster_pid(self.work_directory, self.version)
             if not conn_args:
-                logger.error('unable to detect connection parameters for the PostgreSQL cluster at {0}'.format(
-                    self.work_directory))
+                msg = 'unable to detect connection parameters for the PostgreSQL cluster at {0}'
+                logger.error(msg.format(self.work_directory))
                 return None
         # try all acquired connection arguments, starting from unix, then tcp, then tcp over ipv6
         result = self.pick_connection_arguments(conn_args)
@@ -142,6 +142,8 @@ class DBConnectionFinder(object):
 
 
 class DBClient(object):
+    SHOW_COMMAND = 'SHOW DATA_DIRECTORY'
+
     def __init__(self, connection):
         self.connection = connection
 
@@ -160,11 +162,7 @@ class DBClient(object):
 
         # get the database version from the pgcon properties
         dbver = dbversion_as_float(pgcon.server_version)
-        cur = pgcon.cursor()
-        cur.execute('show data_directory')
-        work_directory = cur.fetchone()[0]
-        cur.close()
-        pgcon.commit()
+        work_directory = self.execute_query_and_fetchone(pgcon)
         # now, when we have the work directory, acquire the pid of the postmaster.
         pid = read_postmaster_pid(work_directory, instance)
 
@@ -187,6 +185,14 @@ class DBClient(object):
         # now we have all components to create a cluster descriptor
         return make_cluster_desc(
             name=instance, version=dbver, workdir=work_directory, pid=pid, pgcon=pgcon, conn=conn)
+
+    def execute_query_and_fetchone(self, pgcon):
+        cur = pgcon.cursor()
+        cur.execute(self.SHOW_COMMAND)
+        work_directory = cur.fetchone()[0]
+        cur.close()
+        pgcon.commit()
+        return work_directory
 
     @classmethod
     def from_config(cls, config):

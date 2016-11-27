@@ -283,9 +283,7 @@ class DetachedDiskStatCollector(Process):
     @staticmethod
     def get_mounted_device(pathname):
         mounted_devices = [d.device for d in psutil.disk_partitions() if d.mountpoint == pathname]
-        if len(mounted_devices) == 1:
-            return mounted_devices[0]
-        return None
+        return mounted_devices[0] if len(mounted_devices) == 1 else None
 
     @staticmethod
     def get_mount_point(pathname):

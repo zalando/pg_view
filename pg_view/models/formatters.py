@@ -1,4 +1,4 @@
-from datetime import timedelta, datetime, time
+from datetime import timedelta
 from numbers import Number
 
 import re
@@ -24,10 +24,10 @@ class StatusFormatter(object):
     def query_status_fn(self, row, col):
         if row[self.collector.output_column_positions['w']] is True:
             return {-1: COLSTATUS.cs_critical}
-        else:
-            val = row[self.collector.output_column_positions[col['out']]]
-            if val and val.startswith(col.get('warning', '!')):
-                return {-1: COLSTATUS.cs_warning}
+
+        val = row[self.collector.output_column_positions[col['out']]]
+        if val and val.startswith(col.get('warning', '!')):
+            return {-1: COLSTATUS.cs_warning}
         return {-1: COLSTATUS.cs_ok}
 
     def age_status_fn(self, row, col):
@@ -75,22 +75,14 @@ class StatusFormatter(object):
             return {-1: COLSTATUS.cs_warning}
         return {-1: COLSTATUS.cs_ok}
 
-    def time_interval_pretty_print(self, start_time, is_delta):
+    def time_pretty_print(self, start_time):
         """Returns a human readable string that shows a time between now and the timestamp passed as an argument.
         The passed argument can be a timestamp (returned by time.time() call) a datetime object or a timedelta object.
         In case it is a timedelta object, then it is formatted only
         """
 
         if isinstance(start_time, Number):
-            if is_delta:
-                delta = timedelta(seconds=int(time.time() - start_time))
-            else:
-                delta = timedelta(seconds=start_time)
-        elif isinstance(start_time, datetime):
-            if is_delta:
-                delta = datetime.now() - start_time
-            else:
-                delta = start_time
+            delta = timedelta(seconds=start_time)
         elif isinstance(start_time, timedelta):
             delta = start_time
         else:
@@ -124,9 +116,6 @@ class StatusFormatter(object):
             result = str(int(delta.microseconds / 1000)) + 'ms'
         return result
 
-    def time_pretty_print(self, start_time):
-        return self.time_interval_pretty_print(start_time, False)
-
     def kb_pretty_print(self, b):
         """ Show memory size as a float value in the biggest measurement units  """
         r = []
@@ -135,7 +124,21 @@ class StatusFormatter(object):
                 v = round(float(b) / n, 1)
                 r.append(str(v) + l)
                 break
-        if len(r) == 0:
-            return '{0}KB'.format(str(b))
-        else:
-            return ' '.join(r)
+        return '{0}KB'.format(str(b)) if len(r) == 0 else ' '.join(r)
+
+    def load_avg_state(self, row, col):
+        state = {}
+        load_avg_str = row[self.collector.output_column_positions[col['out']]]
+        if not load_avg_str:
+            return {}
+
+        # load average consists of 3 values.
+        load_avg_vals = load_avg_str.split()
+        for no, val in enumerate(load_avg_vals):
+            if float(val) >= col['critical']:
+                state[no] = COLSTATUS.cs_critical
+            elif float(val) >= col['warning']:
+                state[no] = COLSTATUS.cs_warning
+            else:
+                state[no] = COLSTATUS.cs_ok
+        return state

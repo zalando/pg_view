@@ -77,7 +77,7 @@ def parse_args():
     parser.add_option('-o', '--output-method', help='send output to the following source', action='store',
                       default=OUTPUT_METHOD.curses, dest='output_method')
     parser.add_option('-V', '--use-version',
-                      help='version of the instance to monitor (in case it can\'t be autodetected)',
+                      help="version of the instance to monitor (in case it can't be autodetected)",
                       action='store', dest='version', type='float')
     parser.add_option('-l', '--log-file', help='direct log output to the file', action='store',
                       dest='log_file')

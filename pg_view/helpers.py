@@ -82,7 +82,7 @@ def validate_autodetected_conn_param(user_dbname, user_dbver, result_work_dir, c
     if user_dbname:
         if connection_params.dbname != user_dbname or not result_work_dir or not connection_params.pid:
             raise InvalidConnParam
-        if user_dbver is not None and user_dbname != connection_params.version:
+        if user_dbver is not None and user_dbver != connection_params.version:
             raise InvalidConnParam
 
 

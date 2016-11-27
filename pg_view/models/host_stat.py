@@ -5,7 +5,8 @@ from multiprocessing import cpu_count
 import os
 import psutil
 
-from pg_view.models.base import StatCollector, COLHEADER, COLSTATUS, logger
+from pg_view.models.base import StatCollector, COLHEADER, logger
+from pg_view.models.formatters import StatusFormatter
 
 
 class HostStatCollector(StatCollector):
@@ -23,6 +24,8 @@ class HostStatCollector(StatCollector):
             {'out': 'sysname', 'infn': self._construct_sysname}
         ]
 
+        self.status_formatter = StatusFormatter(self)
+
         self.output_transform_data = [
             {
                 'out': 'load average',
@@ -32,7 +35,7 @@ class HostStatCollector(StatCollector):
                 'warning': 5,
                 'critical': 20,
                 'column_header': COLHEADER.ch_prepend,
-                'status_fn': self._load_avg_state,
+                'status_fn': self.status_formatter.load_avg_state,
             },
             {
                 'out': 'up',
@@ -82,23 +85,6 @@ class HostStatCollector(StatCollector):
 
     def _read_load_average(self):
         return self._transform_list(os.getloadavg())
-
-    def _load_avg_state(self, row, col):
-        state = {}
-        load_avg_str = row[self.output_column_positions[col['out']]]
-        if not load_avg_str:
-            return {}
-
-        # load average consists of 3 values.
-        load_avg_vals = load_avg_str.split()
-        for no, val in enumerate(load_avg_vals):
-            if float(val) >= col['critical']:
-                state[no] = COLSTATUS.cs_critical
-            elif float(val) >= col['warning']:
-                state[no] = COLSTATUS.cs_warning
-            else:
-                state[no] = COLSTATUS.cs_ok
-        return state
 
     def _concat_load_avg(self, colname, row, optional):
         """ concat all load averages into a single string """

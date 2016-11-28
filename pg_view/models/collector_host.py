@@ -89,10 +89,7 @@ class HostStatCollector(BaseStatCollector):
 
     def _concat_load_avg(self, colname, row, optional):
         """ concat all load averages into a single string """
-        if len(row) >= 3:
-            return ' '.join(str(x) for x in row[:3])
-        else:
-            return ''
+        return ' '.join(str(x) for x in row[:3]) if len(row) >= 3 else ''
 
     @staticmethod
     def _read_hostname():

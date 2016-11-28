@@ -59,13 +59,6 @@ class ProcWorker(object):
             return connection_params(pid=proc.pid, version=version, dbname=dbname)
         return None
 
-    # TODO: fix by reading it from file
-    def _get_version_from_exe(self, proc):
-        value = proc.exe().split('/')[-3]
-        if value is not None and len(value) >= 3:
-            version = float(value)
-        return value, version
-
     def detect_with_postmaster_pid(self, work_directory, version):
         # PostgreSQL 9.0 doesn't have enough data
         result = {}

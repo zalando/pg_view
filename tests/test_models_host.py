@@ -136,3 +136,11 @@ class HostStatCollectorTest(TestCase):
             }
         }
         self.assertEqual(expected_resp, console_data)
+
+    def test__concat_load_avg_should_return_empty_when_less_than_three_rows(self):
+        concatenated_data = self.collector._concat_load_avg('loadavg', (0.16, 0.05), False)
+        self.assertEqual('', concatenated_data)
+
+    def test__concat_load_avg_should_return_str_when_than_three_rows(self):
+        concatenated_data = self.collector._concat_load_avg('loadavg', (0.16, 0.05, 0.06), False)
+        self.assertEqual('0.16 0.05 0.06', concatenated_data)

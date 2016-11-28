@@ -3,23 +3,13 @@ from numbers import Number
 
 import re
 
+from pg_view.helpers import time_field_to_seconds
 from pg_view.models.displayers import COLSTATUS
 
 
 class StatusFormatter(object):
-    BYTE_MAP = [('TB', 1073741824), ('GB', 1048576), ('MB', 1024)]
-
     def __init__(self, collector):
         self.collector = collector
-
-    def idle_format_fn(self, text):
-        r = re.match(r'idle in transaction (\d+)', text)
-        if not r:
-            return text
-        formatted_time = self.time_pretty_print(int(r.group(1)))
-        if self.collector.dbver >= 9.2:
-            return 'idle in transaction for {0}'.format(formatted_time)
-        return 'idle in transaction {0} since the last query start'.format(formatted_time)
 
     def query_status_fn(self, row, col):
         if row[self.collector.output_column_positions['w']] is True:
@@ -32,7 +22,7 @@ class StatusFormatter(object):
 
     def age_status_fn(self, row, col):
         age_string = row[self.collector.output_column_positions[col['out']]]
-        age_seconds = self.time_field_to_seconds(age_string)
+        age_seconds = time_field_to_seconds(age_string)
         if 'critical' in col and col['critical'] < age_seconds:
             return {-1: COLSTATUS.cs_critical}
         if 'warning' in col and col['warning'] < age_seconds:
@@ -44,36 +34,57 @@ class StatusFormatter(object):
             return {0: COLSTATUS.cs_warning}
         return {0: COLSTATUS.cs_ok}
 
-    @staticmethod
-    def time_field_to_seconds(val):
-        result = 0
-        num = 0
-        accum_digits = []
-        semicolons_no = val.count(':')
-        for c in val:
-            if c.isdigit():
-                accum_digits.append(c)
-            else:
-                if len(accum_digits) > 0:
-                    num = int(''.join(accum_digits))
-                    if c == 'd':
-                        num *= 86400
-                    elif c == ':':
-                        num *= 60 ** semicolons_no
-                        semicolons_no -= 1
-                result += num
-                num = 0
-                accum_digits = []
-        return result
-
     def time_field_status(self, row, col):
         val = row[self.collector.output_column_positions[col['out']]]
-        num = self.time_field_to_seconds(val)
+        num = time_field_to_seconds(val)
         if num <= col['critical']:
             return {-1: COLSTATUS.cs_critical}
         elif num <= col['warning']:
             return {-1: COLSTATUS.cs_warning}
         return {-1: COLSTATUS.cs_ok}
+
+    def load_avg_state(self, row, col):
+        state = {}
+        load_avg_str = row[self.collector.output_column_positions[col['out']]]
+        if not load_avg_str:
+            return {}
+
+        # load average consists of 3 values.
+        load_avg_vals = load_avg_str.split()
+        for no, val in enumerate(load_avg_vals):
+            if float(val) >= col['critical']:
+                state[no] = COLSTATUS.cs_critical
+            elif float(val) >= col['warning']:
+                state[no] = COLSTATUS.cs_warning
+            else:
+                state[no] = COLSTATUS.cs_ok
+        return state
+
+
+class FnFormatter(object):
+    BYTE_MAP = [('TB', 1073741824), ('GB', 1048576), ('MB', 1024)]
+
+    def __init__(self, collector):
+        self.collector = collector
+
+    def kb_pretty_print(self, b):
+        """ Show memory size as a float value in the biggest measurement units  """
+        r = []
+        for l, n in self.BYTE_MAP:
+            if b > n:
+                v = round(float(b) / n, 1)
+                r.append(str(v) + l)
+                break
+        return '{0}KB'.format(str(b)) if len(r) == 0 else ' '.join(r)
+
+    def idle_format_fn(self, text):
+        r = re.match(r'idle in transaction (\d+)', text)
+        if not r:
+            return text
+        formatted_time = self.time_pretty_print(int(r.group(1)))
+        if self.collector.dbver >= 9.2:
+            return 'idle in transaction for {0}'.format(formatted_time)
+        return 'idle in transaction {0} since the last query start'.format(formatted_time)
 
     def time_pretty_print(self, start_time):
         """Returns a human readable string that shows a time between now and the timestamp passed as an argument.
@@ -115,30 +126,3 @@ class StatusFormatter(object):
         if not result:
             result = str(int(delta.microseconds / 1000)) + 'ms'
         return result
-
-    def kb_pretty_print(self, b):
-        """ Show memory size as a float value in the biggest measurement units  """
-        r = []
-        for l, n in self.BYTE_MAP:
-            if b > n:
-                v = round(float(b) / n, 1)
-                r.append(str(v) + l)
-                break
-        return '{0}KB'.format(str(b)) if len(r) == 0 else ' '.join(r)
-
-    def load_avg_state(self, row, col):
-        state = {}
-        load_avg_str = row[self.collector.output_column_positions[col['out']]]
-        if not load_avg_str:
-            return {}
-
-        # load average consists of 3 values.
-        load_avg_vals = load_avg_str.split()
-        for no, val in enumerate(load_avg_vals):
-            if float(val) >= col['critical']:
-                state[no] = COLSTATUS.cs_critical
-            elif float(val) >= col['warning']:
-                state[no] = COLSTATUS.cs_warning
-            else:
-                state[no] = COLSTATUS.cs_ok
-        return state

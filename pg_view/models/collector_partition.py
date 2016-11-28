@@ -5,7 +5,7 @@ import os
 import psutil
 
 from pg_view.consts import RD, TICK_LENGTH, SECTOR_SIZE
-from pg_view.formatters import StatusFormatter
+from pg_view.formatters import StatusFormatter, FnFormatter
 from pg_view.models.collector_base import BaseStatCollector, logger
 from pg_view.models.displayers import COLALIGN
 
@@ -22,6 +22,7 @@ class PartitionStatCollector(BaseStatCollector):
         self.queue_consumer = consumer
         self.work_directory = work_directory
         self.status_formatter = StatusFormatter(self)
+        self.fn_formatter = FnFormatter(self)
 
         self.df_list_transformation = [
             {'out': 'dev', 'in': 0, 'fn': self._dereference_dev_name},
@@ -66,7 +67,7 @@ class PartitionStatCollector(BaseStatCollector):
                 'pos': 3,
                 'noautohide': True,
                 'status_fn': self.status_formatter.time_field_status,
-                'fn': self.status_formatter.time_pretty_print,
+                'fn': self.fn_formatter.time_pretty_print,
                 'warning': 10800,
                 'critical': 3600,
                 'hide_if_ok': True,
@@ -75,7 +76,7 @@ class PartitionStatCollector(BaseStatCollector):
             {
                 'out': 'total',
                 'in': 'space_total',
-                'fn': self.status_formatter.kb_pretty_print,
+                'fn': self.fn_formatter.kb_pretty_print,
                 'pos': 4,
                 'minw': 5,
                 'align': COLALIGN.ca_right,
@@ -83,7 +84,7 @@ class PartitionStatCollector(BaseStatCollector):
             {
                 'out': 'left',
                 'in': 'space_left',
-                'fn': self.status_formatter.kb_pretty_print,
+                'fn': self.fn_formatter.kb_pretty_print,
                 'pos': 5,
                 'noautohide': False,
                 'minw': 5,
@@ -116,7 +117,7 @@ class PartitionStatCollector(BaseStatCollector):
             },
             {
                 'out': 'path_size',
-                'fn': self.status_formatter.kb_pretty_print,
+                'fn': self.fn_formatter.kb_pretty_print,
                 'pos': 9,
                 'noautohide': True,
                 'align': COLALIGN.ca_right,

@@ -1,6 +1,6 @@
 import psutil
 
-from pg_view.formatters import StatusFormatter
+from pg_view.formatters import StatusFormatter, FnFormatter
 
 if psutil.LINUX:
     from psutil._pslinux import get_procfs_path, open_binary
@@ -24,19 +24,20 @@ class MemoryStatCollector(BaseStatCollector):
             {'infn': self.calculate_kb_left_until_limit, 'out': 'commit_left', 'fn': int, 'optional': True}
         ]
         self.status_formatter = StatusFormatter(self)
+        self.fn_formatter = FnFormatter(self)
 
         self.output_transform_data = [
             {
                 'out': 'total',
                 'units': 'MB',
-                'fn': self.status_formatter.kb_pretty_print,
+                'fn': self.fn_formatter.kb_pretty_print,
                 'pos': 0,
                 'minw': 6,
             },
             {
                 'out': 'free',
                 'units': 'MB',
-                'fn': self.status_formatter.kb_pretty_print,
+                'fn': self.fn_formatter.kb_pretty_print,
                 'pos': 1,
                 'noautohide': True,
                 'minw': 6,
@@ -44,21 +45,21 @@ class MemoryStatCollector(BaseStatCollector):
             {
                 'out': 'buffers',
                 'units': 'MB',
-                'fn': self.status_formatter.kb_pretty_print,
+                'fn': self.fn_formatter.kb_pretty_print,
                 'pos': 2,
                 'minw': 6,
             },
             {
                 'out': 'cached',
                 'units': 'MB',
-                'fn': self.status_formatter.kb_pretty_print,
+                'fn': self.fn_formatter.kb_pretty_print,
                 'pos': 3,
                 'minw': 6,
             },
             {
                 'out': 'dirty',
                 'units': 'MB',
-                'fn': self.status_formatter.kb_pretty_print,
+                'fn': self.fn_formatter.kb_pretty_print,
                 'pos': 4,
                 'noautohide': True,
                 'minw': 6,
@@ -67,7 +68,7 @@ class MemoryStatCollector(BaseStatCollector):
                 'out': 'limit',
                 'in': 'commit_limit',
                 'units': 'MB',
-                'fn': self.status_formatter.kb_pretty_print,
+                'fn': self.fn_formatter.kb_pretty_print,
                 'pos': 5,
                 'noautohide': True,
                 'minw': 6,
@@ -76,7 +77,7 @@ class MemoryStatCollector(BaseStatCollector):
                 'out': 'as',
                 'in': 'committed_as',
                 'units': 'MB',
-                'fn': self.status_formatter.kb_pretty_print,
+                'fn': self.fn_formatter.kb_pretty_print,
                 'pos': 6,
                 'minw': 6,
             },
@@ -84,7 +85,7 @@ class MemoryStatCollector(BaseStatCollector):
                 'out': 'left',
                 'in': 'commit_left',
                 'units': 'MB',
-                'fn': self.status_formatter.kb_pretty_print,
+                'fn': self.fn_formatter.kb_pretty_print,
                 'pos': 7,
                 'noautohide': True,
                 'minw': 6,

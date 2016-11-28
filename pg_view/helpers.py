@@ -9,6 +9,10 @@ SECTORS_IN_MB = 2048
 KB_IN_MB = 1024
 
 
+def enum(**enums):
+    return type('Enum', (), enums)
+
+
 class UnitConverter(object):
     @staticmethod
     def kb_to_mbytes(kb):
@@ -96,5 +100,25 @@ def exec_command_with_output(cmdline):
     return ret, proc.stdout.read().strip()
 
 
-def enum(**enums):
-    return type('Enum', (), enums)
+def time_field_to_seconds(val):
+    result = 0
+    num = 0
+    accum_digits = []
+    semicolons_no = val.count(':')
+    for c in val:
+        if c.isdigit():
+            accum_digits.append(c)
+        else:
+            if len(accum_digits) > 0:
+                num = int(''.join(accum_digits))
+                if c == 'd':
+                    num *= 86400
+                elif c == ':':
+                    num *= 60 ** semicolons_no
+                    semicolons_no -= 1
+            result += num
+            num = 0
+            accum_digits = []
+    return result
+
+

@@ -8,7 +8,7 @@ import psycopg2.extras
 import re
 
 from pg_view.consts import RD
-from pg_view.formatters import StatusFormatter
+from pg_view.formatters import StatusFormatter, FnFormatter
 from pg_view.helpers import exec_command_with_output
 from pg_view.models.collector_base import BaseStatCollector, logger
 from pg_view.models.displayers import COLALIGN
@@ -45,6 +45,7 @@ class PgStatCollector(BaseStatCollector):
         self.reconnect = reconnect
         self.rows_diff = []
         self.status_formatter = StatusFormatter(self)
+        self.fn_formatter = FnFormatter(self)
 
         # figure out our backend pid
         self.connection_pid = pgcon.get_backend_pid()
@@ -186,7 +187,7 @@ class PgStatCollector(BaseStatCollector):
                 'in': 'age',
                 'noautohide': True,
                 'pos': 9,
-                'fn': self.status_formatter.time_pretty_print,
+                'fn': self.fn_formatter.time_pretty_print,
                 'status_fn': self.status_formatter.age_status_fn,
                 'align': COLALIGN.ca_right,
                 'warning': 300,
@@ -215,7 +216,7 @@ class PgStatCollector(BaseStatCollector):
                 'out': 'query',
                 'pos': 12,
                 'noautohide': True,
-                'fn': self.status_formatter.idle_format_fn,
+                'fn': self.fn_formatter.idle_format_fn,
                 'warning': 'idle in transaction',
                 'critical': 'locked',
                 'status_fn': self.status_formatter.query_status_fn,

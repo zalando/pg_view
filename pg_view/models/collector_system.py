@@ -178,7 +178,7 @@ class SystemStatCollector(BaseStatCollector):
             displayer, before_string='System statistics:', after_string='\n')
 
     def read_cpu_stats(self):
-        # left - from cputils, right - our
+        # psutils, displayer
         default_key_mapping = {
             'ctx_switches': 'ctxt',
             'procs_running': 'running',

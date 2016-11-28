@@ -17,7 +17,7 @@ def read_module(path):
         exec(fd.read(), data)
     return data
 
-meta = read_module('view.py')
+meta = read_module('pg_view/outputs.py')
 NAME = 'pg-view'
 MAIN_MODULE = 'pg_view'
 VERSION = meta['__version__']
@@ -45,7 +45,7 @@ CLASSIFIERS = [
     'Topic :: Database'
 ]
 
-CONSOLE_SCRIPTS = ['pg_view = pg_view:main']
+CONSOLE_SCRIPTS = ['pg_view.view = pg_view.view:main']
 
 
 class PyTest(TestCommand):

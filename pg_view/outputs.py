@@ -9,7 +9,7 @@ from pg_view import consts as consts
 from pg_view.models.displayers import COLSTATUS, COLHEADER, COLALIGN, COLTYPES
 
 __appname__ = 'pg_view'
-__version__ = '1.3.0'
+__version__ = '1.4.0'
 __author__ = 'Oleksii Kliukin <oleksii.kliukin@zalando.de>'
 __license__ = 'Apache 2.0'
 

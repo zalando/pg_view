@@ -4,7 +4,7 @@ from unittest import TestCase
 import mock
 import psycopg2
 
-from pg_view.models.pg_stat import dbversion_as_float, PgStatCollector
+from pg_view.models.collector_pg import dbversion_as_float, PgStatCollector
 from pg_view.sqls import SHOW_MAX_CONNECTIONS, SELECT_PG_IS_IN_RECOVERY, SELECT_PGSTAT_VERSION_LESS_THAN_92, \
     SELECT_PGSTAT_VERSION_LESS_THAN_96, SELECT_PGSTAT_NEVER_VERSION
 
@@ -56,8 +56,8 @@ class PgStatCollectorTest(TestCase):
         self.assertEqual('unknown', pstype)
         self.assertIsNone(action)
 
-    @mock.patch('pg_view.models.pg_stat.exec_command_with_output', return_value=(1, ''))
-    @mock.patch('pg_view.models.pg_stat.logger')
+    @mock.patch('pg_view.models.collector_pg.exec_command_with_output', return_value=(1, ''))
+    @mock.patch('pg_view.models.collector_pg.logger')
     def test_get_subprocesses_pid_should_return_empty_when_no_cmd_output(self, mocked_logger,
                                                                          mocked_exec_command_with_output):
         collector = PgStatCollector.from_cluster(self.cluster, 1049)
@@ -65,13 +65,13 @@ class PgStatCollectorTest(TestCase):
         mocked_exec_command_with_output.assert_called_with('ps -o pid --ppid 1049 --noheaders')
         mocked_logger.info.assert_called_with("Couldn't determine the pid of subprocesses for 1049")
 
-    @mock.patch('pg_view.models.pg_stat.exec_command_with_output', return_value=(0, '1051\n 1052\n 1206'))
+    @mock.patch('pg_view.models.collector_pg.exec_command_with_output', return_value=(0, '1051\n 1052\n 1206'))
     def test_get_subprocesses_pid_should_return_empty_when_cmd_with_processes(self, mocked_exec_command_with_output):
         collector = PgStatCollector.from_cluster(self.cluster, 1049)
         self.assertEqual([1051, 1052, 1206], collector.get_subprocesses_pid())
         mocked_exec_command_with_output.assert_called_with('ps -o pid --ppid 1049 --noheaders')
 
-    @mock.patch('pg_view.models.pg_stat.psutil.Process')
+    @mock.patch('pg_view.models.collector_pg.psutil.Process')
     def test__get_memory_usage_should_return_uss_when_memory_info_ok(self, mocked_psutil_process):
         mocked_psutil_process.return_value.memory_info.return_value = pmem(
             rss=1769472, vms=252428288, shared=344064, text=5492736, lib=0, data=1355776, dirty=0)
@@ -79,25 +79,25 @@ class PgStatCollectorTest(TestCase):
         memory_usage = collector._get_memory_usage(1049)
         self.assertEqual(1425408, memory_usage)
 
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector._execute_fetchone_query', return_value={})
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector._execute_fetchone_query', return_value={})
     def test__get_max_connections_should_return_zero_when_no_output(self, mocked_execute_fetchone_query):
         collector = PgStatCollector.from_cluster(self.cluster, 1049)
         self.assertEqual(0, collector._get_max_connections())
         mocked_execute_fetchone_query.assert_called_with(SHOW_MAX_CONNECTIONS)
 
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector._execute_fetchone_query', return_value={'max_connections': '1'})
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector._execute_fetchone_query', return_value={'max_connections': '1'})
     def test__get_max_connections_should_return_zero_when_output_ok(self, mocked_execute_fetchone_query):
         collector = PgStatCollector.from_cluster(self.cluster, 1049)
         self.assertEqual(1, collector._get_max_connections())
         mocked_execute_fetchone_query.assert_called_with(SHOW_MAX_CONNECTIONS)
 
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector._execute_fetchone_query', return_value={})
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector._execute_fetchone_query', return_value={})
     def test__get_recovery_status_should_return_unknown_when_no_output(self, mocked_execute_fetchone_query):
         collector = PgStatCollector.from_cluster(self.cluster, 1049)
         self.assertEqual('unknown', collector._get_recovery_status())
         mocked_execute_fetchone_query.assert_called_with(SELECT_PG_IS_IN_RECOVERY)
 
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector._execute_fetchone_query', return_value={'role': 'role'})
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector._execute_fetchone_query', return_value={'role': 'role'})
     def test__get_recovery_status_should_return_zero_when_output_ok(self, mocked_execute_fetchone_query):
         collector = PgStatCollector.from_cluster(self.cluster, 1049)
         self.assertEqual('role', collector._get_recovery_status())
@@ -121,8 +121,8 @@ class PgStatCollectorTest(TestCase):
         collector = PgStatCollector.from_cluster(cluster, 1049)
         self.assertEqual(SELECT_PGSTAT_NEVER_VERSION, collector.get_sql_pgstat_by_version())
 
-    @mock.patch('pg_view.models.pg_stat.os')
-    @mock.patch('pg_view.models.pg_stat.psutil.Process')
+    @mock.patch('pg_view.models.collector_pg.os')
+    @mock.patch('pg_view.models.collector_pg.psutil.Process')
     def test__read_proc_should_return_data_when_process_ok(self, mocked_psutil_process, mocked_os):
         collector = PgStatCollector.from_cluster(self.cluster, 1049)
         mocked_os.sysconf.return_value.SC_PAGE_SIZE = 4096
@@ -158,8 +158,8 @@ class PgStatCollectorTest(TestCase):
         }
         self.assertEqual(expected_proc_stats, proc_stats)
 
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector._get_psinfo')
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector._get_memory_usage')
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector._get_psinfo')
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector._get_memory_usage')
     def test_get_additional_info_should_update_when_not_backend_and_action(self, mocked__get_memory_usage,
                                                                            mocked__get_psinfo):
         collector = PgStatCollector.from_cluster(self.cluster, 1049)
@@ -168,8 +168,8 @@ class PgStatCollectorTest(TestCase):
         info = collector.get_additional_info(1049, {'cmdline': ''}, [10])
         self.assertEqual({'type': 'vacuum', 'query': 'query', 'cmdline': '', 'uss': 10}, info)
 
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector._get_psinfo')
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector._get_memory_usage')
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector._get_psinfo')
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector._get_memory_usage')
     def test_get_additional_info_should_update_when_not_backend_and_not_action(self, mocked__get_memory_usage,
                                                                                mocked__get_psinfo):
         collector = PgStatCollector.from_cluster(self.cluster, 1049)
@@ -178,8 +178,8 @@ class PgStatCollectorTest(TestCase):
         info = collector.get_additional_info(1049, {'cmdline': ''}, [10])
         self.assertEqual({'type': 'vacuum', 'cmdline': '', 'uss': 10}, info)
 
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector._get_psinfo')
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector._get_memory_usage')
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector._get_psinfo')
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector._get_memory_usage')
     def test_get_additional_info_should_update_when_backend_and_not_active(self, mocked__get_memory_usage,
                                                                            mocked__get_psinfo):
         collector = PgStatCollector.from_cluster(self.cluster, [1011])
@@ -188,8 +188,8 @@ class PgStatCollectorTest(TestCase):
         info = collector.get_additional_info(1049, {'cmdline': ''}, {1049: {'query': 'idle'}})
         self.assertEqual({'type': 'backend', 'cmdline': ''}, info)
 
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector._get_psinfo')
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector._get_memory_usage')
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector._get_psinfo')
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector._get_memory_usage')
     def test_get_additional_info_should_update_when_backend_and_active_query_not_idle(self, mocked__get_memory_usage,
                                                                                       mocked__get_psinfo):
         collector = PgStatCollector.from_cluster(self.cluster, [1011])
@@ -198,8 +198,8 @@ class PgStatCollectorTest(TestCase):
         info = collector.get_additional_info(1049, {'cmdline': ''}, {1049: {'query': 'not idle'}})
         self.assertEqual({'type': 'backend', 'cmdline': '', 'uss': 10}, info)
 
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector._get_psinfo')
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector._get_memory_usage')
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector._get_psinfo')
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector._get_memory_usage')
     def test_get_additional_info_should_update_when_backend_and_active_pid_in_track_pids(self, mocked__get_memory_usage,
                                                                                          mocked__get_psinfo):
         collector = PgStatCollector.from_cluster(self.cluster, [1049])
@@ -246,8 +246,8 @@ class PgStatCollectorTest(TestCase):
         collector.pgcon = None
         self.assertEqual('/var/lib/postgresql/9.3/main 9.3 (offline)\n', collector.ncurses_produce_prefix())
 
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector._get_max_connections', return_value=10)
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector._get_recovery_status', return_value='role')
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector._get_max_connections', return_value=10)
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector._get_recovery_status', return_value='role')
     def test_ncurses_produce_prefix_should_return_online_when_pgcon(self, mocked__status, mocked__max_conn):
         self.cluster['pgcon'].get_parameter_status.return_value = '9.3'
         collector = PgStatCollector.from_cluster(self.cluster, [1049])
@@ -256,11 +256,11 @@ class PgStatCollectorTest(TestCase):
             collector.ncurses_produce_prefix()
         )
 
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector._get_memory_usage', return_value=10)
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector._read_pg_stat_activity')
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector.get_subprocesses_pid', return_value=[1010])
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector._read_proc')
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector._do_refresh')
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector._get_memory_usage', return_value=10)
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector._read_pg_stat_activity')
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector.get_subprocesses_pid', return_value=[1010])
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector._read_proc')
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector._do_refresh')
     def test_refresh_should_return_results_when_ok(self, mocked__do_refresh, mocked__read_proc,
                                                    mocked_get_subprocesses_pid, mocked__read_pg_stat_activity,
                                                    mocked___get_memory_usage):
@@ -318,12 +318,12 @@ class PgStatCollectorTest(TestCase):
         self.assertEqual(expected_results, result)
         mocked__do_refresh.assert_called_with(result)
 
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector._try_reconnect')
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector._get_memory_usage', return_value=10)
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector._read_pg_stat_activity')
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector.get_subprocesses_pid', return_value=[1010])
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector._read_proc')
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector._do_refresh')
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector._try_reconnect')
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector._get_memory_usage', return_value=10)
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector._read_pg_stat_activity')
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector.get_subprocesses_pid', return_value=[1010])
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector._read_proc')
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector._do_refresh')
     def test_refresh_should_try_reconnect_whne_no_pgcon(self, mocked__do_refresh, mocked__read_proc,
                                                         mocked_get_subprocesses_pid,
                                                         mocked__read_pg_stat_activity, mocked___get_memory_usage,
@@ -337,12 +337,12 @@ class PgStatCollectorTest(TestCase):
         mocked_try_reconnect.assert_called_with()
         mocked__do_refresh.assert_called_with(result)
 
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector._try_reconnect')
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector._get_memory_usage', return_value=10)
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector._read_pg_stat_activity')
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector.get_subprocesses_pid', return_value=[1010])
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector._read_proc')
-    @mock.patch('pg_view.models.pg_stat.PgStatCollector._do_refresh')
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector._try_reconnect')
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector._get_memory_usage', return_value=10)
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector._read_pg_stat_activity')
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector.get_subprocesses_pid', return_value=[1010])
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector._read_proc')
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector._do_refresh')
     def test_refresh_should_return_none_when_try_reconnect_raises_error(self, mocked__do_refresh, mocked__read_proc,
                                                                         mocked_get_subprocesses_pid,
                                                                         mocked__read_pg_stat_activity,

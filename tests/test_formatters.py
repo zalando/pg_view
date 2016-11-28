@@ -2,13 +2,10 @@ from datetime import timedelta
 from unittest import TestCase
 
 import mock
-from multiprocessing import JoinableQueue
 
-from pg_view.models.consumers import DiskCollectorConsumer
-from pg_view.models.formatters import StatusFormatter
-from pg_view.models.host_stat import HostStatCollector
-from pg_view.models.partition_stat import PartitionStatCollector
-from pg_view.models.pg_stat import PgStatCollector
+from pg_view.formatters import StatusFormatter
+from pg_view.models.collector_host import HostStatCollector
+from pg_view.models.collector_pg import PgStatCollector
 
 
 class StatusFormatterTest(TestCase):

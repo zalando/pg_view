@@ -20,21 +20,21 @@ sys.path.insert(0, path)
 
 import pg_view.consts
 from pg_view.factories import get_displayer_by_class
-from pg_view.models.base import StatCollector
+from pg_view.models.collector_base import BaseStatCollector
 from pg_view.models.displayers import COLALIGN, COLSTATUS, COLTYPES, COLHEADER, OUTPUT_METHOD
-import pg_view.models.base
-from pg_view.models.host_stat import HostStatCollector
-from pg_view.models.memory_stat import MemoryStatCollector
-from pg_view.models.partition_stat import PartitionStatCollector, DetachedDiskStatCollector
-from pg_view.models.pg_stat import PgStatCollector
-from pg_view.models.system_stat import SystemStatCollector
+import pg_view.models.collector_base
+from pg_view.models.collector_host import HostStatCollector
+from pg_view.models.collector_memory import MemoryStatCollector
+from pg_view.models.collector_partition import PartitionStatCollector, DetachedDiskStatCollector
+from pg_view.models.collector_pg import PgStatCollector
+from pg_view.models.collector_system import SystemStatCollector
 from pg_view.validators import get_valid_output_methods, output_method_is_valid
 from pg_view.models.consumers import DiskCollectorConsumer
-from pg_view.models.db_client import make_cluster_desc, DBClient
-from pg_view.models.exceptions import NotConnectedException, NotPidConnectionException, DuplicatedConnectionError
-from pg_view.models.parsers import ProcWorker
+from pg_view.models.clients import make_cluster_desc, DBClient
+from pg_view.parsers import ProcWorker
 from pg_view.helpers import process_groups, read_configuration, validate_autodetected_conn_param
-from pg_view.exceptions import InvalidConnParam
+from pg_view.exceptions import InvalidConnParam, NotConnectedException, NotPidConnectionException, \
+    DuplicatedConnectionError
 
 __appname__ = 'pg_view'
 __version__ = '1.3.0'
@@ -743,7 +743,7 @@ def main():
             try:
                 cluster = db_client.establish_user_defined_connection(instance, clusters)
             except (NotConnectedException, NotPidConnectionException):
-                pg_view.models.base.logger.error('failed to acquire details about the database cluster '
+                pg_view.models.collector_base.logger.error('failed to acquire details about the database cluster '
                                                  '{0}, the server will be skipped'.format(instance))
             except DuplicatedConnectionError:
                 pass
@@ -757,7 +757,7 @@ def main():
         try:
             cluster = db_client.establish_user_defined_connection(instance, clusters)
         except (NotConnectedException, NotPidConnectionException):
-            pg_view.models.base.logger.error("unable to continue with cluster {0}".format(instance))
+            pg_view.models.collector_base.logger.error("unable to continue with cluster {0}".format(instance))
         except DuplicatedConnectionError:
             pass
         else:
@@ -780,7 +780,7 @@ def main():
             try:
                 pgcon = psycopg2.connect(**conn)
             except Exception as e:
-                pg_view.models.base.logger.error('PostgreSQL exception {0}'.format(e))
+                pg_view.models.collector_base.logger.error('PostgreSQL exception {0}'.format(e))
                 pgcon = None
             if pgcon:
                 desc = make_cluster_desc(
@@ -797,8 +797,8 @@ def main():
     groups = {}
     try:
         if not clusters:
-            pg_view.models.base.logger.error('No suitable PostgreSQL instances detected, exiting...')
-            pg_view.models.base.logger.error('hint: use -v for details, or specify connection parameters '
+            pg_view.models.collector_base.logger.error('No suitable PostgreSQL instances detected, exiting...')
+            pg_view.models.collector_base.logger.error('hint: use -v for details, or specify connection parameters '
                                              'manually in the configuration file (-c)')
             sys.exit(1)
 
@@ -823,9 +823,9 @@ def main():
             collectors.append(pg_collector)
 
         # we don't want to mix diagnostics messages with useful output, so we log the former into a file.
-        pg_view.models.base.logger.removeHandler(log_stderr)
+        pg_view.models.collector_base.logger.removeHandler(log_stderr)
         loop(collectors, consumer, groups, output_method)
-        pg_view.models.base.logger.addHandler(log_stderr)
+        pg_view.models.collector_base.logger.addHandler(log_stderr)
     except KeyboardInterrupt:
         pass
     except curses.error:
@@ -847,9 +847,9 @@ def setup_logger(options):
         logging.basicConfig(format='%(levelname)s: %(asctime)-15s %(message)s', filename=LOG_FILE_NAME)
     else:
         logging.basicConfig(format='%(levelname)s: %(asctime)-15s %(message)s')
-    pg_view.models.base.logger.setLevel((logging.INFO if options.verbose else logging.ERROR))
+    pg_view.models.collector_base.logger.setLevel((logging.INFO if options.verbose else logging.ERROR))
     log_stderr = logging.StreamHandler()
-    pg_view.models.base.logger.addHandler(log_stderr)
+    pg_view.models.collector_base.logger.addHandler(log_stderr)
     return log_stderr
 
 

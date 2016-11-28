@@ -5,12 +5,12 @@ from multiprocessing import cpu_count
 import os
 import psutil
 
-from pg_view.models.base import StatCollector, logger
+from pg_view.formatters import StatusFormatter
+from pg_view.models.collector_base import BaseStatCollector, logger
 from pg_view.models.displayers import COLHEADER
-from pg_view.models.formatters import StatusFormatter
 
 
-class HostStatCollector(StatCollector):
+class HostStatCollector(BaseStatCollector):
     """ General system-wide statistics """
 
     def __init__(self):

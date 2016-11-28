@@ -3,11 +3,11 @@ import psutil
 if psutil.LINUX:
     from psutil._pslinux import CLOCK_TICKS, open_binary, get_procfs_path
 
-from pg_view.models.base import StatCollector, _remap_params
+from pg_view.models.collector_base import BaseStatCollector, _remap_params
 from pg_view.consts import RD
 
 
-class SystemStatCollector(StatCollector):
+class SystemStatCollector(BaseStatCollector):
     """ Collect global system statistics, i.e. CPU/IO usage, not including memory. """
 
     def __init__(self):

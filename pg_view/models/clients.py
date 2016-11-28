@@ -1,6 +1,6 @@
 import sys
 
-from pg_view.models.exceptions import NotConnectedException, NotPidConnectionException, DuplicatedConnectionError
+from pg_view.exceptions import NotConnectedException, NotPidConnectionException, DuplicatedConnectionError
 
 if sys.hexversion >= 0x03000000:
     pass
@@ -9,9 +9,9 @@ else:
 
 import psycopg2
 
-from pg_view.models.parsers import ProcNetParser, ProcWorker
-from pg_view.models.pg_stat import dbversion_as_float
-from pg_view.models.base import logger
+from pg_view.parsers import ProcNetParser, ProcWorker
+from pg_view.models.collector_pg import dbversion_as_float
+from pg_view.models.collector_base import logger
 
 
 def read_postmaster_pid(work_directory, dbname):

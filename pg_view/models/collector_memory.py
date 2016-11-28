@@ -1,14 +1,14 @@
 import psutil
 
-from pg_view.models.formatters import StatusFormatter
+from pg_view.formatters import StatusFormatter
 
 if psutil.LINUX:
     from psutil._pslinux import get_procfs_path, open_binary
 
-from pg_view.models.base import StatCollector, warn_non_optional_column, _remap_params
+from pg_view.models.collector_base import BaseStatCollector, warn_non_optional_column, _remap_params
 
 
-class MemoryStatCollector(StatCollector):
+class MemoryStatCollector(BaseStatCollector):
     """ Collect memory-related statistics """
 
     def __init__(self):

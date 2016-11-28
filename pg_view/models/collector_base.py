@@ -1,6 +1,8 @@
 import logging
 import time
 
+from abc import ABCMeta
+
 from pg_view.consts import NCURSES_CUSTOM_OUTPUT_FIELDS
 from pg_view.helpers import UnitConverter
 
@@ -19,10 +21,12 @@ def _remap_params(psutil_data, mapping):
     return mapped_data
 
 
-class StatCollector(object):
+class BaseStatCollector(object):
     """ Generic class to store abstract function and data required to collect system statistics,
         produce diffs and emit output rows.
     """
+    __metaclass__ = ABCMeta
+
     def __init__(self, ticks_per_refresh=1, produce_diffs=True):
         self.rows_prev = []
         self.rows_cur = []

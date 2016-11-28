@@ -5,7 +5,7 @@ import psutil
 import re
 
 from pg_view.helpers import readlines_file
-from pg_view.models.base import logger
+from pg_view.models.collector_base import logger
 
 
 connection_params = namedtuple('connection_params', ['pid', 'version', 'dbname'])

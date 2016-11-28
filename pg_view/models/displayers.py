@@ -6,7 +6,7 @@ from abc import ABCMeta
 
 from pg_view.consts import NCURSES_CUSTOM_OUTPUT_FIELDS
 from pg_view.helpers import enum
-from pg_view.models.base import logger
+from pg_view.models.collector_base import logger
 
 COLALIGN = enum(ca_none=0, ca_left=1, ca_center=2, ca_right=3)
 COLSTATUS = enum(cs_ok=0, cs_warning=1, cs_critical=2)

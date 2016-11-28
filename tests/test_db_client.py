@@ -2,11 +2,11 @@ from unittest import TestCase
 
 import mock
 
-from pg_view.models.db_client import read_postmaster_pid, make_cluster_desc, DBConnection, DBConnectionFinder
+from pg_view.models.clients import read_postmaster_pid, make_cluster_desc, DBConnection, DBConnectionFinder
 
 
 class DbClientUtilsTest(TestCase):
-    @mock.patch('pg_view.models.db_client.logger')
+    @mock.patch('pg_view.models.clients.logger')
     @mock.patch('__builtin__.open')
     def test_read_postmaster_pid_should_return_none_when_error(self, mocked_open, mocked_logger):
         mocked_open.side_effect = Exception
@@ -16,7 +16,7 @@ class DbClientUtilsTest(TestCase):
         mocked_logger.error.assert_called_with(
             expected_msg.format(name='default', wd='/var/lib/postgresql/9.3/main'))
 
-    @mock.patch('pg_view.models.db_client.logger')
+    @mock.patch('pg_view.models.clients.logger')
     @mock.patch('__builtin__.open')
     def test_read_postmaster_pid_should_return_none_when_error_strip(self, mocked_open, mocked_logger):
         mocked_open.return_value.readline.return_value = []
@@ -49,9 +49,9 @@ class DbClientUtilsTest(TestCase):
 
 
 class DBConnectionFinderTest(TestCase):
-    @mock.patch('pg_view.models.db_client.logger')
-    @mock.patch('pg_view.models.db_client.DBConnectionFinder.detect_with_proc_net', return_value=None)
-    @mock.patch('pg_view.models.db_client.ProcWorker')
+    @mock.patch('pg_view.models.clients.logger')
+    @mock.patch('pg_view.models.clients.DBConnectionFinder.detect_with_proc_net', return_value=None)
+    @mock.patch('pg_view.models.clients.ProcWorker')
     def test_detect_db_connection_arguments_should_return_none_when_no_conn_args(self, mocked_proc_worker, mocked_detect_with_proc_net, mocked_logger):
         finder = DBConnectionFinder('workdir', 1049, '9.3', 'username', 'atlas')
         mocked_proc_worker.return_value.detect_with_postmaster_pid.return_value = None

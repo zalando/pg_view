@@ -1,4 +1,3 @@
-import sys
 from collections import namedtuple
 from unittest import TestCase
 
@@ -6,12 +5,8 @@ import mock
 import os
 
 from pg_view.helpers import open_universal
+from pg_view.models.collector_memory import MemoryStatCollector
 from tests.common import TEST_DIR
-
-path = os.path.dirname(os.path.dirname(__file__))
-sys.path.insert(0, path)
-
-from pg_view.models.memory_stat import MemoryStatCollector
 
 
 class MemoryStatCollectorTest(TestCase):
@@ -30,8 +25,8 @@ class MemoryStatCollectorTest(TestCase):
         self.assertIn('buffers', refreshed_data)
         self.assertIn('committed_as', refreshed_data)
 
-    @mock.patch('pg_view.models.system_stat.psutil.virtual_memory')
-    @mock.patch('pg_view.models.memory_stat.psutil.LINUX', False)
+    @mock.patch('pg_view.models.collector_system.psutil.virtual_memory')
+    @mock.patch('pg_view.models.collector_memory.psutil.LINUX', False)
     def test_read_memory_data_should_return_data_when_cpu_virtual_memory_for_macos(self, mocked_virtual_memory):
         linux_svmem = namedtuple('linux_svmem', 'total free buffers cached')
         mocked_virtual_memory.return_value = linux_svmem(
@@ -49,8 +44,8 @@ class MemoryStatCollectorTest(TestCase):
         }
         self.assertEqual(expected_data, refreshed_cpu)
 
-    @mock.patch('pg_view.models.memory_stat.open_binary')
-    @mock.patch('pg_view.models.system_stat.psutil.virtual_memory')
+    @mock.patch('pg_view.models.collector_memory.open_binary')
+    @mock.patch('pg_view.models.collector_system.psutil.virtual_memory')
     def test__read_memory_data_should_parse_data_from_proc_meminfo(self, mocked_virtual_memory, mocked_open_universal):
         meminfo_ok_path = os.path.join(TEST_DIR, 'proc_files', 'meminfo_ok')
         linux_svmem = namedtuple('linux_svmem', 'total free buffers cached')
@@ -84,10 +79,11 @@ class MemoryStatCollectorTest(TestCase):
         self.assertFalse(self.collector._is_commit({'CommitLimit': 10, 'Commited_AS': 20}))
 
     def test__calculate_kb_left_until_limit_should_return_result(self):
-        data = self.collector.calculate_kb_left_until_limit('commit_left', {'CommitLimit': 30, 'Committed_AS': 20}, True)
+        data = self.collector.calculate_kb_left_until_limit('commit_left', {'CommitLimit': 30, 'Committed_AS': 20},
+                                                            True)
         self.assertEqual(10, data)
 
-    @mock.patch('pg_view.models.base.logger')
+    @mock.patch('pg_view.models.collector_base.logger')
     def test__calculate_kb_left_until_limit_should_log_warn_when_non_optional_and_not_commit(self, mocked_logger):
         data = self.collector.calculate_kb_left_until_limit('commit_left', {}, False)
         self.assertIsNone(data)

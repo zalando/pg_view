@@ -1,15 +1,8 @@
-import sys
 from multiprocessing import JoinableQueue
 from unittest import TestCase
 
-import os
-
+from pg_view.models.collector_partition import PartitionStatCollector
 from pg_view.models.consumers import DiskCollectorConsumer
-
-path = os.path.dirname(os.path.dirname(__file__))
-sys.path.insert(0, path)
-
-from pg_view.models.partition_stat import PartitionStatCollector
 
 
 class PartitionStatCollectorTest(TestCase):
@@ -38,5 +31,3 @@ class PartitionStatCollectorTest(TestCase):
         self._assert_data_has_proper_structure(data_type)
         xlog_type = refreshed_data[1]
         self._assert_data_has_proper_structure(xlog_type)
-
-

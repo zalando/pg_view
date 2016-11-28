@@ -59,7 +59,7 @@ def read_configuration(config_file_name):
     config = ConfigParser.ConfigParser()
     f = config.read(config_file_name)
     if not f:
-        from pg_view.models.base import logger
+        from pg_view.models.collector_base import logger
         logger.error('Configuration file {0} is empty or not found'.format(config_file_name))
         return None
 
@@ -91,7 +91,7 @@ def exec_command_with_output(cmdline):
     proc = subprocess.Popen(cmdline, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
     ret = proc.wait()
     if ret != 0:
-        from pg_view.models.base import logger
+        from pg_view.models.collector_base import logger
         logger.info('The command {cmd} returned a non-zero exit code'.format(cmd=cmdline))
     return ret, proc.stdout.read().strip()
 

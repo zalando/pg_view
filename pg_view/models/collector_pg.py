@@ -8,10 +8,10 @@ import psycopg2.extras
 import re
 
 from pg_view.consts import RD
+from pg_view.formatters import StatusFormatter
 from pg_view.helpers import exec_command_with_output
-from pg_view.models.base import StatCollector, logger
+from pg_view.models.collector_base import BaseStatCollector, logger
 from pg_view.models.displayers import COLALIGN
-from pg_view.models.formatters import StatusFormatter
 from pg_view.sqls import SELECT_PGSTAT_VERSION_LESS_THAN_92, SELECT_PGSTAT_VERSION_LESS_THAN_96, \
     SELECT_PGSTAT_NEVER_VERSION, SELECT_PG_IS_IN_RECOVERY, SHOW_MAX_CONNECTIONS
 
@@ -35,7 +35,7 @@ def process_sort_key(process):
     return process.get('age', maxsize)
 
 
-class PgStatCollector(StatCollector):
+class PgStatCollector(BaseStatCollector):
     """ Collect PostgreSQL-related statistics """
 
     def __init__(self, pgcon, reconnect, pid, dbname, dbver, always_track_pids):

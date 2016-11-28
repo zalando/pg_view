@@ -5,12 +5,12 @@ import os
 import psutil
 
 from pg_view.consts import RD, TICK_LENGTH, SECTOR_SIZE
-from pg_view.models.base import StatCollector, logger
+from pg_view.formatters import StatusFormatter
+from pg_view.models.collector_base import BaseStatCollector, logger
 from pg_view.models.displayers import COLALIGN
-from pg_view.models.formatters import StatusFormatter
 
 
-class PartitionStatCollector(StatCollector):
+class PartitionStatCollector(BaseStatCollector):
     """Collect statistics about PostgreSQL partitions """
     DATA_NAME = 'data'
     XLOG_NAME = 'xlog'

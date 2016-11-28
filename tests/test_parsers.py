@@ -1,10 +1,10 @@
-import os
 from unittest import TestCase
 
 import mock
+import os
 from psutil._common import sconn
 
-from pg_view.models.parsers import ProcNetParser, get_dbname_from_path, ProcWorker
+from pg_view.parsers import ProcNetParser, get_dbname_from_path, ProcWorker
 from tests.common import TEST_DIR
 
 

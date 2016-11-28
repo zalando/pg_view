@@ -1,14 +1,13 @@
 import subprocess
-
-import os
 from unittest import TestCase
 
 import mock
+import os
 
 from pg_view.exceptions import InvalidConnParam
 from pg_view.helpers import UnitConverter, read_configuration, validate_autodetected_conn_param, \
     exec_command_with_output
-from pg_view.models.parsers import connection_params
+from pg_view.parsers import connection_params
 from tests.common import TEST_DIR
 
 
@@ -50,7 +49,7 @@ class ReadConfigurationTest(TestCase):
     def test_read_configuration_should_return_none_when_not_config_file_name(self):
         self.assertIsNone(read_configuration(None))
 
-    @mock.patch('pg_view.models.base.logger')
+    @mock.patch('pg_view.models.collector_base.logger')
     def test_read_configuration_should_return_none_when_cannot_read_file(self, mocked_logger):
         config_file_path = os.path.join(TEST_DIR, 'not-existing')
         self.assertIsNone(read_configuration(config_file_path))
@@ -102,7 +101,7 @@ class ValidateConnParamTest(TestCase):
 
 
 class CommandExecutorTest(TestCase):
-    @mock.patch('pg_view.models.base.logger')
+    @mock.patch('pg_view.models.collector_base.logger')
     @mock.patch('pg_view.helpers.subprocess.Popen')
     def test_exec_command_with_output_should_log_info_when_cmd_return_not_zero_exit_code(self, mocked_popen, mocked_logger):
         cmdline = 'ps -o pid --ppid 1049 --noheaders'
@@ -117,7 +116,7 @@ class CommandExecutorTest(TestCase):
         self.assertEqual(1, ret)
         self.assertEqual('1051\n 1052\n 1053\n 1054\n 1055\n 11139\n 26585', stdout)
 
-    @mock.patch('pg_view.models.base.logger')
+    @mock.patch('pg_view.models.collector_base.logger')
     @mock.patch('pg_view.helpers.subprocess.Popen')
     def test_exec_command_with_output_should_return_ret_stdout_when_cmd_return_zero_exit_code(self, mocked_popen, mocked_logger):
         cmdline = 'ps -o pid --ppid 1049 --noheaders'

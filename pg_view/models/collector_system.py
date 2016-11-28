@@ -1,8 +1,5 @@
 import psutil
 
-if psutil.LINUX:
-    from psutil._pslinux import CLOCK_TICKS, open_binary, get_procfs_path
-
 from pg_view.models.collector_base import BaseStatCollector, _remap_params
 from pg_view.consts import RD
 
@@ -160,10 +157,7 @@ class SystemStatCollector(BaseStatCollector):
 
         # TODO: Fix it
         cpu_from_psutil_dict = psutil.cpu_times()._asdict()
-        if psutil.LINUX:
-            cpu_times = {k: v * CLOCK_TICKS for k, v in cpu_from_psutil_dict.items()}
-        else:
-            cpu_times = {k: v for k, v in cpu_from_psutil_dict.items()}
+        cpu_times = {k: v for k, v in cpu_from_psutil_dict.items()}
         return _remap_params(cpu_times, default_key_mapping)
 
     def _refresh_cpu_time_values(self, cpu_times):
@@ -177,8 +171,7 @@ class SystemStatCollector(BaseStatCollector):
     def _cpu_time_diff(self, colname, current, previous):
         if current.get(colname) and previous.get(colname) and self.cpu_time_diff > 0:
             return (current[colname] - previous[colname]) / self.cpu_time_diff
-        else:
-            return None
+        return None
 
     def output(self, displayer):
         return super(SystemStatCollector, self).output(
@@ -198,6 +191,7 @@ class SystemStatCollector(BaseStatCollector):
         return _remap_params(cpu_stats, default_key_mapping)
 
     def get_missing_cpu_stat_from_file(self):
+        from psutil._pslinux import open_binary, get_procfs_path
         missing_data = {}
         with open_binary('%s/stat' % get_procfs_path()) as f:
             for line in f:

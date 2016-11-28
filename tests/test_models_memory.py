@@ -1,8 +1,10 @@
+import unittest
 from collections import namedtuple
 from unittest import TestCase
 
 import mock
 import os
+import psutil
 
 from pg_view.helpers import open_universal
 from pg_view.models.collector_memory import MemoryStatCollector
@@ -44,12 +46,13 @@ class MemoryStatCollectorTest(TestCase):
         }
         self.assertEqual(expected_data, refreshed_cpu)
 
-    @mock.patch('pg_view.models.collector_memory.open_binary')
-    @mock.patch('pg_view.models.collector_system.psutil.virtual_memory')
-    def test__read_memory_data_should_parse_data_from_proc_meminfo(self, mocked_virtual_memory, mocked_open_universal):
+    @unittest.skipUnless(psutil.LINUX, "Linux only")
+    @mock.patch('pg_view.models.collector_memory.psutil._pslinux.open_binary')
+    @mock.patch('pg_view.models.collector_memory.psutil.virtual_memory')
+    def test__read_memory_data_should_parse_data_from_proc_meminfo_when_linux(self, mocked_virtual_memory, mocked_open_binary):
         meminfo_ok_path = os.path.join(TEST_DIR, 'proc_files', 'meminfo_ok')
         linux_svmem = namedtuple('linux_svmem', 'total free buffers cached')
-        mocked_open_universal.return_value = open_universal(meminfo_ok_path)
+        mocked_open_binary.return_value = open_universal(meminfo_ok_path)
         mocked_virtual_memory.return_value = linux_svmem(
             total=2048 * 1024, free=1024 * 1024, buffers=3072 * 1024, cached=4096 * 1024
         )
@@ -62,7 +65,6 @@ class MemoryStatCollectorTest(TestCase):
             'Dirty': 36,
             'Committed_AS': 329264
         }
-
         refreshed_data = self.collector.read_memory_data()
         self.assertEqual(expected_data, refreshed_data)
 

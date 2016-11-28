@@ -1,8 +1,10 @@
+import unittest
 from collections import namedtuple
 from unittest import TestCase
 
 import mock
 import os
+import psutil
 
 from pg_view.models.collector_system import SystemStatCollector
 from tests.common import TEST_DIR
@@ -52,7 +54,8 @@ class SystemStatCollectorTest(TestCase):
         mocked__refresh_cpu_time_values.assert_called_once_with(cpu_times)
         mocked__do_refresh.assert_called_once_with([merged_data])
 
-    @mock.patch('pg_view.models.collector_system.open_binary')
+    @unittest.skipUnless(psutil.LINUX, "Linux only")
+    @mock.patch('pg_view.models.collector_system.psutil._pslinux.open_binary')
     def test_get_missing_cpu_stat_from_file_should_parse_data_from_proc_stat(self, mocked_open):
         cpu_info_ok = os.path.join(TEST_DIR, 'proc_files', 'cpu_info_ok')
         mocked_open.return_value = open(cpu_info_ok, "rU")
@@ -68,8 +71,8 @@ class SystemStatCollectorTest(TestCase):
         )
         refreshed_cpu = self.collector.read_cpu_times()
         expected_data = {
-            'guest': 0.0, 'idle': 10569003.0, 'iowait': 204.99999999999997, 'irq': 1.0,
-            'softirq': 5483.0, 'steal': 0.0, 'stime': 77515.0, 'utime': 84831.0
+            'guest': 0.0, 'idle': 105690.03, 'iowait': 2.05, 'irq': 0.01, 'softirq': 54.83,
+            'steal': 0.0, 'stime': 775.15, 'utime': 848.31
         }
         self.assertEqual(expected_data, refreshed_cpu)
 
@@ -80,8 +83,8 @@ class SystemStatCollectorTest(TestCase):
             user=49618.61, system=28178.55, idle=341331.57)
         refreshed_cpu = self.collector.read_cpu_times()
         expected_data = {
-            'guest': 0.0, 'idle': 34133157.0, 'iowait': 0.0, 'irq': 0.0,
-            'softirq': 0.0, 'steal': 0.0, 'stime': 2817855.0, 'utime': 4961861.0
+            'guest': 0.0, 'idle': 341331.57, 'iowait': 0.0, 'irq': 0.0, 'softirq': 0.0,
+            'steal': 0.0, 'stime': 28178.55, 'utime': 49618.61
         }
         self.assertEqual(expected_data, refreshed_cpu)
 

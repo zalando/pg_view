@@ -31,7 +31,7 @@ class HostStatCollectorTest(TestCase):
     @freeze_time('2016-10-31 00:25:00')
     def test_refresh_should_call_uptime(self, mocked_boot_time):
         refreshed_data = self.collector._read_uptime()
-        self.assertEqual({'uptime': '10:50:04'}, refreshed_data)
+        self.assertEqual({'uptime': '9:50:04'}, refreshed_data)
 
     @mock.patch('pg_view.models.collector_host.socket.gethostname', return_value='Macbook-Pro')
     def test_refresh_should_call_hostname(self, mocked_gethostname):

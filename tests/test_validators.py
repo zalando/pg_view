@@ -1,10 +1,4 @@
-import sys
 from unittest import TestCase
-
-import os
-
-path = os.path.dirname(os.path.dirname(__file__))
-sys.path.insert(0, path)
 
 from pg_view.validators import output_method_is_valid
 

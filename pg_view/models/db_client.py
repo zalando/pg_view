@@ -66,7 +66,6 @@ class DBConnection(object):
             result['user'] = self.user
         if self.database:
             result['database'] = self.database
-        # result['user'] = 'radek'
         return result
 
 
@@ -78,10 +77,7 @@ class DBConnectionFinder(object):
         self.pid = ppid
         self.version = dbver
 
-        # self.username = username or 'radek'
         self.username = username
-
-        self.dbname = dbname or 'atlas'
         self.dbname = dbname
         self.proc_worker = ProcWorker()
 
@@ -123,7 +119,6 @@ class DBConnectionFinder(object):
     def can_connect_with_connection_arguments(self, connection):
         """ check that we can connect given the specified arguments """
         conn = connection.build_connection()
-        # conn.update({'user': 'radek'})
         try:
             test_conn = psycopg2.connect(**conn)
             test_conn.close()

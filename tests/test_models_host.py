@@ -1,3 +1,5 @@
+import json
+
 import os
 from unittest import TestCase
 
@@ -5,6 +7,8 @@ import mock
 import sys
 
 from freezegun import freeze_time
+
+from pg_view.models.base import OUTPUT_METHOD, ColumnType
 
 path = os.path.dirname(os.path.dirname(__file__))
 sys.path.insert(0, path)
@@ -58,3 +62,83 @@ class HostStatCollectorTest(TestCase):
         refreshed_data = self.collector._read_cpus()
         self.assertEqual({'cores': 0}, refreshed_data)
         mocked_logging.error.assert_called_with('multiprocessing does not support cpu_count')
+
+    def test_output_should_raise_not_support_when_unknown_method(self):
+        with self.assertRaises(Exception):
+            self.collector.output('unknown')
+
+    def test_output_should_return_json_when_output_json(self):
+        faked_refresh_data = {
+            'sysname': 'Linux 3.13.0-100-generic',
+            'uptime': '2 days, 22:04:58',
+            'loadavg': '0.06 0.04 0.05',
+            'hostname': 'vagrant-ubuntu-trusty-64',
+            'cores': 1
+        }
+
+        self.collector._do_refresh([faked_refresh_data])
+        json_data = self.collector.output(OUTPUT_METHOD.json)
+        expected_resp = {
+            'data': [{
+                'cores': 1,
+                'host': 'vagrant-ubuntu-trusty-64',
+                'load average': '0.06 0.04 0.05',
+                'name': 'Linux 3.13.0-100-generic',
+                'up': '2 days, 22:04:58'
+            }],
+            'type': 'host'
+        }
+        self.assertEqual(expected_resp, json.loads(json_data))
+
+    def test_output_should_return_console_output_when_console(self):
+        faked_refresh_data = {
+            'sysname': 'Linux 3.13.0-100-generic',
+            'uptime': '2 days, 22:04:58',
+            'loadavg': '0.06 0.04 0.05',
+            'hostname': 'vagrant-ubuntu-trusty-64',
+            'cores': 1
+        }
+
+        self.collector._do_refresh([faked_refresh_data])
+        console_data = self.collector.output(OUTPUT_METHOD.console)
+        expected_resp = [
+            'Host statistics', 'load average   up               host                     cores name                    ',
+            '0.06 0.04 0.05 2 days, 22:04:58 vagrant-ubuntu-trusty-64 1     Linux 3.13.0-100-generic', '\n']
+        self.assertEqual('\n'.join(expected_resp), console_data)
+
+    def test_output_should_return_ncurses_output_when_ncurses(self):
+        faked_refresh_data = {
+            'sysname': 'Linux 3.13.0-100-generic',
+            'uptime': '2 days, 22:04:58',
+            'loadavg': '0.06 0.04 0.05',
+            'hostname': 'vagrant-ubuntu-trusty-64',
+            'cores': 1
+        }
+
+        self.collector._do_refresh([faked_refresh_data])
+        console_data = self.collector.output(OUTPUT_METHOD.curses)
+        expected_resp = {
+            'host': {
+                'rows': [{
+                    'cores': ColumnType(value='1', header='cores', header_position=2),
+                    'host': ColumnType(value='vagrant-ubuntu-trusty-64', header='', header_position=None),
+                    'load average': ColumnType(value='0.06 0.04 0.05', header='load average', header_position=1),
+                    'name': ColumnType(value='Linux 3.13.0-100-generic', header='', header_position=None),
+                    'up': ColumnType(value='2 days, 22:04:58', header='up', header_position=1)}],
+                'hide': [],
+                'noautohide': {'cores': True, 'host': True, 'load average': True, 'name': True, 'up': True},
+                'prepend_column_headers': False,
+                'highlights': {'cores': False, 'host': True, 'load average': False, 'name': False, 'up': False},
+                'align': {'cores': 0, 'host': 0, 'load average': 0, 'name': 0, 'up': 0},
+                'pos': {'cores': 2, 'host': 0, 'load average': 4, 'name': 3, 'up': 1},
+                'column_header': {'cores': 2, 'host': 0, 'load average': 1, 'name': 0, 'up': 1},
+                'header': False,
+                'prefix': None, 'statuses': [{
+                    'cores': {0: 0, -1: 0}, 'host': {0: 0, -1: 0}, 'load average': {0: 0, 1: 0, 2: 0},
+                    'name': {0: 0, 1: 0, -1: 0}, 'up': {0: 0, 1: 0, 2: 0, -1: 0}}],
+                'w': {
+                    'cores': 7, 'host': 24, 'load average': 27, 'name': 24, 'up': 19},
+                'types': {'up': 0, 'cores': 1, 'host': 0, 'load average': 0, 'name': 0}
+            }
+        }
+        self.assertEqual(expected_resp, console_data)

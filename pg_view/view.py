@@ -670,7 +670,8 @@ def do_loop(screen, groups, output_method, collectors, consumer):
         if options.clear_screen and output_method != OUTPUT_METHOD.curses:
             output.refresh()
         for collector in collectors:
-            output.display(collector.output(output_method))
+            data = collector.output(output_method)
+            output.display(data)
         # in the curses case, refresh shows the data queued by display
         if output_method == OUTPUT_METHOD.curses:
             output.refresh()

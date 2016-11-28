@@ -105,7 +105,6 @@ class StatCollector(object):
         result = {}
         for idx, col in enumerate(self.output_transform_data):
             result[col['out']] = idx
-
         return result
 
     @staticmethod
@@ -470,7 +469,6 @@ class StatCollector(object):
 
         if after_string:
             result.append(after_string)
-
         return '\n'.join(result)
 
     def _calculate_dynamic_width(self, rows, method=OUTPUT_METHOD.console):
@@ -535,7 +533,7 @@ class StatCollector(object):
     def json_output(self, rows, before_string=None, after_string=None):
         output = {}
         data = []
-        output['type'] = StatCollector.ident(self)
+        output['type'] = self.ident()
         if self.__dict__.get('dbname') and self.__dict__.get('dbver'):
             output['name'] = '{0}/{1}'.format(self.dbname, self.dbver)
         for r in rows:

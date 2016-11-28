@@ -1,14 +1,13 @@
 import json
-
-import os
+import sys
 from unittest import TestCase
 
 import mock
-import sys
-
+import os
 from freezegun import freeze_time
 
-from pg_view.models.base import OUTPUT_METHOD, ColumnType
+from pg_view.factories import get_displayer_by_class
+from pg_view.models.displayers import ColumnType, OUTPUT_METHOD
 
 path = os.path.dirname(os.path.dirname(__file__))
 sys.path.insert(0, path)
@@ -77,7 +76,8 @@ class HostStatCollectorTest(TestCase):
         }
 
         self.collector._do_refresh([faked_refresh_data])
-        json_data = self.collector.output(OUTPUT_METHOD.json)
+        displayer = get_displayer_by_class(OUTPUT_METHOD.json, self.collector, False, True, False)
+        json_data = self.collector.output(displayer)
         expected_resp = {
             'data': [{
                 'cores': 1,
@@ -98,9 +98,9 @@ class HostStatCollectorTest(TestCase):
             'hostname': 'vagrant-ubuntu-trusty-64',
             'cores': 1
         }
-
+        displayer = get_displayer_by_class(OUTPUT_METHOD.console, self.collector, False, True, False)
         self.collector._do_refresh([faked_refresh_data])
-        console_data = self.collector.output(OUTPUT_METHOD.console)
+        console_data = self.collector.output(displayer)
         expected_resp = [
             'Host statistics', 'load average   up               host                     cores name                    ',
             '0.06 0.04 0.05 2 days, 22:04:58 vagrant-ubuntu-trusty-64 1     Linux 3.13.0-100-generic', '\n']
@@ -114,9 +114,9 @@ class HostStatCollectorTest(TestCase):
             'hostname': 'vagrant-ubuntu-trusty-64',
             'cores': 1
         }
-
+        displayer = get_displayer_by_class(OUTPUT_METHOD.curses, self.collector, False, True, False)
         self.collector._do_refresh([faked_refresh_data])
-        console_data = self.collector.output(OUTPUT_METHOD.curses)
+        console_data = self.collector.output(displayer)
         expected_resp = {
             'host': {
                 'rows': [{

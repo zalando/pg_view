@@ -1,6 +1,6 @@
 import re
 
-from pg_view.models.base import OUTPUT_METHOD
+from pg_view.models.displayers import OUTPUT_METHOD
 
 
 def get_valid_output_methods():

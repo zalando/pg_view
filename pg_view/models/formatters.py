@@ -3,7 +3,7 @@ from numbers import Number
 
 import re
 
-from pg_view.models.base import COLSTATUS
+from pg_view.models.displayers import COLSTATUS
 
 
 class StatusFormatter(object):

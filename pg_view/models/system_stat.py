@@ -1,8 +1,10 @@
 import psutil
+
 if psutil.LINUX:
     from psutil._pslinux import CLOCK_TICKS, open_binary, get_procfs_path
 
 from pg_view.models.base import StatCollector, _remap_params
+from pg_view.consts import RD
 
 
 class SystemStatCollector(StatCollector):
@@ -48,7 +50,7 @@ class SystemStatCollector(StatCollector):
                 'out': 'utime',
                 'units': '%',
                 'fn': self.unit_converter.time_diff_to_percent,
-                'round': StatCollector.RD,
+                'round': RD,
                 'minw': 5,
                 'pos': 0,
                 'warning': 50,
@@ -58,7 +60,7 @@ class SystemStatCollector(StatCollector):
                 'out': 'stime',
                 'units': '%',
                 'fn': self.unit_converter.time_diff_to_percent,
-                'round': StatCollector.RD,
+                'round': RD,
                 'pos': 1,
                 'minw': 5,
                 'warning': 10,
@@ -68,7 +70,7 @@ class SystemStatCollector(StatCollector):
                 'out': 'idle',
                 'units': '%',
                 'fn': self.unit_converter.time_diff_to_percent,
-                'round': StatCollector.RD,
+                'round': RD,
                 'pos': 2,
                 'minw': 5,
             },
@@ -76,7 +78,7 @@ class SystemStatCollector(StatCollector):
                 'out': 'iowait',
                 'units': '%',
                 'fn': self.unit_converter.time_diff_to_percent,
-                'round': StatCollector.RD,
+                'round': RD,
                 'pos': 3,
                 'minw': 5,
                 'warning': 20,
@@ -86,26 +88,26 @@ class SystemStatCollector(StatCollector):
                 'out': 'irq',
                 'units': '%',
                 'fn': self.unit_converter.time_diff_to_percent,
-                'round': StatCollector.RD,
+                'round': RD,
             },
             {
                 'out': 'soft',
                 'in': 'softirq',
                 'units': '%',
                 'fn': self.unit_converter.time_diff_to_percent,
-                'round': StatCollector.RD,
+                'round': RD,
             },
             {
                 'out': 'steal',
                 'units': '%',
                 'fn': self.unit_converter.time_diff_to_percent,
-                'round': StatCollector.RD,
+                'round': RD,
             },
             {
                 'out': 'guest',
                 'units': '%',
                 'fn': self.unit_converter.time_diff_to_percent,
-                'round': StatCollector.RD,
+                'round': RD,
             },
             {
                 'out': 'ctxt',
@@ -156,7 +158,7 @@ class SystemStatCollector(StatCollector):
             'user': 'utime',
         }
 
-        #TODO: Fix it
+        # TODO: Fix it
         cpu_from_psutil_dict = psutil.cpu_times()._asdict()
         if psutil.LINUX:
             cpu_times = {k: v * CLOCK_TICKS for k, v in cpu_from_psutil_dict.items()}
@@ -178,9 +180,9 @@ class SystemStatCollector(StatCollector):
         else:
             return None
 
-    def output(self, method):
+    def output(self, displayer):
         return super(SystemStatCollector, self).output(
-            method, before_string='System statistics:', after_string='\n')
+            displayer, before_string='System statistics:', after_string='\n')
 
     def read_cpu_stats(self):
         # left - from cputils, right - our

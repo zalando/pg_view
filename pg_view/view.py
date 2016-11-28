@@ -14,10 +14,14 @@ from optparse import OptionParser
 import os
 import re
 
+
 path = os.path.dirname(os.path.dirname(__file__))
 sys.path.insert(0, path)
 
-from pg_view.models.base import StatCollector, COLSTATUS, COLALIGN, COLTYPES, COLHEADER, OUTPUT_METHOD, TICK_LENGTH
+import pg_view.consts
+from pg_view.factories import get_displayer_by_class
+from pg_view.models.base import StatCollector
+from pg_view.models.displayers import COLALIGN, COLSTATUS, COLTYPES, COLHEADER, OUTPUT_METHOD
 import pg_view.models.base
 from pg_view.models.host_stat import HostStatCollector
 from pg_view.models.memory_stat import MemoryStatCollector
@@ -412,8 +416,7 @@ class CursesOutput(object):
             self.show_status_of_invisible_fields(layout, status, 0)
             for field in layout:
                 # calculate colors and alignment for the data value
-                column_alignment = (align.get(field,
-                                              COLALIGN.ca_none) if not prepend_column_headers else COLALIGN.ca_left)
+                column_alignment = (align.get(field, COLALIGN.ca_none) if not prepend_column_headers else COLALIGN.ca_left)
                 w = layout[field]['width']
                 # now check if we need to add ellipsis to indicate that the value has been truncated.
                 # we don't do this if the value is less than a certain length or when the column is marked as
@@ -625,17 +628,8 @@ def poll_keys(screen, output):
     return True
 
 
-def do_loop(screen, groups, output_method, collectors, consumer):
-    """ Display output (or pass it through to ncurses) """
-
-    global display_units
-    global freeze
-    global filter_aux
-    global autohide_fields
-    global notrim
-    global realtime
-
-    if output_method == OUTPUT_METHOD.curses:
+def get_output(method, screen):
+    if method == OUTPUT_METHOD.curses:
         if screen is None:
             logger.error('No parent screen is passed to the curses application')
             sys.exit(1)
@@ -647,6 +641,20 @@ def do_loop(screen, groups, output_method, collectors, consumer):
                 sys.exit(1)
     else:
         output = CommonOutput()
+    return output
+
+
+def do_loop(screen, groups, output_method, collectors, consumer):
+    """ Display output (or pass it through to ncurses) """
+
+    global display_units
+    global freeze
+    global filter_aux
+    global autohide_fields
+    global notrim
+    global realtime
+
+    output = get_output(output_method, screen)
     while 1:
         # process input:
         consumer.consume()
@@ -655,9 +663,7 @@ def do_loop(screen, groups, output_method, collectors, consumer):
                 if not poll_keys(screen, output):
                     # bail out immediately
                     return
-            collector.set_units_display(display_units)
-            collector.set_ignore_autohide(not autohide_fields)
-            collector.set_notrim(notrim)
+
             process_single_collector(collector, filter_aux)
             if output_method == OUTPUT_METHOD.curses:
                 if not poll_keys(screen, output):
@@ -670,13 +676,19 @@ def do_loop(screen, groups, output_method, collectors, consumer):
         if options.clear_screen and output_method != OUTPUT_METHOD.curses:
             output.refresh()
         for collector in collectors:
-            data = collector.output(output_method)
-            output.display(data)
+            displayer = get_displayer_by_class(
+                output_method, collector,
+                show_units=display_units,
+                ignore_autohide=not autohide_fields,
+                notrim=notrim
+            )
+            formatted_data = collector.output(displayer)
+            output.display(formatted_data)
         # in the curses case, refresh shows the data queued by display
         if output_method == OUTPUT_METHOD.curses:
             output.refresh()
         if not realtime:
-            time.sleep(TICK_LENGTH)
+            time.sleep(pg_view.consts.TICK_LENGTH)
 
 
 def process_single_collector(collector, filter_aux):
@@ -703,7 +715,7 @@ def main():
     global logger, options
 
     options, args = parse_args()
-    pg_view.models.base.TICK_LENGTH = options.tick
+    pg_view.consts.TICK_LENGTH = options.tick
     output_method = options.output_method
 
     if not output_method_is_valid(output_method):

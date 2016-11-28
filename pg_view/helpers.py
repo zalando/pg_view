@@ -94,3 +94,7 @@ def exec_command_with_output(cmdline):
         from pg_view.models.base import logger
         logger.info('The command {cmd} returned a non-zero exit code'.format(cmd=cmdline))
     return ret, proc.stdout.read().strip()
+
+
+def enum(**enums):
+    return type('Enum', (), enums)

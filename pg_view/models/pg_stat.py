@@ -7,8 +7,10 @@ import psycopg2
 import psycopg2.extras
 import re
 
+from pg_view.consts import RD
 from pg_view.helpers import exec_command_with_output
-from pg_view.models.base import StatCollector, COLALIGN, logger
+from pg_view.models.base import StatCollector, logger
+from pg_view.models.displayers import COLALIGN
 from pg_view.models.formatters import StatusFormatter
 from pg_view.sqls import SELECT_PGSTAT_VERSION_LESS_THAN_92, SELECT_PGSTAT_VERSION_LESS_THAN_96, \
     SELECT_PGSTAT_NEVER_VERSION, SELECT_PG_IS_IN_RECOVERY, SHOW_MAX_CONNECTIONS
@@ -123,7 +125,7 @@ class PgStatCollector(StatCollector):
                 'in': 'utime',
                 'units': '%',
                 'fn': self.unit_converter.time_diff_to_percent,
-                'round': StatCollector.RD,
+                'round': RD,
                 'pos': 4,
                 'warning': 90,
                 'align': COLALIGN.ca_right,
@@ -133,7 +135,7 @@ class PgStatCollector(StatCollector):
                 'in': 'stime',
                 'units': '%',
                 'fn': self.unit_converter.time_diff_to_percent,
-                'round': StatCollector.RD,
+                'round': RD,
                 'pos': 5,
                 'warning': 5,
                 'critical': 30,
@@ -143,21 +145,21 @@ class PgStatCollector(StatCollector):
                 'in': 'guest_time',
                 'units': '%',
                 'fn': self.unit_converter.time_diff_to_percent,
-                'round': StatCollector.RD,
+                'round': RD,
                 'pos': 6,
             },
             {
                 'out': 'delay_blkio',
                 'in': 'delayacct_blkio_ticks',
                 'units': '/s',
-                'round': StatCollector.RD,
+                'round': RD,
             },
             {
                 'out': 'read',
                 'in': 'read_bytes',
                 'units': 'MB/s',
                 'fn': self.unit_converter.bytes_to_mbytes,
-                'round': StatCollector.RD,
+                'round': RD,
                 'pos': 7,
                 'noautohide': True,
             },
@@ -166,7 +168,7 @@ class PgStatCollector(StatCollector):
                 'in': 'write_bytes',
                 'units': 'MB/s',
                 'fn': self.unit_converter.bytes_to_mbytes,
-                'round': StatCollector.RD,
+                'round': RD,
                 'pos': 8,
                 'noautohide': True,
             },
@@ -175,7 +177,7 @@ class PgStatCollector(StatCollector):
                 'in': 'uss',
                 'units': 'MB',
                 'fn': self.unit_converter.bytes_to_mbytes,
-                'round': StatCollector.RD,
+                'round': RD,
                 'pos': 9,
                 'noautohide': True
             },
@@ -482,5 +484,5 @@ class PgStatCollector(StatCollector):
                             blocked_temp.extend(self.blocked_diffs[child_row['pid']])
                             del self.blocked_diffs[child_row['pid']]
 
-    def output(self, method):
-        return super(self.__class__, self).output(method, before_string='PostgreSQL processes:', after_string='\n')
+    def output(self, displayer):
+        return super(self.__class__, self).output(displayer, before_string='PostgreSQL processes:', after_string='\n')

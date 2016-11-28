@@ -5,7 +5,8 @@ from multiprocessing import cpu_count
 import os
 import psutil
 
-from pg_view.models.base import StatCollector, COLHEADER, logger
+from pg_view.models.base import StatCollector, logger
+from pg_view.models.displayers import COLHEADER
 from pg_view.models.formatters import StatusFormatter
 
 
@@ -118,5 +119,5 @@ class HostStatCollector(StatCollector):
     def _uptime_to_str(uptime):
         return str(timedelta(seconds=int(float(uptime))))
 
-    def output(self, method):
-        return super(self.__class__, self).output(method, before_string='Host statistics', after_string='\n')
+    def output(self, displayer):
+        return super(self.__class__, self).output(displayer, before_string='Host statistics', after_string='\n')

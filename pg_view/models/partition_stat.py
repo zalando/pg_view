@@ -4,10 +4,10 @@ from multiprocessing import Process
 import os
 import psutil
 
-from pg_view.models.base import StatCollector, COLALIGN, logger, TICK_LENGTH
+from pg_view.consts import RD, TICK_LENGTH, SECTOR_SIZE
+from pg_view.models.base import StatCollector, logger
+from pg_view.models.displayers import COLALIGN
 from pg_view.models.formatters import StatusFormatter
-
-SECTOR_SIZE = 512
 
 
 class PartitionStatCollector(StatCollector):
@@ -56,7 +56,7 @@ class PartitionStatCollector(StatCollector):
                 'in': 'path_fill_rate',
                 'units': 'MB/s',
                 'fn': self.unit_converter.kb_to_mbytes,
-                'round': StatCollector.RD,
+                'round': RD,
                 'pos': 2,
                 'minw': 6,
             },
@@ -93,7 +93,7 @@ class PartitionStatCollector(StatCollector):
                 'out': 'read',
                 'units': 'MB/s',
                 'fn': self.unit_converter.sectors_to_mbytes,
-                'round': StatCollector.RD,
+                'round': RD,
                 'pos': 6,
                 'noautohide': True,
                 'minw': 6,
@@ -102,7 +102,7 @@ class PartitionStatCollector(StatCollector):
                 'out': 'write',
                 'units': 'MB/s',
                 'fn': self.unit_converter.sectors_to_mbytes,
-                'round': StatCollector.RD,
+                'round': RD,
                 'pos': 7,
                 'noautohide': True,
                 'minw': 6,
@@ -110,7 +110,7 @@ class PartitionStatCollector(StatCollector):
             {
                 'out': 'await',
                 'units': 'ms',
-                'round': StatCollector.RD,
+                'round': RD,
                 'pos': 8,
                 'minw': 8,
             },
@@ -181,8 +181,8 @@ class PartitionStatCollector(StatCollector):
         }
         return stats_perdisk
 
-    def output(self, method):
-        return super(self.__class__, self).output(method, before_string='PostgreSQL partitions:', after_string='\n')
+    def output(self, displayer):
+        return super(self.__class__, self).output(displayer, before_string='PostgreSQL partitions:', after_string='\n')
 
 
 class DetachedDiskStatCollector(Process):

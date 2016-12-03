@@ -112,7 +112,7 @@ class HostStatCollector(BaseStatCollector):
             return None
         return '{0} {1}'.format(row[0], row[2])
 
-    #TODO: to remove, not used, decide
+    # TODO: to remove, not used, decide
     @staticmethod
     def _uptime_to_str(uptime):
         return str(timedelta(seconds=int(float(uptime))))

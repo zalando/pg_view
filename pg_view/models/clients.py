@@ -1,6 +1,6 @@
 import sys
 
-from pg_view.exceptions import NotConnectedException, NotPidConnectionException, DuplicatedConnectionError
+from pg_view.exceptions import NotConnectedError, NoPidConnectionError, DuplicatedConnectionError
 
 if sys.hexversion >= 0x03000000:
     pass
@@ -49,7 +49,7 @@ def make_cluster_desc(name, version, workdir, pid, pgcon, conn):
     }
 
 
-class DBConnection(object):
+class DBConnectionBuilder(object):
     def __init__(self, host, port, user='', database=''):
         self.host = host
         self.port = port
@@ -72,14 +72,12 @@ class DBConnection(object):
 class DBConnectionFinder(object):
     CONN_TYPES = ('unix', 'tcp', 'tcp6')
 
-    def __init__(self, result_work_dir, ppid, dbver, username, dbname):
-        self.work_directory = result_work_dir
+    def __init__(self, work_directory, ppid, dbver, username, dbname):
+        self.work_directory = work_directory
         self.pid = ppid
         self.version = dbver
-
         self.username = username
         self.dbname = dbname
-        self.proc_worker = ProcWorker()
 
     def detect_db_connection_arguments(self):
         """ Try to detect database connection arguments from the postmaster.pid
@@ -90,7 +88,7 @@ class DBConnectionFinder(object):
         if not conn_args:
             # if we failed to detect the arguments via the /proc/net/ readings,
             # perhaps we'll get better luck with just peeking into postmaster.pid.
-            conn_args = self.proc_worker.detect_with_postmaster_pid(self.work_directory, self.version)
+            conn_args = ProcWorker().detect_with_postmaster_pid(self.work_directory, self.version)
             if not conn_args:
                 msg = 'unable to detect connection parameters for the PostgreSQL cluster at {0}'
                 logger.error(msg.format(self.work_directory))
@@ -110,7 +108,7 @@ class DBConnectionFinder(object):
             if result:
                 break
             for arg in conn_args.get(conn_type, []):
-                connection_candidate = DBConnection(*arg, user=self.username, database=self.dbname)
+                connection_candidate = DBConnectionBuilder(*arg, user=self.username, database=self.dbname)
                 if self.can_connect_with_connection_arguments(connection_candidate):
                     (result['host'], result['port']) = arg
                     break
@@ -139,21 +137,20 @@ class DBConnectionFinder(object):
 class DBClient(object):
     SHOW_COMMAND = 'SHOW DATA_DIRECTORY'
 
-    def __init__(self, connection):
-        self.connection = connection
+    def __init__(self, connection_builder):
+        self.connection_builder = connection_builder
 
     def establish_user_defined_connection(self, instance, clusters):
         """ connect the database and get all necessary options like pid and work_directory
             we use port, host and socket_directory, prefering socket over TCP connections
         """
-        # establish a new connection
-        conn = self.connection.build_connection()
+        conn_params = self.connection_builder.build_connection()
         try:
-            pgcon = psycopg2.connect(**conn)
+            pgcon = psycopg2.connect(**conn_params)
         except Exception as e:
-            logger.error('failed to establish connection to {0} via {1}'.format(instance, conn))
+            logger.error('failed to establish connection to {0} via {1}'.format(instance, conn_params))
             logger.error('PostgreSQL exception: {0}'.format(e))
-            raise NotConnectedException
+            raise NotConnectedError
 
         # get the database version from the pgcon properties
         dbver = dbversion_as_float(pgcon.server_version)
@@ -162,8 +159,8 @@ class DBClient(object):
         pid = read_postmaster_pid(work_directory, instance)
 
         if pid is None:
-            logger.error('failed to read pid of the postmaster on {0}'.format(conn))
-            raise NotPidConnectionException
+            logger.error('failed to read pid of the postmaster on {0}'.format(conn_params))
+            raise NoPidConnectionError
 
         # check that we don't have the same pid already in the accumulated results.
         # for instance, a user may specify 2 different set of connection options for
@@ -171,7 +168,7 @@ class DBClient(object):
         pids = [opt['pid'] for opt in clusters if 'pid' in opt]
 
         if pid in pids:
-            duplicate_instance = [opt['name'] for opt in clusters if 'pid' in opt and opt.get('pid', 0) == pid][0]
+            duplicate_instance = self.get_duplicated_instance(clusters, pid)
             logger.error('duplicate connection options detected  for databases {0} and {1}, '
                          'same pid {2}, skipping {0}'.format(instance, duplicate_instance, pid))
             pgcon.close()
@@ -179,7 +176,10 @@ class DBClient(object):
 
         # now we have all components to create a cluster descriptor
         return make_cluster_desc(
-            name=instance, version=dbver, workdir=work_directory, pid=pid, pgcon=pgcon, conn=conn)
+            name=instance, version=dbver, workdir=work_directory, pid=pid, pgcon=pgcon, conn=conn_params)
+
+    def get_duplicated_instance(self, clusters, pid):
+        return [opt['name'] for opt in clusters if 'pid' in opt and opt.get('pid', 0) == pid][0]
 
     def execute_query_and_fetchone(self, pgcon):
         cur = pgcon.cursor()
@@ -191,26 +191,25 @@ class DBClient(object):
 
     @classmethod
     def from_config(cls, config):
-        connection = DBConnection(
+        connection_builder = DBConnectionBuilder(
             host=config.get('host'),
             port=config.get('port'),
             user=config.get('user'),
             database=config.get('database'),
         )
-        return cls(connection)
+        return cls(connection_builder)
 
     @classmethod
     def from_options(cls, options):
-        connection = DBConnection(options.host, options.port, options.username, options.dbname)
-        return cls(connection)
+        connection_builder = DBConnectionBuilder(options.host, options.port, options.username, options.dbname)
+        return cls(connection_builder)
 
     @classmethod
-    def from_postmasters(cls, result_work_dir, ppid, dbver, options):
-        db_finder = DBConnectionFinder(result_work_dir, ppid, dbver, options.username, options.dbname)
+    def from_postmasters(cls, work_directory, ppid, dbver, options):
+        db_finder = DBConnectionFinder(work_directory, ppid, dbver, options.username, options.dbname)
         connection_data = db_finder.detect_db_connection_arguments()
         if connection_data is None:
             return None
-        connection = DBConnection(
-            # connection_data['host'], connection_data['port'], options.username or 'radek', options.dbname or 'atlas')
+        connection_builder = DBConnectionBuilder(
             connection_data['host'], connection_data['port'], options.username, options.dbname)
-        return cls(connection)
+        return cls(connection_builder)

@@ -10,6 +10,7 @@ class DiskCollectorConsumer(object):
     """ consumes information from the disk collector and provides it for the local
         collector classes running in the same subprocess.
     """
+
     def __init__(self, q):
         self.result = {}
         self.cached_result = {}

@@ -1,7 +1,7 @@
 import psutil
 
-from pg_view.models.collector_base import BaseStatCollector, _remap_params
 from pg_view.consts import RD
+from pg_view.models.collector_base import BaseStatCollector, _remap_params
 
 
 class SystemStatCollector(BaseStatCollector):

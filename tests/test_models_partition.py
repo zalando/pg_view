@@ -11,6 +11,7 @@ sdiskio = namedtuple(
     'sdiskio', ['read_count', 'write_count', 'read_bytes', 'write_bytes', 'read_time', 'write_time']
 )
 
+
 class PartitionStatCollectorTest(TestCase):
     def setUp(self):
         self.collector = PartitionStatCollector(

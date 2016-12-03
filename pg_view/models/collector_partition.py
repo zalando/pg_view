@@ -178,9 +178,9 @@ class PartitionStatCollector(BaseStatCollector):
             stats_perdisk[disk] = {
                 'sectors_read': stats.read_bytes / SECTOR_SIZE,
                 'sectors_written': stats.write_bytes / SECTOR_SIZE,
-                #TODO: Add get missing info
+                # TODO: Add get missing info
                 'await': 0
-        }
+            }
         return stats_perdisk
 
     def output(self, displayer):
@@ -281,7 +281,7 @@ class DetachedDiskStatCollector(Process):
             vfs = self.df_cache[dev]
         return vfs
 
-    #TODO: check it
+    # TODO: check it
     @staticmethod
     def get_mounted_device(pathname):
         mounted_devices = [d.device for d in psutil.disk_partitions() if d.mountpoint == pathname]

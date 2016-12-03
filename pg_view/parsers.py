@@ -4,9 +4,8 @@ import os
 import psutil
 import re
 
-from pg_view.helpers import readlines_file
+from pg_view.helpers import readlines_file, read_file
 from pg_view.models.collector_base import logger
-
 
 connection_params = namedtuple('connection_params', ['pid', 'version', 'dbname'])
 
@@ -20,7 +19,7 @@ class ProcWorker(object):
     def get_postmasters_directories(self):
         """ detect all postmasters running and get their pids """
         postmasters = {}
-        process_candidates = [p for p in psutil.process_iter() if p.name() in ('postgres', 'postmaster')]
+        process_candidates = self._get_postgres_processes()
         process_candidates_pids = [p.pid for p in process_candidates]
 
         # Omitting start_time, I assume that lower pid is started earlier
@@ -33,12 +32,15 @@ class ProcWorker(object):
             if pg_dir in postmasters:
                 continue
 
-            params = self.get_pg_version_from_file(proc, pg_dir)
+            params = self.get_pg_version_from_file(proc.pid, pg_dir)
             if params:
                 postmasters[pg_dir] = params
         return postmasters
 
-    def get_pg_version_from_file(self, proc, pg_dir):
+    def _get_postgres_processes(self):
+        return [p for p in psutil.process_iter() if p.name() in ('postgres', 'postmaster')]
+
+    def get_pg_version_from_file(self, proc_pid, pg_dir):
         # if PG_VERSION file is missing, this is not a postgres directory
         PG_VERSION_FILENAME = '{0}/PG_VERSION'.format(pg_dir)
         if not os.access(PG_VERSION_FILENAME, os.R_OK):
@@ -46,18 +48,23 @@ class ProcWorker(object):
                            'have to skip it'.format(pg_dir))
             return None
         try:
-            fp = open(PG_VERSION_FILENAME, 'rU')
-            value = fp.read().strip()
-            if value is not None and len(value) >= 3:
-                version = float(value)
+            data = read_file(PG_VERSION_FILENAME).strip()
+            version = self._version_or_value_error(data)
         except os.error as e:
             logger.error('unable to read version number from PG_VERSION directory {0}, have to skip it'.format(pg_dir))
         except ValueError:
-            logger.error("PG_VERSION doesn't contain a valid version number: {0}".format(value))
+            logger.error("PG_VERSION doesn't contain a valid version number: {0}".format(data))
         else:
             dbname = get_dbname_from_path(pg_dir)
-            return connection_params(pid=proc.pid, version=version, dbname=dbname)
+            return connection_params(pid=proc_pid, version=version, dbname=dbname)
         return None
+
+    def _version_or_value_error(self, data):
+        if data is not None and len(data) >= 3:
+            version = float(data)
+        else:
+            raise ValueError
+        return version
 
     def detect_with_postmaster_pid(self, work_directory, version):
         # PostgreSQL 9.0 doesn't have enough data

@@ -4,7 +4,7 @@ from unittest import TestCase
 import mock
 import os
 
-from pg_view.exceptions import InvalidConnParam
+from pg_view.exceptions import InvalidConnectionParamError
 from pg_view.helpers import UnitConverter, read_configuration, validate_autodetected_conn_param, \
     exec_command_with_output
 from pg_view.parsers import connection_params
@@ -79,23 +79,24 @@ class ValidateConnParamTest(TestCase):
 
     def test_validate_autodetected_conn_param_should_raise_invalid_param_when_different_dbnames(self):
         conn_parameters = connection_params(pid=1049, version=9.3, dbname='/var/lib/postgresql/9.3/main')
-        with self.assertRaises(InvalidConnParam):
-            validate_autodetected_conn_param('/var/lib/postgresql/9.5/main', 9.3, '/var/run/postgresql', conn_parameters)
+        with self.assertRaises(InvalidConnectionParamError):
+            validate_autodetected_conn_param('/var/lib/postgresql/9.5/main', 9.3, '/var/run/postgresql',
+                                             conn_parameters)
 
     def test_validate_autodetected_conn_param_should_raise_invalid_param_when_no_result_work_dir(self):
         conn_parameters = connection_params(pid=1049, version=9.3, dbname='/var/lib/postgresql/9.3/main')
-        with self.assertRaises(InvalidConnParam):
+        with self.assertRaises(InvalidConnectionParamError):
             validate_autodetected_conn_param('/var/lib/postgresql/9.3/main', 9.3, '', conn_parameters)
 
     def test_validate_autodetected_conn_param_should_raise_invalid_param_when_no_connection_params_pid(self):
         conn_parameters = connection_params(pid=None, version=9.3, dbname='/var/lib/postgresql/9.3/main')
-        with self.assertRaises(InvalidConnParam):
+        with self.assertRaises(InvalidConnectionParamError):
             validate_autodetected_conn_param(
                 '/var/lib/postgresql/9.3/main', 9.3, '/var/run/postgresql', conn_parameters)
 
     def test_validate_autodetected_conn_param_should_raise_invalid_param_when_different_versions(self):
         conn_parameters = connection_params(pid=2, version=9.3, dbname='/var/lib/postgresql/9.3/main')
-        with self.assertRaises(InvalidConnParam):
+        with self.assertRaises(InvalidConnectionParamError):
             validate_autodetected_conn_param(
                 '/var/lib/postgresql/9.3/main', 9.5, '/var/run/postgresql', conn_parameters)
 
@@ -103,7 +104,8 @@ class ValidateConnParamTest(TestCase):
 class CommandExecutorTest(TestCase):
     @mock.patch('pg_view.models.collector_base.logger')
     @mock.patch('pg_view.helpers.subprocess.Popen')
-    def test_exec_command_with_output_should_log_info_when_cmd_return_not_zero_exit_code(self, mocked_popen, mocked_logger):
+    def test_exec_command_with_output_should_log_info_when_cmd_return_not_zero_exit_code(self, mocked_popen,
+                                                                                         mocked_logger):
         cmdline = 'ps -o pid --ppid 1049 --noheaders'
         proc = mock.MagicMock()
         proc.wait.return_value = 1
@@ -111,14 +113,16 @@ class CommandExecutorTest(TestCase):
         mocked_popen.return_value = proc
         ret, stdout = exec_command_with_output(cmdline)
         mocked_popen.assert_called_with(cmdline, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-        mocked_logger.info.assert_called_with('The command ps -o pid --ppid 1049 --noheaders returned a non-zero exit code')
+        mocked_logger.info.assert_called_with(
+            'The command ps -o pid --ppid 1049 --noheaders returned a non-zero exit code')
 
         self.assertEqual(1, ret)
         self.assertEqual('1051\n 1052\n 1053\n 1054\n 1055\n 11139\n 26585', stdout)
 
     @mock.patch('pg_view.models.collector_base.logger')
     @mock.patch('pg_view.helpers.subprocess.Popen')
-    def test_exec_command_with_output_should_return_ret_stdout_when_cmd_return_zero_exit_code(self, mocked_popen, mocked_logger):
+    def test_exec_command_with_output_should_return_ret_stdout_when_cmd_return_zero_exit_code(self, mocked_popen,
+                                                                                              mocked_logger):
         cmdline = 'ps -o pid --ppid 1049 --noheaders'
         proc = mock.MagicMock()
         proc.wait.return_value = 0
@@ -130,5 +134,3 @@ class CommandExecutorTest(TestCase):
 
         self.assertEqual(0, ret)
         self.assertEqual('1051\n 1052\n 1053\n 1054\n 1055\n 11139\n 26585', stdout)
-
-

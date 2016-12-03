@@ -277,9 +277,12 @@ class CursesOutput(object):
         y += 2
         self.print_text(y, 0, "Press 'h' to exit this screen")
 
+    def is_invalid_data_collector(self, collector):
+        return collector not in self.data or len(self.data[collector]) <= 0 or \
+               len(self.data[collector].get('rows', ())) <= 0 and not self.data[collector]['prefix']
+
     def show_collector_data(self, collector):
-        if collector not in self.data or len(self.data[collector]) <= 0 or\
-           len(self.data[collector].get('rows', ())) <= 0 and not self.data[collector]['prefix']:
+        if self.is_invalid_data_collector(collector):
             return
 
         rows = self.data[collector]['rows']
@@ -319,7 +322,8 @@ class CursesOutput(object):
             self.show_status_of_invisible_fields(layout, status, 0)
             for field in layout:
                 # calculate colors and alignment for the data value
-                column_alignment = (align.get(field, COLALIGN.ca_none) if not prepend_column_headers else COLALIGN.ca_left)
+                column_alignment = (
+                    align.get(field, COLALIGN.ca_none) if not prepend_column_headers else COLALIGN.ca_left)
                 w = layout[field]['width']
                 # now check if we need to add ellipsis to indicate that the value has been truncated.
                 # we don't do this if the value is less than a certain length or when the column is marked as

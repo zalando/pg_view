@@ -63,4 +63,3 @@ class DiskCollectorConsumerTest(TestCase):
         self.assertEqual(second_data['/var/lib/postgresql/9.3/main'], consumer.fetch('/var/lib/postgresql/9.3/main'))
         self.assertEqual({}, consumer.result)
         self.assertEqual(second_data, consumer.cached_result)
-

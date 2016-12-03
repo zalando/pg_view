@@ -1,8 +1,7 @@
 import json
+from abc import ABCMeta
 from collections import namedtuple
 from numbers import Number
-
-from abc import ABCMeta
 
 from pg_view.consts import NCURSES_CUSTOM_OUTPUT_FIELDS
 from pg_view.helpers import enum
@@ -185,7 +184,8 @@ class CursesDisplayer(BaseStreamDisplayer):
         'column_header': COLHEADER.ch_default,
     }
 
-    def __init__(self, output_transform_data, ident, ncurses_filter_row, ncurses_custom_fields, show_units, ignore_autohide, notrim):
+    def __init__(self, output_transform_data, ident, ncurses_filter_row, ncurses_custom_fields, show_units,
+                 ignore_autohide, notrim):
         self.ncurses_filter_row = ncurses_filter_row
         self.ncurses_custom_fields = ncurses_custom_fields
         super(CursesDisplayer, self).__init__(output_transform_data, ident, show_units, ignore_autohide, notrim)

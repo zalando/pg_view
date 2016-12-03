@@ -31,9 +31,8 @@ from pg_view.models.consumers import DiskCollectorConsumer
 from pg_view.models.clients import make_cluster_desc, DBClient
 from pg_view.parsers import ProcWorker
 from pg_view.helpers import process_groups, read_configuration, validate_autodetected_conn_param
-from pg_view.exceptions import InvalidConnParam, NotConnectedException, NotPidConnectionException, \
+from pg_view.exceptions import InvalidConnectionParamError, NotConnectedError, NoPidConnectionError, \
     DuplicatedConnectionError
-
 
 try:
     import psycopg2
@@ -44,6 +43,7 @@ except ImportError:
 
 try:
     import curses
+
     curses_available = True
 except ImportError:
     print('Unable to import ncurses, curses output will be unavailable')
@@ -81,7 +81,7 @@ def parse_args():
     parser.add_option('-d', '--dbname', help='database name to connect to',
                       action='store', dest='dbname')
     parser.add_option('-h', '--host', help='database connection host '
-                      '(or a directory path for the unix socket connection)',
+                                           '(or a directory path for the unix socket connection)',
                       action='store', dest='host')
     parser.add_option('-p', '--port', help='database port number', action='store', dest='port')
 
@@ -226,7 +226,7 @@ def main():
             db_client = DBClient.from_config(config[instance])
             try:
                 cluster = db_client.establish_user_defined_connection(instance, clusters)
-            except (NotConnectedException, NotPidConnectionException):
+            except (NotConnectedError, NoPidConnectionError):
                 pg_view.models.collector_base.logger.error(
                     'failed to acquire details about the database cluster {0}, the server will be skipped'.format(instance))
             except DuplicatedConnectionError:
@@ -240,7 +240,7 @@ def main():
         db_client = DBClient.from_options(options)
         try:
             cluster = db_client.establish_user_defined_connection(instance, clusters)
-        except (NotConnectedException, NotPidConnectionException):
+        except (NotConnectedError, NoPidConnectionError):
             pg_view.models.collector_base.logger.error("unable to continue with cluster {0}".format(instance))
         except DuplicatedConnectionError:
             pass
@@ -254,13 +254,13 @@ def main():
             # if user requested a specific database name and version - don't try to connect to others
             try:
                 validate_autodetected_conn_param(user_dbname, user_dbver, result_work_dir, connection_params)
-            except InvalidConnParam:
+            except InvalidConnectionParamError:
                 continue
             db_client = DBClient.from_postmasters(
                 result_work_dir, connection_params.pid, connection_params.version, options)
             if db_client is None:
                 continue
-            conn = db_client.connection.build_connection()
+            conn = db_client.connection_builder.build_connection()
             try:
                 pgcon = psycopg2.connect(**conn)
             except Exception as e:
@@ -283,7 +283,7 @@ def main():
         if not clusters:
             pg_view.models.collector_base.logger.error('No suitable PostgreSQL instances detected, exiting...')
             pg_view.models.collector_base.logger.error('hint: use -v for details, or specify connection parameters '
-                                             'manually in the configuration file (-c)')
+                                                       'manually in the configuration file (-c)')
             sys.exit(1)
 
         # initialize the disks stat collector process and create an exchange queue

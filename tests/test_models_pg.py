@@ -85,7 +85,8 @@ class PgStatCollectorTest(TestCase):
         self.assertEqual(0, collector._get_max_connections())
         mocked_execute_fetchone_query.assert_called_with(SHOW_MAX_CONNECTIONS)
 
-    @mock.patch('pg_view.models.collector_pg.PgStatCollector._execute_fetchone_query', return_value={'max_connections': '1'})
+    @mock.patch('pg_view.models.collector_pg.PgStatCollector._execute_fetchone_query',
+                return_value={'max_connections': '1'})
     def test__get_max_connections_should_return_zero_when_output_ok(self, mocked_execute_fetchone_query):
         collector = PgStatCollector.from_cluster(self.cluster, 1049)
         self.assertEqual(1, collector._get_max_connections())

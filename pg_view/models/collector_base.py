@@ -1,6 +1,5 @@
 import logging
 import time
-
 from abc import ABCMeta
 
 from pg_view.consts import NCURSES_CUSTOM_OUTPUT_FIELDS
@@ -122,7 +121,7 @@ class BaseStatCollector(object):
             elif 'fn' in col:
                 # if diff is True and fn is supplied - apply it to the current and previous row.
                 result[attname] = (col['fn'](incol, cur, prev) if cur.get(incol, None) is not None and prev.get(incol,
-                                   None) is not None else None)
+                                                                                                                None) is not None else None)
             else:
                 # default case - calculate the diff between the current attribute's values of
                 # old and new rows and divide it by the time interval passed between measurements.

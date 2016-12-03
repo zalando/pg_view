@@ -1,10 +1,10 @@
+import posix
 from unittest import TestCase
 
 import mock
-import posix
 
 from pg_view.models.collector_partition import DetachedDiskStatCollector
-from tests.common import ErrorAfter, CallableExhausted
+from tests.common import ErrorAfter, CallableExhaustedError
 
 
 class DetachedDiskStatCollectorTest(TestCase):
@@ -40,7 +40,7 @@ class DetachedDiskStatCollectorTest(TestCase):
         mocked_get_df_data.side_effect = ErrorAfter(1)
         queue = mock.Mock()
         detached_disk = DetachedDiskStatCollector(queue, ['/var/lib/postgresql/9.3/main'])
-        with self.assertRaises(CallableExhausted):
+        with self.assertRaises(CallableExhaustedError):
             detached_disk.run()
 
         mocked_get_du_data.assert_called_with('/var/lib/postgresql/9.3/main')
@@ -48,10 +48,13 @@ class DetachedDiskStatCollectorTest(TestCase):
         queue.put.assert_called_once_with(
             {'/var/lib/postgresql/9.3/main': [('/var/lib/postgresql/9.3/main',), ('/var/lib/postgresql/9.3/main',)]})
 
-    @mock.patch('pg_view.models.collector_partition.DetachedDiskStatCollector.get_mounted_device', return_value='/dev/sda1')
+    @mock.patch('pg_view.models.collector_partition.DetachedDiskStatCollector.get_mounted_device',
+                return_value='/dev/sda1')
     @mock.patch('pg_view.models.collector_partition.DetachedDiskStatCollector.get_mount_point', return_value='/')
     @mock.patch('pg_view.models.collector_partition.os.statvfs')
-    def test_get_df_data_should_return_proper_data_when_data_dev_and_xlog_dev_are_equal(self, mocked_os_statvfs, mocked_get_mounted_device, mocked_get_mount_point):
+    def test_get_df_data_should_return_proper_data_when_data_dev_and_xlog_dev_are_equal(self, mocked_os_statvfs,
+                                                                                        mocked_get_mounted_device,
+                                                                                        mocked_get_mount_point):
         seq = (4096, 4096, 10312784, 9823692, 9389714, 2621440, 2537942, 2537942, 4096, 255)
         mocked_os_statvfs.return_value = posix.statvfs_result(sequence=seq)
         detached_disk = DetachedDiskStatCollector(mock.Mock(), ['/var/lib/postgresql/9.3/main'])
@@ -59,12 +62,16 @@ class DetachedDiskStatCollectorTest(TestCase):
         expected_df_data = {'data': ('/dev/sda1', 41251136, 37558856), 'xlog': ('/dev/sda1', 41251136, 37558856)}
         self.assertEqual(expected_df_data, df_data)
 
-    @mock.patch('pg_view.models.collector_partition.DetachedDiskStatCollector.get_mounted_device', side_effect=['/dev/sda1', '/dev/sda2'])
+    @mock.patch('pg_view.models.collector_partition.DetachedDiskStatCollector.get_mounted_device',
+                side_effect=['/dev/sda1', '/dev/sda2'])
     @mock.patch('pg_view.models.collector_partition.DetachedDiskStatCollector.get_mount_point', return_value='/')
     @mock.patch('pg_view.models.collector_partition.os.statvfs')
-    def test_get_df_data_should_return_proper_data_when_data_dev_and_xlog_dev_are_different(self, mocked_os_statvfs, mocked_get_mounted_device, mocked_get_mount_point):
+    def test_get_df_data_should_return_proper_data_when_data_dev_and_xlog_dev_are_different(self, mocked_os_statvfs,
+                                                                                            mocked_get_mounted_device,
+                                                                                            mocked_get_mount_point):
         mocked_os_statvfs.side_effect = [
-            posix.statvfs_result(sequence=(4096, 4096, 10312784, 9823692, 9389714, 2621440, 2537942, 2537942, 4096, 255)),
+            posix.statvfs_result(
+                sequence=(4096, 4096, 10312784, 9823692, 9389714, 2621440, 2537942, 2537942, 4096, 255)),
             posix.statvfs_result(sequence=(1024, 1024, 103127, 9823, 9389, 2621, 2537, 2537, 1024, 255))
         ]
         detached_disk = DetachedDiskStatCollector(mock.Mock(), ['/var/lib/postgresql/9.3/main'])

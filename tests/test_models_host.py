@@ -38,7 +38,8 @@ class HostStatCollectorTest(TestCase):
         refreshed_data = self.collector._read_hostname()
         self.assertEqual({'hostname': 'Macbook-Pro'}, refreshed_data)
 
-    @mock.patch('pg_view.models.collector_host.os.uname', return_value=('Darwin', 'MacBook-Pro', '15.6.0', 'KV 15.6.0: Thu Sep 1 PDT 2016; root:xnu-3248', 'x86_64'))
+    @mock.patch('pg_view.models.collector_host.os.uname', return_value=(
+            'Darwin', 'MacBook-Pro', '15.6.0', 'KV 15.6.0: Thu Sep 1 PDT 2016; root:xnu-3248', 'x86_64'))
     def test_refresh_should_call_uname(self, mocked_uname):
         refreshed_data = self.collector._read_uname()
         self.assertEqual({'sysname': 'Darwin 15.6.0'}, refreshed_data)
@@ -96,8 +97,10 @@ class HostStatCollectorTest(TestCase):
         self.collector._do_refresh([faked_refresh_data])
         console_data = self.collector.output(displayer)
         expected_resp = [
-            'Host statistics', 'load average   up               host                     cores name                    ',
-            '0.06 0.04 0.05 2 days, 22:04:58 vagrant-ubuntu-trusty-64 1     Linux 3.13.0-100-generic', '\n']
+            'Host statistics',
+            'load average   up               host                     cores name                    ',
+            '0.06 0.04 0.05 2 days, 22:04:58 vagrant-ubuntu-trusty-64 1     Linux 3.13.0-100-generic', '\n'
+        ]
         self.assertEqual('\n'.join(expected_resp), console_data)
 
     def test_output_should_return_ncurses_output_when_ncurses(self):
@@ -118,7 +121,8 @@ class HostStatCollectorTest(TestCase):
                     'host': ColumnType(value='vagrant-ubuntu-trusty-64', header='', header_position=None),
                     'load average': ColumnType(value='0.06 0.04 0.05', header='load average', header_position=1),
                     'name': ColumnType(value='Linux 3.13.0-100-generic', header='', header_position=None),
-                    'up': ColumnType(value='2 days, 22:04:58', header='up', header_position=1)}],
+                    'up': ColumnType(value='2 days, 22:04:58', header='up', header_position=1)
+                }],
                 'hide': [],
                 'noautohide': {'cores': True, 'host': True, 'load average': True, 'name': True, 'up': True},
                 'prepend_column_headers': False,
@@ -129,9 +133,9 @@ class HostStatCollectorTest(TestCase):
                 'header': False,
                 'prefix': None, 'statuses': [{
                     'cores': {0: 0, -1: 0}, 'host': {0: 0, -1: 0}, 'load average': {0: 0, 1: 0, 2: 0},
-                    'name': {0: 0, 1: 0, -1: 0}, 'up': {0: 0, 1: 0, 2: 0, -1: 0}}],
-                'w': {
-                    'cores': 7, 'host': 24, 'load average': 27, 'name': 24, 'up': 19},
+                    'name': {0: 0, 1: 0, -1: 0}, 'up': {0: 0, 1: 0, 2: 0, -1: 0}
+                }],
+                'w': {'cores': 7, 'host': 24, 'load average': 27, 'name': 24, 'up': 19},
                 'types': {'up': 0, 'cores': 1, 'host': 0, 'load average': 0, 'name': 0}
             }
         }
@@ -150,6 +154,9 @@ class HostStatCollectorTest(TestCase):
         self.assertIsNone(sysname)
 
     def test__construct_sysname_should_return_sysname_when_input_ok(self):
-        row = ('Linux', 'vagrant-ubuntu-trusty-64', '3.13.0-100-generic', '#147-Ubuntu SMP Tue Oct 18 16:48:51 UTC 2016', 'x86_64')
+        row = (
+            'Linux', 'vagrant-ubuntu-trusty-64', '3.13.0-100-generic', '#147-Ubuntu SMP Tue Oct 18 16:48:51 UTC 2016',
+            'x86_64'
+        )
         sysname = self.collector._construct_sysname('', row, 'optional')
         self.assertEqual('Linux 3.13.0-100-generic', sysname)

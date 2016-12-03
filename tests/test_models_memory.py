@@ -49,7 +49,8 @@ class MemoryStatCollectorTest(TestCase):
     @unittest.skipUnless(psutil.LINUX, "Linux only")
     @mock.patch('pg_view.models.collector_memory.psutil._pslinux.open_binary')
     @mock.patch('pg_view.models.collector_memory.psutil.virtual_memory')
-    def test__read_memory_data_should_parse_data_from_proc_meminfo_when_linux(self, mocked_virtual_memory, mocked_open_binary):
+    def test__read_memory_data_should_parse_data_from_proc_meminfo_when_linux(self, mocked_virtual_memory,
+                                                                              mocked_open_binary):
         meminfo_ok_path = os.path.join(TEST_DIR, 'proc_files', 'meminfo_ok')
         linux_svmem = namedtuple('linux_svmem', 'total free buffers cached')
         mocked_open_binary.return_value = open_universal(meminfo_ok_path)
@@ -81,8 +82,8 @@ class MemoryStatCollectorTest(TestCase):
         self.assertFalse(self.collector._is_commit({'CommitLimit': 10, 'Commited_AS': 20}))
 
     def test__calculate_kb_left_until_limit_should_return_result(self):
-        data = self.collector.calculate_kb_left_until_limit('commit_left', {'CommitLimit': 30, 'Committed_AS': 20},
-                                                            True)
+        data = self.collector.calculate_kb_left_until_limit(
+            'commit_left', {'CommitLimit': 30, 'Committed_AS': 20}, True)
         self.assertEqual(10, data)
 
     @mock.patch('pg_view.models.collector_base.logger')

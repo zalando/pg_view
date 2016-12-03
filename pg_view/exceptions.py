@@ -1,12 +1,12 @@
-class InvalidConnParam(Exception):
+class InvalidConnectionParamError(Exception):
     pass
 
 
-class NotConnectedException(Exception):
+class NotConnectedError(Exception):
     pass
 
 
-class NotPidConnectionException(Exception):
+class NoPidConnectionError(Exception):
     pass
 
 

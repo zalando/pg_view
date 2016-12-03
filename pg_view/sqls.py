@@ -99,7 +99,6 @@ SELECT_PGSTAT_VERSION_LESS_THAN_96 = """
     GROUP BY 1,2,3,4,5,6,7,9
 """
 
-
 SELECT_PGSTAT_NEVER_VERSION = """
     SELECT datname,
            a.pid as pid,

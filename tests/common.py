@@ -22,8 +22,9 @@ class ErrorAfter(object):
     def __call__(self, *args):
         self.calls += 1
         if self.calls > self.limit:
-            raise CallableExhausted
+            raise CallableExhaustedError
         return args
 
-class CallableExhausted(Exception):
+
+class CallableExhaustedError(Exception):
     pass

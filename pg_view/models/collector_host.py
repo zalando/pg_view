@@ -15,17 +15,17 @@ class HostStatCollector(BaseStatCollector):
 
     def __init__(self):
         super(HostStatCollector, self).__init__(produce_diffs=False)
+        self.status_formatter = StatusFormatter(self)
+
         self.transform_list_data = [
             {'out': 'loadavg', 'infn': self._concat_load_avg}
         ]
         self.transform_uptime_data = [
-            {'out': 'uptime', 'in': 0, 'fn': self._uptime_to_str}
+            {'out': 'uptime', 'infn': self._uptime_to_str}
         ]
         self.transform_uname_data = [
             {'out': 'sysname', 'infn': self._construct_sysname}
         ]
-
-        self.status_formatter = StatusFormatter(self)
 
         self.output_transform_data = [
             {
@@ -112,6 +112,7 @@ class HostStatCollector(BaseStatCollector):
             return None
         return '{0} {1}'.format(row[0], row[2])
 
+    #TODO: to remove, not used, decide
     @staticmethod
     def _uptime_to_str(uptime):
         return str(timedelta(seconds=int(float(uptime))))

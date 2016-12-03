@@ -104,17 +104,18 @@ class SystemStatCollectorTest(TestCase):
     @mock.patch('pg_view.models.collector_system.SystemStatCollector.get_missing_cpu_stat_from_file')
     def test_read_cpu_data_should_transform_input_when_cpu_stats_for_linux(self, mocked_get_missing_cpu_stat_from_file,
                                                                            mocked_cpu_times):
-        macos_scpustats = namedtuple('scpustats', 'ctx_switches interrupts soft_interrupts syscalls')
+        linux_scpu_stats = namedtuple('scpustats', 'ctx_switches interrupts soft_interrupts syscalls')
         mocked_get_missing_cpu_stat_from_file.return_value = {
             'procs_running': 10,
             'procs_blocked': 20,
         }
-        mocked_cpu_times.return_value = macos_scpustats(
+        mocked_cpu_times.return_value = linux_scpu_stats(
             ctx_switches=12100, interrupts=888823, soft_interrupts=211467872, syscalls=326368)
 
         refreshed_cpu = self.collector.read_cpu_stats()
         expected_data = {'running': 10.0, 'ctxt': 12100, 'blocked': 20.0}
         self.assertEqual(expected_data, refreshed_cpu)
+        mocked_get_missing_cpu_stat_from_file.assert_called_with()
 
     def test__refresh_cpu_time_values_should_update_cpu_when_ok(self):
         cpu_data = {

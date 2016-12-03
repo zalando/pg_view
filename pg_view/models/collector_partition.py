@@ -178,6 +178,7 @@ class PartitionStatCollector(BaseStatCollector):
             stats_perdisk[disk] = {
                 'sectors_read': stats.read_bytes / SECTOR_SIZE,
                 'sectors_written': stats.write_bytes / SECTOR_SIZE,
+                #TODO: Add get missing info
                 'await': 0
         }
         return stats_perdisk
@@ -213,19 +214,19 @@ class DetachedDiskStatCollector(Process):
     def get_du_data(self, work_directory):
         result = {'data': [], 'xlog': []}
         try:
-            data_size = self.run_du(work_directory, self.BLOCK_SIZE)
-            xlog_size = self.run_du(work_directory + '/pg_xlog/', self.BLOCK_SIZE)
+            data_size = self.run_du(work_directory)
+            xlog_size = self.run_du(work_directory + '/pg_xlog/')
         except Exception as e:
-            logger.error('Unable to read free space information for the pg_xlog and data directories for the directory\
-             {0}: {1}'.format(work_directory, e))
+            msg = 'Unable to read free space information for the pg_xlog and data directories for the directory ' \
+                  '{0}: {1}'.format(work_directory, e)
+            logger.error(msg)
         else:
             # XXX: why do we pass the block size there?
             result['data'] = str(data_size), work_directory
             result['xlog'] = str(xlog_size), work_directory + '/pg_xlog'
         return result
 
-    @staticmethod
-    def run_du(pathname, block_size=BLOCK_SIZE, exclude=None):
+    def run_du(self, pathname, exclude=None):
         if exclude is None:
             exclude = ['lost+found']
         size = 0
@@ -251,26 +252,17 @@ class DetachedDiskStatCollector(Process):
                     size += st.st_size
                 if mode == 0x8000:  # S_IFREG
                     size += st.st_size
-        return long(size / block_size)
+        return long(size / self.BLOCK_SIZE)
 
     def get_df_data(self, work_directory):
         """ Retrive raw data from df (transformations are performed via df_list_transformation) """
-
         result = {'data': [], 'xlog': []}
         # obtain the device names
         data_dev = self.get_mounted_device(self.get_mount_point(work_directory))
         xlog_dev = self.get_mounted_device(self.get_mount_point(work_directory + '/pg_xlog/'))
-        if data_dev not in self.df_cache:
-            data_vfs = os.statvfs(work_directory)
-            self.df_cache[data_dev] = data_vfs
-        else:
-            data_vfs = self.df_cache[data_dev]
 
-        if xlog_dev not in self.df_cache:
-            xlog_vfs = os.statvfs(work_directory + '/pg_xlog/')
-            self.df_cache[xlog_dev] = xlog_vfs
-        else:
-            xlog_vfs = self.df_cache[xlog_dev]
+        data_vfs = self._get_or_update_df_cache(work_directory, data_dev)
+        xlog_vfs = self._get_or_update_df_cache(work_directory + '/pg_xlog/', xlog_dev)
 
         data_vfs_blocks = data_vfs.f_bsize / self.BLOCK_SIZE
         result['data'] = (data_dev, data_vfs.f_blocks * data_vfs_blocks, data_vfs.f_bavail * data_vfs_blocks)
@@ -281,6 +273,15 @@ class DetachedDiskStatCollector(Process):
             result['xlog'] = result['data']
         return result
 
+    def _get_or_update_df_cache(self, work_directory, dev):
+        if dev not in self.df_cache:
+            vfs = os.statvfs(work_directory)
+            self.df_cache[dev] = vfs
+        else:
+            vfs = self.df_cache[dev]
+        return vfs
+
+    #TODO: check it
     @staticmethod
     def get_mounted_device(pathname):
         mounted_devices = [d.device for d in psutil.disk_partitions() if d.mountpoint == pathname]

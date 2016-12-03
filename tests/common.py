@@ -12,3 +12,18 @@ class ContextualStringIO(StringIO):
     def __exit__(self, *args):
         self.close()
         return False
+
+
+class ErrorAfter(object):
+    def __init__(self, limit):
+        self.limit = limit
+        self.calls = 0
+
+    def __call__(self, *args):
+        self.calls += 1
+        if self.calls > self.limit:
+            raise CallableExhausted
+        return args
+
+class CallableExhausted(Exception):
+    pass

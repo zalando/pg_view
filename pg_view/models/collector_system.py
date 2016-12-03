@@ -144,7 +144,7 @@ class SystemStatCollector(BaseStatCollector):
         return result
 
     def read_cpu_times(self):
-        default_key_mapping = {
+        psutil_to_output_mapping = {
             'guest': 'guest',
             'idle': 'idle',
             'iowait': 'iowait',
@@ -155,10 +155,9 @@ class SystemStatCollector(BaseStatCollector):
             'user': 'utime',
         }
 
-        # TODO: Fix it
         cpu_from_psutil_dict = psutil.cpu_times()._asdict()
         cpu_times = {k: v for k, v in cpu_from_psutil_dict.items()}
-        return _remap_params(cpu_times, default_key_mapping)
+        return _remap_params(cpu_times, psutil_to_output_mapping)
 
     def _refresh_cpu_time_values(self, cpu_times):
         # calculate the sum of all CPU indicators and store it.
@@ -178,8 +177,7 @@ class SystemStatCollector(BaseStatCollector):
             displayer, before_string='System statistics:', after_string='\n')
 
     def read_cpu_stats(self):
-        # psutils, displayer
-        default_key_mapping = {
+        psutil_to_output_mapping = {
             'ctx_switches': 'ctxt',
             'procs_running': 'running',
             'procs_blocked': 'blocked',
@@ -188,7 +186,7 @@ class SystemStatCollector(BaseStatCollector):
         if psutil.LINUX:
             refreshed_cpu_stats = self.get_missing_cpu_stat_from_file()
             cpu_stats.update(refreshed_cpu_stats)
-        return _remap_params(cpu_stats, default_key_mapping)
+        return _remap_params(cpu_stats, psutil_to_output_mapping)
 
     def get_missing_cpu_stat_from_file(self):
         from psutil._pslinux import open_binary, get_procfs_path

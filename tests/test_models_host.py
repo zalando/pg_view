@@ -144,3 +144,12 @@ class HostStatCollectorTest(TestCase):
     def test__concat_load_avg_should_return_str_when_than_three_rows(self):
         concatenated_data = self.collector._concat_load_avg('loadavg', (0.16, 0.05, 0.06), False)
         self.assertEqual('0.16 0.05 0.06', concatenated_data)
+
+    def test__construct_sysname_should_return_none_when_less_than_three_elements(self):
+        sysname = self.collector._construct_sysname('', ('Linux', 'vagrant-ubuntu-trusty-64'), 'optional')
+        self.assertIsNone(sysname)
+
+    def test__construct_sysname_should_return_sysname_when_input_ok(self):
+        row = ('Linux', 'vagrant-ubuntu-trusty-64', '3.13.0-100-generic', '#147-Ubuntu SMP Tue Oct 18 16:48:51 UTC 2016', 'x86_64')
+        sysname = self.collector._construct_sysname('', row, 'optional')
+        self.assertEqual('Linux 3.13.0-100-generic', sysname)

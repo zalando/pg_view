@@ -1,9 +1,15 @@
+from collections import namedtuple
 from multiprocessing import JoinableQueue
 from unittest import TestCase
+
+import mock
 
 from pg_view.models.collector_partition import PartitionStatCollector
 from pg_view.models.consumers import DiskCollectorConsumer
 
+sdiskio = namedtuple(
+    'sdiskio', ['read_count', 'write_count', 'read_bytes', 'write_bytes', 'read_time', 'write_time']
+)
 
 class PartitionStatCollectorTest(TestCase):
     def setUp(self):
@@ -31,3 +37,31 @@ class PartitionStatCollectorTest(TestCase):
         self._assert_data_has_proper_structure(data_type)
         xlog_type = refreshed_data[1]
         self._assert_data_has_proper_structure(xlog_type)
+
+    def test__dereference_dev_name_should_return_input_when_not_dev(self):
+        self.assertEqual('/abc', self.collector._dereference_dev_name('/abc'))
+
+    def test__dereference_dev_name_should_return_none_when_devname_false(self):
+        self.assertIsNone(self.collector._dereference_dev_name(''))
+
+    def test__dereference_dev_name_should_replace_dev_when_dev(self):
+        dev_name = self.collector._dereference_dev_name('/dev/sda1')
+        self.assertEqual('sda1', dev_name)
+
+    @mock.patch('pg_view.models.collector_partition.psutil.disk_io_counters')
+    def test_get_io_data_should_return_data_when_ok(self, mocked_disk_io_counters):
+        mocked_disk_io_counters.return_value = {
+            'sda1': sdiskio(read_count=10712, write_count=4011, read_bytes=157438976,
+                            write_bytes=99520512, read_time=6560, write_time=3768
+                            )
+        }
+        io_data = self.collector.get_io_data('')
+        expected_data = {
+            'sda1': {
+                'await': 0,
+                'sectors_read': 307498,
+                'sectors_written': 194376
+            }
+        }
+
+        self.assertEqual(expected_data, io_data)

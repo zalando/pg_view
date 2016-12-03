@@ -90,3 +90,11 @@ class MemoryStatCollectorTest(TestCase):
         data = self.collector.calculate_kb_left_until_limit('commit_left', {}, False)
         self.assertIsNone(data)
         mocked_logger.error.assert_called_with('Column commit_left is not optional, but input row has no value for it')
+
+    @unittest.skipUnless(psutil.LINUX, "Linux only")
+    @mock.patch('pg_view.models.collector_system.psutil._pslinux.open_binary')
+    def test_get_missing_cpu_stat_from_file_should_parse_data_from_proc_stat(self, mocked_open):
+        cpu_info_ok = os.path.join(TEST_DIR, 'proc_files', 'meminfo_ok')
+        mocked_open.return_value = open(cpu_info_ok, "rU")
+        refreshed_data = self.collector.get_missing_memory_stat_from_file()
+        self.assertEqual({'CommitLimit:': 250852, 'Committed_AS:': 329264, 'Dirty:': 36}, refreshed_data)

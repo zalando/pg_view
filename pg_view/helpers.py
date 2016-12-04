@@ -27,6 +27,10 @@ class UnitConverter(object):
         return float(bytes_val) / BYTES_IN_MB if bytes_val is not None else None
 
     @staticmethod
+    def bytes_to_kb(bytes_val):
+        return float(bytes_val) / KB_IN_MB if bytes_val is not None else None
+
+    @staticmethod
     def ticks_to_seconds(tick_value_str):
         return float(tick_value_str) / consts.USER_HZ if tick_value_str is not None else None
 

@@ -37,6 +37,7 @@ def process_sort_key(process):
 
 class PgStatCollector(BaseStatCollector):
     """ Collect PostgreSQL-related statistics """
+    SUBRPOCESS_PIDS_CMD = 'ps -o pid --ppid {0} --noheaders'
 
     def __init__(self, pgcon, reconnect, pid, dbname, dbver, always_track_pids):
         super(PgStatCollector, self).__init__()
@@ -61,7 +62,7 @@ class PgStatCollector(BaseStatCollector):
 
         self.transform_dict_data = [
             {'out': 'pid', 'fn': int},
-            {'out': 'status'},
+            {'out': 'state'},
             {'out': 'utime', 'fn': self.unit_converter.ticks_to_seconds},
             {'out': 'stime', 'fn': self.unit_converter.ticks_to_seconds},
             {'out': 'rss', 'fn': int},
@@ -230,7 +231,7 @@ class PgStatCollector(BaseStatCollector):
         return cls(cluster['pgcon'], cluster['reconnect'], cluster['pid'], cluster['name'], cluster['ver'], pid)
 
     def get_subprocesses_pid(self):
-        result = exec_command_with_output('ps -o pid --ppid {0} --noheaders'.format(self.postmaster_pid))
+        result = exec_command_with_output(self.SUBRPOCESS_PIDS_CMD.format(self.postmaster_pid))
         if result[0] != 0:
             logger.info("Couldn't determine the pid of subprocesses for {0}".format(self.postmaster_pid))
             return []
@@ -334,7 +335,7 @@ class PgStatCollector(BaseStatCollector):
             'write_bytes': io_stats.write_bytes,
 
             'pid': process.pid,
-            'status': process.status(),
+            'state': process.status(),
             'utime': cpu_times.user,
             'stime': cpu_times.system,
             'rss': memory_info.rss / PAGESIZE,

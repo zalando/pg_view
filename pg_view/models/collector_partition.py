@@ -175,13 +175,40 @@ class PartitionStatCollector(BaseStatCollector):
         io_counters = psutil.disk_io_counters(perdisk=True)
         stats_perdisk = {}
         for disk, stats in io_counters.items():
+            if disk not in pnames:
+                continue
             stats_perdisk[disk] = {
                 'sectors_read': stats.read_bytes / SECTOR_SIZE,
                 'sectors_written': stats.write_bytes / SECTOR_SIZE,
-                # TODO: Add get missing info
                 'await': 0
             }
+
+        if psutil.LINUX:
+            refreshed_io_stats = self.get_missing_io_stat_from_file(pnames)
+            for disk, stats in stats_perdisk.items():
+                if disk in refreshed_io_stats:
+                    stats_perdisk[disk].update(refreshed_io_stats[disk])
         return stats_perdisk
+
+    def get_missing_io_stat_from_file(self, pnames):
+        from psutil._pslinux import open_text, get_procfs_path
+        with open_text("%s/diskstats" % get_procfs_path()) as f:
+            lines = f.readlines()
+        missing_data_per_disk = {}
+
+        for line in lines:
+            fields = line.split()
+            if len(fields) >= 14:
+                name = self.get_name_from_fields(fields)
+                if name in pnames:
+                    missing_data_per_disk[name] = {'await': int(fields[13])}
+            else:
+                logger.warning('not sure how to interpret line %r" % line')
+        return missing_data_per_disk
+
+    def get_name_from_fields(self, fields):
+        # Linux 2.4, or Linux 2.6+, line referring to a disk
+        return fields[3] if len(fields) == 15 else fields[2]
 
     def output(self, displayer):
         return super(self.__class__, self).output(displayer, before_string='PostgreSQL partitions:', after_string='\n')
@@ -281,11 +308,10 @@ class DetachedDiskStatCollector(Process):
             vfs = self.df_cache[dev]
         return vfs
 
-    # TODO: check it
     @staticmethod
     def get_mounted_device(pathname):
         mounted_devices = [d.device for d in psutil.disk_partitions() if d.mountpoint == pathname]
-        return mounted_devices[0] if len(mounted_devices) == 1 else None
+        return mounted_devices[0] if mounted_devices else None
 
     @staticmethod
     def get_mount_point(pathname):

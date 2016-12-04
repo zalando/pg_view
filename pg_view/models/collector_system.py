@@ -155,26 +155,8 @@ class SystemStatCollector(BaseStatCollector):
             'user': 'utime',
         }
 
-        cpu_from_psutil_dict = psutil.cpu_times()._asdict()
-        cpu_times = {k: v for k, v in cpu_from_psutil_dict.items()}
+        cpu_times = psutil.cpu_times()._asdict()
         return _remap_params(cpu_times, psutil_to_output_mapping)
-
-    def _refresh_cpu_time_values(self, cpu_times):
-        # calculate the sum of all CPU indicators and store it.
-        total_cpu_time = sum(v for v in cpu_times.values() if v is not None)
-        # calculate actual differences in cpu time values
-        self.previos_total_cpu_time = self.current_total_cpu_time
-        self.current_total_cpu_time = total_cpu_time
-        self.cpu_time_diff = self.current_total_cpu_time - self.previos_total_cpu_time
-
-    def _cpu_time_diff(self, colname, current, previous):
-        if current.get(colname) and previous.get(colname) and self.cpu_time_diff > 0:
-            return (current[colname] - previous[colname]) / self.cpu_time_diff
-        return None
-
-    def output(self, displayer):
-        return super(SystemStatCollector, self).output(
-            displayer, before_string='System statistics:', after_string='\n')
 
     def read_cpu_stats(self):
         psutil_to_output_mapping = {
@@ -197,3 +179,20 @@ class SystemStatCollector(BaseStatCollector):
                 if name.startswith('procs_'):
                     missing_data[name] = int(value)
         return missing_data
+
+    def _refresh_cpu_time_values(self, cpu_times):
+        # calculate the sum of all CPU indicators and store it.
+        total_cpu_time = sum(v for v in cpu_times.values() if v is not None)
+        # calculate actual differences in cpu time values
+        self.previos_total_cpu_time = self.current_total_cpu_time
+        self.current_total_cpu_time = total_cpu_time
+        self.cpu_time_diff = self.current_total_cpu_time - self.previos_total_cpu_time
+
+    def _cpu_time_diff(self, colname, current, previous):
+        if current.get(colname) and previous.get(colname) and self.cpu_time_diff > 0:
+            return (current[colname] - previous[colname]) / self.cpu_time_diff
+        return None
+
+    def output(self, displayer):
+        return super(SystemStatCollector, self).output(
+            displayer, before_string='System statistics:', after_string='\n')

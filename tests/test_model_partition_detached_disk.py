@@ -94,3 +94,17 @@ class DetachedDiskStatCollectorTest(TestCase):
         df_data = detached_disk._get_or_update_df_cache('/var/lib/postgresql/9.3/main', '/sda/dev1')
         self.assertEqual((4096, 4096,), df_data)
         mocked_os_statvfs.assert_not_called()
+
+    @mock.patch('pg_view.models.collector_partition.psutil.disk_partitions', return_value=[])
+    def test_get_mounted_device_should_return_none_when_no_device_on_pathname(self, mocked_disk_partitions):
+        detached_disk = DetachedDiskStatCollector(mock.Mock(), ['/var/lib/postgresql/9.3/main'])
+        mounted_device = detached_disk.get_mounted_device('/test')
+        self.assertIsNone(mounted_device)
+
+    @mock.patch('pg_view.models.collector_partition.psutil.disk_partitions')
+    def test_get_mounted_device_should_return_none_when_no_device_on_pathname(self, mocked_disk_partitions):
+        device = mock.Mock(mountpoint='/', device='sda1')
+        mocked_disk_partitions.return_value = [device]
+        detached_disk = DetachedDiskStatCollector(mock.Mock(), ['/var/lib/postgresql/9.3/main'])
+        mounted_device = detached_disk.get_mounted_device('/')
+        self.assertEqual('sda1', mounted_device)

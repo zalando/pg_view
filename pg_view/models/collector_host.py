@@ -1,5 +1,5 @@
 import socket
-from datetime import timedelta, datetime
+from datetime import datetime
 from multiprocessing import cpu_count
 
 import os
@@ -20,9 +20,7 @@ class HostStatCollector(BaseStatCollector):
         self.transform_list_data = [
             {'out': 'loadavg', 'infn': self._concat_load_avg}
         ]
-        self.transform_uptime_data = [
-            {'out': 'uptime', 'infn': self._uptime_to_str}
-        ]
+
         self.transform_uname_data = [
             {'out': 'sysname', 'infn': self._construct_sysname}
         ]
@@ -80,9 +78,8 @@ class HostStatCollector(BaseStatCollector):
         return raw_result
 
     def _read_uptime(self):
-        uptime = datetime.now() - datetime.fromtimestamp(psutil.boot_time())
-        uptime = str(uptime).split('.')[0]
-        return {'uptime': uptime}
+        uptime = datetime.now().replace(microsecond=0) - datetime.fromtimestamp(psutil.boot_time())
+        return {'uptime': str(uptime)}
 
     def _read_load_average(self):
         return self._transform_list(os.getloadavg())
@@ -111,11 +108,6 @@ class HostStatCollector(BaseStatCollector):
         if len(row) < 3:
             return None
         return '{0} {1}'.format(row[0], row[2])
-
-    # TODO: to remove, not used, decide
-    @staticmethod
-    def _uptime_to_str(uptime):
-        return str(timedelta(seconds=int(float(uptime))))
 
     def output(self, displayer):
         return super(self.__class__, self).output(displayer, before_string='Host statistics', after_string='\n')

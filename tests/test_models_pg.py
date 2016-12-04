@@ -145,7 +145,7 @@ class PgStatCollectorTest(TestCase):
             'write_bytes': 1,
 
             'pid': 1049,
-            'status': 'status',
+            'state': 'status',
             'utime': 0.0002,
             'stime': 0.0001,
             'rss': 432,

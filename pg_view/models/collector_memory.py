@@ -1,6 +1,7 @@
 import psutil
 
 from pg_view.formatters import StatusFormatter, FnFormatter
+from pg_view.helpers import KB_IN_MB
 from pg_view.models.collector_base import BaseStatCollector, warn_non_optional_column, _remap_params
 
 
@@ -9,6 +10,9 @@ class MemoryStatCollector(BaseStatCollector):
 
     def __init__(self):
         super(MemoryStatCollector, self).__init__(produce_diffs=False)
+        self.status_formatter = StatusFormatter(self)
+        self.fn_formatter = FnFormatter(self)
+
         self.transform_dict_data = [
             {'in': 'MemTotal', 'out': 'total', 'fn': int},
             {'in': 'MemFree', 'out': 'free', 'fn': int},
@@ -19,8 +23,6 @@ class MemoryStatCollector(BaseStatCollector):
             {'in': 'Committed_AS', 'out': 'committed_as', 'fn': int, 'optional': True},
             {'infn': self.calculate_kb_left_until_limit, 'out': 'commit_left', 'fn': int, 'optional': True}
         ]
-        self.status_formatter = StatusFormatter(self)
-        self.fn_formatter = FnFormatter(self)
 
         self.output_transform_data = [
             {
@@ -98,22 +100,25 @@ class MemoryStatCollector(BaseStatCollector):
         return raw_result
 
     def read_memory_data(self):
-        default_memory_mapping = {
+        psutil_to_output_mapping = {
             'total': 'MemTotal',
             'free': 'MemFree',
             'buffers': 'Buffers',
             'cached': 'Cached',
-            'CommitLimit:': 'CommitLimit',
             'Dirty:': 'Dirty',
+            'CommitLimit:': 'CommitLimit',
             'Committed_AS:': 'Committed_AS',
         }
 
         memory_stats = psutil.virtual_memory()._asdict()
-        memory_st = {k: v / 1024 for k, v in memory_stats.items()}
         if psutil.LINUX:
             refreshed_memory_stats = self.get_missing_memory_stat_from_file()
-            memory_st.update(refreshed_memory_stats)
-        return _remap_params(memory_st, default_memory_mapping)
+            memory_stats.update(refreshed_memory_stats)
+        memory_stats_in_kb = self._convert_to_kb(memory_stats)
+        return _remap_params(memory_stats_in_kb, psutil_to_output_mapping)
+
+    def _convert_to_kb(self, memory_stats):
+        return {k: self.unit_converter.bytes_to_kb(v) for k, v in memory_stats.items()}
 
     def get_missing_memory_stat_from_file(self):
         missing_data = dict.fromkeys(['Dirty:', 'CommitLimit:', 'Committed_AS:'], 0)
@@ -122,7 +127,7 @@ class MemoryStatCollector(BaseStatCollector):
             for line in f:
                 fields = line.split()
                 if fields[0] in missing_data.keys():
-                    missing_data[fields[0]] = int(fields[1])
+                    missing_data[fields[0]] = int(fields[1]) * KB_IN_MB
         return missing_data
 
     def calculate_kb_left_until_limit(self, colname, row, optional):

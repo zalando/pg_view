@@ -128,3 +128,42 @@ class SystemStatCollectorTest(TestCase):
         self.assertEqual(1.0, self.collector.previos_total_cpu_time)
         self.assertEqual(8501734.0, self.collector.current_total_cpu_time)
         self.assertEqual(8501733.0, self.collector.cpu_time_diff)
+
+    def test__cpu_time_diff_should_return_none_when_cpu_time_diff_zero(self):
+        current = {
+            'guest': 0.0, 'irq': 0.0, 'running': 1, 'idle': 75211.11, 'stime': 209.64, 'iowait': 1.71, 'blocked': 0,
+            'utime': 292.11, 'steal': 0.0, 'ctxt': 6595374, 'softirq': 9.0
+        }
+        previous = {
+            'guest': 0.0, 'irq': 0.0, 'running': 2, 'idle': 75210.22, 'stime': 209.6, 'iowait': 1.71, 'blocked': 0,
+            'utime': 291.99, 'steal': 0.0, 'ctxt': 6594493, 'softirq': 8.99
+        }
+
+        self.collector.cpu_time_diff = 0
+        self.assertIsNone(self.collector._cpu_time_diff('utime', current, previous))
+
+    def test__cpu_time_diff_should_return_none_when_no_colname_in_data(self):
+        current = {
+            'guest': 0.0, 'irq': 0.0, 'running': 1, 'idle': 75211.11, 'stime': 209.64, 'iowait': 1.71, 'blocked': 0,
+            'steal': 0.0, 'ctxt': 6595374, 'softirq': 9.0
+        }
+        previous = {
+            'guest': 0.0, 'irq': 0.0, 'running': 2, 'idle': 75210.22, 'stime': 209.6, 'iowait': 1.71, 'blocked': 0,
+            'steal': 0.0, 'ctxt': 6594493, 'softirq': 8.99
+        }
+
+        self.collector.cpu_time_diff = 1
+        self.assertIsNone(self.collector._cpu_time_diff('utime', current, previous))
+
+    def test__cpu_time_diff_should_return_diff_when_ok(self):
+        current = {
+            'guest': 0.0, 'irq': 0.0, 'running': 1, 'idle': 75211.11, 'stime': 209.64, 'iowait': 1.71, 'blocked': 0,
+            'utime': 293, 'steal': 0.0, 'ctxt': 6595374, 'softirq': 9.0
+        }
+        previous = {
+            'guest': 0.0, 'irq': 0.0, 'running': 2, 'idle': 75210.22, 'stime': 209.6, 'iowait': 1.71, 'blocked': 0,
+            'utime': 292, 'steal': 0.0, 'ctxt': 6594493, 'softirq': 8.99
+        }
+
+        self.collector.cpu_time_diff = 1
+        self.assertEqual(1, self.collector._cpu_time_diff('utime', current, previous))

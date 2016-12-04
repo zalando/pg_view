@@ -6,7 +6,7 @@ import mock
 import os
 import psutil
 
-from pg_view.helpers import open_universal
+from pg_view.helpers import open_universal, KB_IN_MB
 from pg_view.models.collector_memory import MemoryStatCollector
 from tests.common import TEST_DIR
 
@@ -98,4 +98,6 @@ class MemoryStatCollectorTest(TestCase):
         cpu_info_ok = os.path.join(TEST_DIR, 'proc_files', 'meminfo_ok')
         mocked_open.return_value = open(cpu_info_ok, "rU")
         refreshed_data = self.collector.get_missing_memory_stat_from_file()
-        self.assertEqual({'CommitLimit:': 250852, 'Committed_AS:': 329264, 'Dirty:': 36}, refreshed_data)
+        expected_data = {
+            'CommitLimit:': 250852 * KB_IN_MB, 'Committed_AS:': 329264 * KB_IN_MB, 'Dirty:': 36 * KB_IN_MB}
+        self.assertEqual(expected_data, refreshed_data)

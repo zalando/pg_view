@@ -1,5 +1,6 @@
 import resource
 import sys
+from datetime import datetime
 
 import os
 import psutil
@@ -9,7 +10,6 @@ import re
 
 from pg_view.consts import RD
 from pg_view.formatters import StatusFormatter, FnFormatter
-from pg_view.helpers import exec_command_with_output
 from pg_view.models.collector_base import BaseStatCollector, logger
 from pg_view.models.displayers import COLALIGN
 from pg_view.sqls import SELECT_PGSTAT_VERSION_LESS_THAN_92, SELECT_PGSTAT_VERSION_LESS_THAN_96, \
@@ -37,7 +37,6 @@ def process_sort_key(process):
 
 class PgStatCollector(BaseStatCollector):
     """ Collect PostgreSQL-related statistics """
-    SUBRPOCESS_PIDS_CMD = 'ps -o pid --ppid {0} --noheaders'
 
     def __init__(self, pgcon, reconnect, pid, dbname, dbver, always_track_pids):
         super(PgStatCollector, self).__init__()
@@ -69,7 +68,7 @@ class PgStatCollector(BaseStatCollector):
             {'out': 'read_bytes', 'fn': int, 'optional': True},
             {'out': 'write_bytes', 'fn': int, 'optional': True},
             {'out': 'priority', 'fn': int},
-            {'out': 'starttime', 'fn': long},
+            {'out': 'starttime'},
             {'out': 'vsize', 'fn': int},
             {'out': 'delayacct_blkio_ticks', 'fn': long, 'optional': True},
             {'out': 'guest_time', 'fn': self.unit_converter.ticks_to_seconds, 'optional': True}
@@ -116,11 +115,11 @@ class PgStatCollector(BaseStatCollector):
                 'pos': 1
             },
             {
-                'out': 's',
+                'out': 'state',
                 'in': 'state',
                 'pos': 2,
                 'status_fn': self.status_formatter.check_ps_state,
-                'warning': 'D',
+                'warning': 'disk-sleep',
             },
             {
                 'out': 'utime',
@@ -231,11 +230,11 @@ class PgStatCollector(BaseStatCollector):
         return cls(cluster['pgcon'], cluster['reconnect'], cluster['pid'], cluster['name'], cluster['ver'], pid)
 
     def get_subprocesses_pid(self):
-        result = exec_command_with_output(self.SUBRPOCESS_PIDS_CMD.format(self.postmaster_pid))
-        if result[0] != 0:
+        subprocesses = psutil.Process(self.postmaster_pid).children()
+        if not subprocesses:
             logger.info("Couldn't determine the pid of subprocesses for {0}".format(self.postmaster_pid))
             return []
-        return [int(x) for x in result[1].split()]
+        return [p.pid for p in subprocesses]
 
     def ident(self):
         return '{0} ({1}/{2})'.format('postgres', self.dbname, self.dbver)
@@ -287,9 +286,9 @@ class PgStatCollector(BaseStatCollector):
                 continue
             result_row = {}
             # for each pid, get hash row from /proc/
-            proc_data = self._read_proc(pid)
+            proc_data = self.get_proc_data(pid)
             if proc_data:
-                self.get_additional_info(pid, proc_data, stat_data)
+                self.get_additional_proc_info(pid, proc_data, stat_data)
                 result_row.update(proc_data)
             if stat_data and pid in stat_data:
                 # ditto for the pg_stat_activity
@@ -301,7 +300,43 @@ class PgStatCollector(BaseStatCollector):
         self._do_refresh(result)
         return result
 
-    def get_additional_info(self, pid, proc_data, stat_data):
+    def get_proc_data(self, pid):
+        result = {}
+        process = psutil.Process(pid)
+        cpu_times = process.cpu_times()
+        memory_info = process.memory_info()
+
+        proc_stats = {
+            'pid': process.pid,
+            'state': process.status(),
+            'utime': cpu_times.user,
+            'stime': cpu_times.system,
+            'rss': memory_info.rss / PAGESIZE,
+            'priority': process.nice(),
+            'vsize': memory_info.vms,
+            'starttime': datetime.fromtimestamp(process.create_time()),
+            'locked_by': process.username(),
+            'guest_time': cpu_times.guest if hasattr(cpu_times, 'guest') else 0.0,
+            'delayacct_blkio_ticks': cpu_times.delayacct_blkio_ticks if hasattr(cpu_times, 'delayacct_blkio_ticks') else 0,
+        }
+
+        io_stats = self.get_io_counters(process)
+        proc_stats.update(io_stats)
+        # Assume we managed to read the row if we can get its PID
+        result.update(self._transform_input(proc_stats))
+        result['cmdline'] = process.cmdline()[0].strip()
+        return result
+
+    def get_io_counters(self, process):
+        if not hasattr(process, 'io_counters'):
+            return {}
+        io_stats = process.io_counters()
+        return {
+            'read_bytes': io_stats.read_bytes,
+            'write_bytes': io_stats.write_bytes
+        }
+
+    def get_additional_proc_info(self, pid, proc_data, stat_data):
         is_backend = pid in stat_data
         is_active = is_backend and (stat_data[pid]['query'] != 'idle' or pid in self.always_track_pids)
         if is_backend:
@@ -310,7 +345,7 @@ class PgStatCollector(BaseStatCollector):
             proc_data['type'], action = self._get_psinfo(proc_data['cmdline'])
             if action:
                 proc_data['query'] = action
-        if is_active or not is_backend:
+        if psutil.LINUX and (is_active or not is_backend):
             proc_data['uss'] = self._get_memory_usage(pid)
         return proc_data
 
@@ -321,38 +356,6 @@ class PgStatCollector(BaseStatCollector):
         self.max_connections = self._get_max_connections()
         self.dbver = dbversion_as_float(self.pgcon)
         self.server_version = self.pgcon.get_parameter_status('server_version')
-
-    def _read_proc(self, pid):
-        result = {}
-        process = psutil.Process(pid)
-        io_stats = process.io_counters()
-
-        cpu_times = process.cpu_times()
-        memory_info = process.memory_info()
-
-        proc_stats = {
-            'read_bytes': io_stats.read_bytes,
-            'write_bytes': io_stats.write_bytes,
-
-            'pid': process.pid,
-            'state': process.status(),
-            'utime': cpu_times.user,
-            'stime': cpu_times.system,
-            'rss': memory_info.rss / PAGESIZE,
-            'priority': process.nice(),
-            'vsize': memory_info.vms,
-
-            # TODO: Check if correct
-            'locked_by': process.username(),
-            'guest_time': 0.0,
-            'starttime': 911L,
-            'delayacct_blkio_ticks': 1,
-        }
-
-        # Assume we managed to read the row if we can get its PID
-        result.update(self._transform_input(proc_stats))
-        result['cmdline'] = process.cmdline()[0].strip()
-        return result
 
     def _get_memory_usage(self, pid):
         # compute process's own non-shared memory.

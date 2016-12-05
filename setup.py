@@ -15,7 +15,7 @@ __location__ = os.path.join(os.getcwd(), os.path.dirname(inspect.getfile(inspect
 def read_module(path):
     data = {}
     with open(path, 'r') as fd:
-        exec (fd.read(), data)
+        exec(fd.read(), data)
     return data
 
 

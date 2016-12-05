@@ -1,13 +1,17 @@
+import os
 import time
 from multiprocessing import Process
 
-import os
 import psutil
+import sys
 
 from pg_view.consts import RD, TICK_LENGTH, SECTOR_SIZE
 from pg_view.formatters import StatusFormatter, FnFormatter
 from pg_view.models.collector_base import BaseStatCollector, logger
 from pg_view.models.displayers import COLALIGN
+
+if sys.hexversion >= 0x03000000:
+    long = int
 
 
 class PartitionStatCollector(BaseStatCollector):

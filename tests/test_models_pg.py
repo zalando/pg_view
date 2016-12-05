@@ -158,7 +158,7 @@ class PgStatCollectorTest(TestCase):
 
             'guest_time': 0.0,
             'starttime': datetime.datetime.fromtimestamp(1480777289.0),
-            'delayacct_blkio_ticks': 0L,
+            'delayacct_blkio_ticks': 0,
             'cmdline': 'backend'
         }
         self.assertEqual(expected_proc_stats, proc_stats)
@@ -285,8 +285,8 @@ class PgStatCollectorTest(TestCase):
             'priority': 10,
             'vsize': 252428288,
             'guest_time': 0.0,
-            'starttime': 911L,
-            'delayacct_blkio_ticks': 1L,
+            'starttime': 911,
+            'delayacct_blkio_ticks': 1,
             'cmdline': 'backend'
         }
 
@@ -310,14 +310,14 @@ class PgStatCollectorTest(TestCase):
             'status': 'status',
             'write_bytes': 1,
             'vsize': 252428288,
-            'delayacct_blkio_ticks': 1L,
+            'delayacct_blkio_ticks': 1,
             'pid': 1049,
             'priority': 10,
             'cmdline': 'backend',
             'read_bytes': 655,
             'uss': 10,
             'stime': 0.0001,
-            'starttime': 911L,
+            'starttime': 911,
             'utime': 0.0002,
             'type': 'unknown',
             'guest_time': 0.0,

@@ -10,7 +10,7 @@ from pg_view.models.clients import read_postmaster_pid, make_cluster_desc, DBCon
 
 class DbClientUtilsTest(TestCase):
     @mock.patch('pg_view.models.clients.logger')
-    @mock.patch('__builtin__.open')
+    @mock.patch('pg_view.models.clients.open', create=True)
     def test_read_postmaster_pid_should_return_none_when_error(self, mocked_open, mocked_logger):
         mocked_open.side_effect = Exception
         data = read_postmaster_pid('/var/lib/postgresql/9.3/main', 'default')
@@ -20,7 +20,7 @@ class DbClientUtilsTest(TestCase):
             expected_msg.format(name='default', wd='/var/lib/postgresql/9.3/main'))
 
     @mock.patch('pg_view.models.clients.logger')
-    @mock.patch('__builtin__.open')
+    @mock.patch('pg_view.models.clients.open', create=True)
     def test_read_postmaster_pid_should_return_none_when_error_strip(self, mocked_open, mocked_logger):
         mocked_open.return_value.readline.return_value = []
         data = read_postmaster_pid('/var/lib/postgresql/9.3/main', 'default')
@@ -29,7 +29,7 @@ class DbClientUtilsTest(TestCase):
         mocked_logger.error.assert_called_with(
             expected_msg.format(name='default', wd='/var/lib/postgresql/9.3/main'))
 
-    @mock.patch('__builtin__.open')
+    @mock.patch('pg_view.models.clients.open', create=True)
     def test_read_postmaster_pid_should_return_pid_when_read_file(self, mocked_open):
         mocked_open.return_value.readline.return_value = '123 '
         data = read_postmaster_pid('/var/lib/postgresql/9.3/main', 'default')
@@ -79,14 +79,12 @@ class DBConnectionFinderTest(TestCase):
                                                                                                 mocked_detect_with_proc_net,
                                                                                                 mocked_logger):
         finder = DBConnectionFinder('workdir', 1049, '9.3', 'username', 'atlas')
-        mocked_proc_worker.return_value.detect_with_postmaster_pid.return_value = {
-            'unix_wrong': [('/var/run/postgresql', '5432')],
-            'tcp_wrong': [('localhost', '5432')]
-        }
+        conn_params = {'unix_wrong': [('/var/run/postgresql', '5432')], 'tcp_wrong': [('localhost', '5432')]}
+        mocked_proc_worker.return_value.detect_with_postmaster_pid.return_value = conn_params
         conn_args = finder.detect_db_connection_arguments()
         self.assertIsNone(conn_args)
         expected_msg = "unable to connect to PostgreSQL cluster at workdir using any of the detected connection " \
-                       "options: {'unix_wrong': [('/var/run/postgresql', '5432')], 'tcp_wrong': [('localhost', '5432')]}"
+                       "options: {0}".format(conn_params)
         mocked_logger.error.assert_called_with(expected_msg)
 
     @mock.patch('pg_view.models.clients.DBConnectionFinder.detect_with_proc_net', return_value=None)
@@ -217,11 +215,9 @@ class DBClientTest(TestCase):
         with self.assertRaises(NotConnectedError):
             client.establish_user_defined_connection('instance', [])
 
-        mocked_logger.error.assert_has_calls([
-            mock.call(
-                "failed to establish connection to instance via {'host': 'localhost', 'database': 'db', 'port': '5432', 'user': 'user'}"),
-            mock.call('PostgreSQL exception: ')]
-        )
+        expected_msg = "failed to establish connection to instance via {0}".format(
+            client.connection_builder.build_connection())
+        mocked_logger.error.assert_has_calls([mock.call(expected_msg), mock.call('PostgreSQL exception: ')])
 
     @mock.patch('pg_view.models.clients.logger')
     @mock.patch('pg_view.models.clients.psycopg2')
@@ -238,7 +234,8 @@ class DBClientTest(TestCase):
         with self.assertRaises(NoPidConnectionError):
             client.establish_user_defined_connection('default', [])
 
-        expected_msg = "failed to read pid of the postmaster on {'host': 'localhost', 'database': 'db', 'port': '5432', 'user': 'user'}"
+        expected_msg = "failed to read pid of the postmaster on {0}".format(
+            client.connection_builder.build_connection())
         mocked_logger.error.assert_called_once_with(expected_msg)
 
     @mock.patch('pg_view.models.clients.logger')

@@ -175,8 +175,8 @@ class SystemStatCollector(BaseStatCollector):
         missing_data = {}
         with open_binary('%s/stat' % get_procfs_path()) as f:
             for line in f:
-                name, args, value = line.strip().partition(' ')
-                if name.startswith('procs_'):
+                name, args, value = line.strip().partition(b' ')
+                if name.startswith(b'procs_'):
                     missing_data[name] = int(value)
         return missing_data
 

@@ -94,9 +94,9 @@ class MemoryStatCollectorTest(TestCase):
 
     @unittest.skipUnless(psutil.LINUX, "Linux only")
     @mock.patch('pg_view.models.collector_system.psutil._pslinux.open_binary')
-    def test_get_missing_cpu_stat_from_file_should_parse_data_from_proc_stat(self, mocked_open):
+    def test_get_missing_memory_stat_from_file_should_parse_data_from_proc_stat(self, mocked_open):
         cpu_info_ok = os.path.join(TEST_DIR, 'proc_files', 'meminfo_ok')
-        mocked_open.return_value = open(cpu_info_ok, "rU")
+        mocked_open.return_value = open_universal(cpu_info_ok)
         refreshed_data = self.collector.get_missing_memory_stat_from_file()
         expected_data = {
             'CommitLimit:': 250852 * KB_IN_MB, 'Committed_AS:': 329264 * KB_IN_MB, 'Dirty:': 36 * KB_IN_MB}

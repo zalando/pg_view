@@ -27,8 +27,8 @@ else:
 
 def dbversion_as_float(server_version):
     version_num = server_version
-    version_num /= 100
-    return float('{0}.{1}'.format(version_num / 100, version_num % 100))
+    version_num //= 100
+    return float('{0}.{1}'.format(version_num // 100, version_num % 100))
 
 
 def process_sort_key(process):

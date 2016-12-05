@@ -40,13 +40,13 @@ Installation and Configuration
 
 To run pg_view, you’ll need:
 
-- Linux 2.6
 - Python >= 2.6
 - psycopg2
 - curses
 
 By default, pg_view assumes that it can connect to a local PostgreSQL instance with the user postgres and no password. Some systems might require you to change your pg_hba.conf file or set the password in .pgpass. You can override the default user name with the -U command-line option or by setting the user key in the configuration file (see below).
-
+Because pg_view uses psutil it is platform-independent, but systems have different security model, and when you would like for example run this script on OS X, you have to run it as root in order to use psutil functions that read information from another process. This is a part of security model on OS X which does not allow one process to read from another process even if they have the same owner.
+Run pg_view script as 'sudo python pg_view/view.py -Upostgres' on OS X and it should work.
 ==============
 How pg_view works
 ==============

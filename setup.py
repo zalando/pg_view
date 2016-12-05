@@ -5,6 +5,7 @@ import sys
 import os
 import inspect
 
+import setuptools
 from setuptools.command.test import test as TestCommand
 from setuptools import setup
 
@@ -45,7 +46,7 @@ CLASSIFIERS = [
     'Topic :: Database'
 ]
 
-CONSOLE_SCRIPTS = ['pg_view.view = pg_view.view:main']
+CONSOLE_SCRIPTS = ['pg_view = pg_view.view:main']
 
 
 class PyTest(TestCommand):
@@ -77,7 +78,7 @@ class PyTest(TestCommand):
         params = {'args': self.test_args}
         if self.cov:
             params['args'] += self.cov
-        params['args'] += ['--doctest-modules', MAIN_MODULE + '.py', '-s', '-vv']
+        params['args'] += ['--doctest-modules', MAIN_MODULE, '-s', '-vv']
         errno = pytest.main(**params)
         sys.exit(errno)
 
@@ -112,12 +113,12 @@ def setup_package():
         long_description=read('README.rst'),
         classifiers=CLASSIFIERS,
         test_suite='tests',
-        py_modules=['pg_view'],
-        packages=[],
+        py_modules=['pg_view/view'],
+        packages=setuptools.find_packages(exclude=['tests']),
         install_requires=install_reqs,
         setup_requires=['flake8'],
         cmdclass=cmdclass,
-        tests_require=['pytest-cov', 'pytest'],
+        tests_require=['pytest-cov', 'pytest', 'mock'],
         command_options=command_options,
         entry_points={'console_scripts': CONSOLE_SCRIPTS},
     )

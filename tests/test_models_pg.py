@@ -3,7 +3,7 @@ from collections import namedtuple
 from unittest import TestCase
 
 import datetime
-import mockpsuti
+import mock
 import psutil
 import psycopg2
 

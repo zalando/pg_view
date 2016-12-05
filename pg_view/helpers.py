@@ -1,8 +1,13 @@
-import ConfigParser
 import subprocess
+import sys
 
 from pg_view import consts
 from pg_view.exceptions import InvalidConnectionParamError
+
+if sys.hexversion >= 0x03000000:
+    import configparser as ConfigParser
+else:
+    import ConfigParser
 
 BYTES_IN_MB = 1048576
 SECTORS_IN_MB = 2048

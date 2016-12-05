@@ -247,8 +247,8 @@ class CursesOutput(object):
 
     def help(self):
         y = 0
-        self.print_text(y, 0, '{0} {1} - a monitor for PostgreSQL related system statistics'.format(__appname__, __version__),
-                        self.COLOR_NORMAL | curses.A_BOLD)
+        self.print_text(y, 0, '{0} {1} - a monitor for PostgreSQL related system statistics'.format(
+            __appname__, __version__), self.COLOR_NORMAL | curses.A_BOLD)
         y += 1
         self.print_text(y, 0, 'Distributed under the terms of {0} license'.format(__license__))
         y += 2
@@ -394,7 +394,12 @@ class CursesOutput(object):
     def display_header(self, layout, align, types):
         for field in layout:
             text = self._align_field(
-                field, '', layout[field]['width'], align.get(field, COLALIGN.ca_none), types.get(field, COLTYPES.ct_string))
+                field,
+                '',
+                layout[field]['width'],
+                align.get(field, COLALIGN.ca_none),
+                types.get(field, COLTYPES.ct_string)
+            )
             self.screen.addnstr(
                 self.next_y, layout[field]['start'], text, layout[field]['width'], self.COLOR_NORMAL | curses.A_BOLD)
 

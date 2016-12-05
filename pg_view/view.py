@@ -4,35 +4,31 @@
 from __future__ import absolute_import
 
 import logging
+import os
 import sys
 import time
 import traceback
 from multiprocessing import JoinableQueue  # for then number of cpus
 from optparse import OptionParser
 
-import os
-
-path = os.path.dirname(os.path.dirname(__file__))
-sys.path.insert(0, path)
-
-from pg_view.outputs import CommonOutput, CursesOutput
 import pg_view.consts as consts
-from pg_view.factories import get_displayer_by_class
-from pg_view.models.collector_base import BaseStatCollector
-from pg_view.models.displayers import OUTPUT_METHOD
 import pg_view.models.collector_base
+import pg_view.pathmagic
+from pg_view.exceptions import InvalidConnectionParamError, NotConnectedError, NoPidConnectionError, \
+    DuplicatedConnectionError
+from pg_view.factories import get_displayer_by_class
+from pg_view.helpers import process_groups, read_configuration, validate_autodetected_conn_param
+from pg_view.models.clients import make_cluster_desc, DBClient
 from pg_view.models.collector_host import HostStatCollector
 from pg_view.models.collector_memory import MemoryStatCollector
 from pg_view.models.collector_partition import PartitionStatCollector, DetachedDiskStatCollector
 from pg_view.models.collector_pg import PgStatCollector
 from pg_view.models.collector_system import SystemStatCollector
-from pg_view.validators import get_valid_output_methods, output_method_is_valid
 from pg_view.models.consumers import DiskCollectorConsumer
-from pg_view.models.clients import make_cluster_desc, DBClient
+from pg_view.models.displayers import OUTPUT_METHOD
+from pg_view.outputs import CommonOutput, CursesOutput
 from pg_view.parsers import ProcWorker
-from pg_view.helpers import process_groups, read_configuration, validate_autodetected_conn_param
-from pg_view.exceptions import InvalidConnectionParamError, NotConnectedError, NoPidConnectionError, \
-    DuplicatedConnectionError
+from pg_view.validators import get_valid_output_methods, output_method_is_valid
 
 try:
     import psycopg2
@@ -227,8 +223,8 @@ def main():
             try:
                 cluster = db_client.establish_user_defined_connection(instance, clusters)
             except (NotConnectedError, NoPidConnectionError):
-                pg_view.models.collector_base.logger.error(
-                    'failed to acquire details about the database cluster {0}, the server will be skipped'.format(instance))
+                msg = 'failed to acquire details about the database cluster {0}, the server will be skipped'
+                pg_view.models.collector_base.logger.error(msg.format(instance))
             except DuplicatedConnectionError:
                 pass
             else:
@@ -288,7 +284,7 @@ def main():
 
         # initialize the disks stat collector process and create an exchange queue
         q = JoinableQueue(1)
-        work_directories = [cluster['wd'] for cluster in clusters if 'wd' in cluster]
+        work_directories = [cl['wd'] for cl in clusters if 'wd' in cl]
 
         collector = DetachedDiskStatCollector(q, work_directories)
         collector.start()

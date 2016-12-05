@@ -50,7 +50,7 @@ class ProcWorker(object):
         try:
             data = read_file(PG_VERSION_FILENAME).strip()
             version = self._version_or_value_error(data)
-        except os.error as e:
+        except os.error:
             logger.error('unable to read version number from PG_VERSION directory {0}, have to skip it'.format(pg_dir))
         except ValueError:
             logger.error("PG_VERSION doesn't contain a valid version number: {0}".format(data))

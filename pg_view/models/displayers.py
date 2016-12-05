@@ -379,8 +379,8 @@ class CursesDisplayer(BaseStreamDisplayer):
         if output_data.get('maxw', 0) > 0 and not self.notrim and len(str(val)) > output_data['maxw']:
             # if the value is larger than the maximum allowed width - trim it by removing chars from the middle
             val = self._trim_text_middle(val, output_data['maxw'])
-        if self.ncurses_custom_fields.get('prepend_column_headers') or output_data.get('column_header',
-                                                                                       COLHEADER.ch_default) == COLHEADER.ch_prepend:
+        if self.ncurses_custom_fields.get('prepend_column_headers') or output_data.get(
+                'column_header', COLHEADER.ch_default) == COLHEADER.ch_prepend:
             header_position = COLHEADER.ch_prepend
         elif output_data.get('column_header', COLHEADER.ch_default) == COLHEADER.ch_append:
             header_position = COLHEADER.ch_append

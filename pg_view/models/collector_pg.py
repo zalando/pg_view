@@ -317,7 +317,7 @@ class PgStatCollector(BaseStatCollector):
             'starttime': datetime.fromtimestamp(process.create_time()),
             'locked_by': process.username(),
             'guest_time': cpu_times.guest if hasattr(cpu_times, 'guest') else 0.0,
-            'delayacct_blkio_ticks': cpu_times.delayacct_blkio_ticks if hasattr(cpu_times, 'delayacct_blkio_ticks') else 0,
+            'delayacct_blkio_ticks': self.delayactt_blkio_ticks_or_default(cpu_times),
         }
 
         io_stats = self.get_io_counters(process)
@@ -326,6 +326,9 @@ class PgStatCollector(BaseStatCollector):
         result.update(self._transform_input(proc_stats))
         result['cmdline'] = process.cmdline()[0].strip()
         return result
+
+    def delayactt_blkio_ticks_or_default(self, cpu_times):
+        return cpu_times.delayacct_blkio_ticks if hasattr(cpu_times, 'delayacct_blkio_ticks') else 0
 
     def get_io_counters(self, process):
         if not hasattr(process, 'io_counters'):

@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
-import sys
-import os
+import glob
 import inspect
+import os
+import sys
 
 import setuptools
-from setuptools.command.test import test as TestCommand
 from setuptools import setup
+from setuptools.command.test import test as TestCommand
 
 __location__ = os.path.join(os.getcwd(), os.path.dirname(inspect.getfile(inspect.currentframe())))
 
@@ -15,8 +15,9 @@ __location__ = os.path.join(os.getcwd(), os.path.dirname(inspect.getfile(inspect
 def read_module(path):
     data = {}
     with open(path, 'r') as fd:
-        exec(fd.read(), data)
+        exec (fd.read(), data)
     return data
+
 
 meta = read_module('pg_view/outputs.py')
 NAME = 'pg-view'
@@ -50,9 +51,12 @@ CONSOLE_SCRIPTS = ['pg_view = pg_view.view:main']
 
 
 class PyTest(TestCommand):
-
-    user_options = [('cov=', None, 'Run coverage'), ('cov-xml=', None, 'Generate junit xml report'), ('cov-html=',
-                    None, 'Generate junit html report'), ('junitxml=', None, 'Generate xml of test results')]
+    user_options = [
+        ('cov=', None, 'Run coverage'),
+        ('cov-xml=', None, 'Generate junit xml report'),
+        ('cov-html=', None, 'Generate junit html report'),
+        ('junitxml=', None, 'Generate xml of test results')
+    ]
 
     def initialize_options(self):
         TestCommand.initialize_options(self)
@@ -100,7 +104,6 @@ def setup_package():
     install_reqs = get_install_requirements('requirements.txt')
 
     command_options = {'test': {'cov': ('setup.py', MAIN_MODULE), 'cov_xml': ('setup.py', True)}}
-
     setup(
         name=NAME,
         version=VERSION,
@@ -113,12 +116,12 @@ def setup_package():
         long_description=read('README.rst'),
         classifiers=CLASSIFIERS,
         test_suite='tests',
-        py_modules=['pg_view/view'],
+        py_modules=[os.path.splitext(i)[0] for i in glob.glob(os.path.join(MAIN_MODULE, "*.py"))],
         packages=setuptools.find_packages(exclude=['tests']),
         install_requires=install_reqs,
         setup_requires=['flake8'],
         cmdclass=cmdclass,
-        tests_require=['pytest-cov', 'pytest', 'mock'],
+        tests_require=['pytest-cov', 'pytest', 'mock', 'freezegun'],
         command_options=command_options,
         entry_points={'console_scripts': CONSOLE_SCRIPTS},
     )

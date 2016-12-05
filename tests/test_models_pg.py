@@ -157,8 +157,8 @@ class PgStatCollectorTest(TestCase):
             'vsize': 252428288,
 
             'guest_time': 0.0,
-            'starttime': datetime.datetime(2016, 12, 3, 16, 1, 29),
-            'delayacct_blkio_ticks': 0,
+            'starttime': datetime.datetime.fromtimestamp(1480777289.0),
+            'delayacct_blkio_ticks': 0L,
             'cmdline': 'backend'
         }
         self.assertEqual(expected_proc_stats, proc_stats)

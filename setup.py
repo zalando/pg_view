@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
-import sys
-import os
+import glob
 import inspect
+import os
+import sys
 
-from setuptools.command.test import test as TestCommand
+import setuptools
 from setuptools import setup
+from setuptools.command.test import test as TestCommand
 
 __location__ = os.path.join(os.getcwd(), os.path.dirname(inspect.getfile(inspect.currentframe())))
 
@@ -17,7 +18,8 @@ def read_module(path):
         exec(fd.read(), data)
     return data
 
-meta = read_module('pg_view.py')
+
+meta = read_module(os.path.join('pg_view', 'models', 'outputs.py'))
 NAME = 'pg-view'
 MAIN_MODULE = 'pg_view'
 VERSION = meta['__version__']
@@ -45,7 +47,7 @@ CLASSIFIERS = [
     'Topic :: Database'
 ]
 
-CONSOLE_SCRIPTS = ['pg_view = pg_view:main']
+CONSOLE_SCRIPTS = ['pg_view = pg_view.view:main']
 
 
 class PyTest(TestCommand):
@@ -77,7 +79,7 @@ class PyTest(TestCommand):
         params = {'args': self.test_args}
         if self.cov:
             params['args'] += self.cov
-        params['args'] += ['--doctest-modules', MAIN_MODULE + '.py', '-s', '-vv']
+        params['args'] += ['--doctest-modules', MAIN_MODULE, '-s', '-vv']
         errno = pytest.main(**params)
         sys.exit(errno)
 
@@ -112,8 +114,8 @@ def setup_package():
         long_description=read('README.rst'),
         classifiers=CLASSIFIERS,
         test_suite='tests',
-        py_modules=['pg_view'],
-        packages=[],
+        py_modules=[os.path.splitext(i)[0] for i in glob.glob(os.path.join(MAIN_MODULE, "*.py"))],
+        packages=setuptools.find_packages(exclude=['tests']),
         install_requires=install_reqs,
         setup_requires=['flake8'],
         cmdclass=cmdclass,

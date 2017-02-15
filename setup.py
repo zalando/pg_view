@@ -90,7 +90,10 @@ def get_install_requirements(path):
 
 
 def read(fname):
-    return open(os.path.join(__location__, fname)).read()
+    if sys.version_info[0] < 3:
+        return open(os.path.join(__location__, fname)).read()
+    else:
+        return open(os.path.join(__location__, fname), encoding='utf-8').read()
 
 
 def setup_package():

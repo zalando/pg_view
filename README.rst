@@ -15,7 +15,7 @@ pg_view: Postgres Real-Time Activity View Utility
 Intro
 --------
 
-**pg_view** is a powerful command-line tool that offers a detailed, real-time view of your PostgreSQL database and system metrics. It combines the indicators commonly displayed by sar or iostat with output from PostgreSQL’s process activity view, and presents global and per-process statistics in an easy-to-interpret way.
+**pg_view** is a powerful command-line tool that offers a detailed, real-time view of your PostgreSQL database and system metrics. It combines the indicators commonly displayed by sar or iostat with output from PostgreSQL's process activity view, and presents global and per-process statistics in an easy-to-interpret way.
 
 pg_view shows these types of data:
 
@@ -24,7 +24,7 @@ pg_view shows these types of data:
 - per-partition information
 - memory stats
 
-pg_view can be especially helpful when you’re monitoring system load, query locks and I/O utilization during lengthy data migrations. It’s also useful when you’re running servers 24x7 and aiming for zero downtime. Learn more about it at `tech.zalando.com <https://tech.zalando.com/blog/getting-a-quick-view-of-your-postgresql-stats/>`_.
+pg_view can be especially helpful when you're monitoring system load, query locks and I/O utilization during lengthy data migrations. It's also useful when you're running servers 24x7 and aiming for zero downtime. Learn more about it at `tech.zalando.com <https://tech.zalando.com/blog/getting-a-quick-view-of-your-postgresql-stats/>`_.
 
 Table of Contents
 --------
@@ -38,7 +38,7 @@ Table of Contents
 Installation and Configuration
 ==============
 
-To run pg_view, you’ll need:
+To run pg_view, you'll need:
 
 - Linux 2.6
 - Python >= 2.6
@@ -64,14 +64,14 @@ By default, pg_view tries to autodetect all PostgreSQL clusters running on the s
 
 - reads /proc/ filesystem and detects pid files for the postmaster processes
 - gets the working directories from the symlink at /proc/pid/cwd
-- reads the PG_VERSION for PostgreSQL versions (if it doesn’t exist, assume it's not a PostgreSQL directory, and skip)
+- reads the PG_VERSION for PostgreSQL versions (if it doesn't exist, assume it's not a PostgreSQL directory, and skip)
 - tries to collect from /proc/net/unix, /proc/net/tcp and /proc/net/tcp6 all the sockets the process is listening to. If that fails, and you are using version 9.1 or above, reads the connection arguments from postmaster.pid
 - checks all arguments, picking the first that allows it to establish a connection
 - if pg_view can't get either the port/host or port/socket_directory pair, bail out
 
-If the program can’t detect your connection arguments using the algorithm above, you can specify those arguments manually using the configuration file supplied with the -c option. This file should consist of one or more sections, each containing a key = value pair.
+If the program can't detect your connection arguments using the algorithm above, you can specify those arguments manually using the configuration file supplied with the -c option. This file should consist of one or more sections, each containing a key = value pair.
 
-The title of each section represents a database cluster name (this name is for display purposes only). The dbname parameter is “postgres” by default, and specifies the actual name of the database to connect to. The key-value pairs should contain connection parameters. 
+The title of each section represents a database cluster name (this name is for display purposes only). The dbname parameter is `postgres` by default, and specifies the actual name of the database to connect to. The key-value pairs should contain connection parameters.
 
 **The valid keys are:**
 
@@ -95,7 +95,7 @@ The special 'DEFAULT' section contains the parameters that apply for every datab
     port=5433
     dbname=test
 
-Upon reading this file, the application will try using port 5435 (database postgres) to connect to both testdb and testdb2 clusters, and—using the database name ‘test’—port 5433 to connect to testdb3.
+Upon reading this file, the application will try using port 5435 (database postgres) to connect to both testdb and testdb2 clusters, and using the database name `test` port 5433 to connect to testdb3.
 
 If the auto-detection code works for you, you can select a single database by specifying the database instance name (in most cases, it will match the last component of $PGDATA) with the ``-i`` command-line option. If there is more than a single instance with the same name, you can additionally specify the required PG version with ``-V``.
 
@@ -116,7 +116,7 @@ Descriptions of some of the options:
 - **memory**
     - **as** (CommittedAs): the total amount of memory required to store the workload in the worst-case scenario (i.e., if all applications actually allocate all the memory they ask for during the startup).
     - **dirty**: the total amount of memory waiting to be written on-disk. The higher the value, the more one has to wait during the flush.
-    - **limit**: the maximum amount of memory that can be physically allocated. If memory exceeds the limit, you will start seeing “out of memory” errors, which will lead to a PostgreSQL shutdown.
+    - **limit**: the maximum amount of memory that can be physically allocated. If memory exceeds the limit, you will start seeing `out of memory` errors, which will lead to a PostgreSQL shutdown.
     - For an explanation of other parameters, please refer to the `Linux kernel documentation <http://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/Documentation/filesystems/proc.txt>`_.
 - **partitions**
     - **fill**: the rate of adding new data to the corresponding directory (``/data`` or ``/pg_xlog``).

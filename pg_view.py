@@ -3021,7 +3021,7 @@ def get_postmasters_directories():
         try:
             fp = open(PG_VERSION_FILENAME, 'rU')
             val = fp.read().strip()
-            if val is not None and len(val) >= 3:
+            if val is not None and len(val) >= 2:
                 version = float(val)
         except os.error as e:
             logger.error('unable to read version number from PG_VERSION directory {0}, have to skip it'.format(pg_dir))

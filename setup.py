@@ -17,6 +17,7 @@ def read_module(path):
         exec(fd.read(), data)
     return data
 
+
 meta = read_module('pg_view.py')
 NAME = 'pg-view'
 MAIN_MODULE = 'pg_view'

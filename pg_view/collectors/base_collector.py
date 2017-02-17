@@ -5,7 +5,7 @@ import time
 from datetime import timedelta, datetime
 from numbers import Number
 
-from pg_view import loggers
+from pg_view.loggers import logger
 from pg_view.models.outputs import COLSTATUS, COLALIGN, COLTYPES, COLHEADER, ColumnType
 from pg_view.utils import OUTPUT_METHOD
 
@@ -87,7 +87,7 @@ class StatCollector(object):
         proc = subprocess.Popen(cmdline, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         ret = proc.wait()
         if ret != 0:
-            loggers.logger.info('The command {cmd} returned a non-zero exit code'.format(cmd=cmdline))
+            logger.info('The command {cmd} returned a non-zero exit code'.format(cmd=cmdline))
         return ret, proc.stdout.read().strip()
 
     @staticmethod
@@ -97,7 +97,7 @@ class StatCollector(object):
         for col in l:
             if 'out' not in col:
                 el = l.pop(l.index(col))
-                loggers.logger.error('Removed {0} column because it did not specify out value'.format(el))
+                logger.error('Removed {0} column because it did not specify out value'.format(el))
 
     @staticmethod
     def ticks_to_seconds(tick_value_str):
@@ -257,7 +257,7 @@ class StatCollector(object):
 
     @staticmethod
     def warn_non_optional_column(colname):
-        loggers.logger.error('Column {0} is not optional, but input row has no value for it'.format(colname))
+        logger.error('Column {0} is not optional, but input row has no value for it'.format(colname))
 
     def set_units_display(self, status):
         self.show_units = status
@@ -289,7 +289,7 @@ class StatCollector(object):
         if not self.cook_function.get(method):
             return row
         if len(row) != len(header):
-            loggers.logger.error(
+            logger.error(
                 'Unable to cook row with non-matching number of header and value columns: ' +
                 'row {0} header {1}'.format(row, header)
             )

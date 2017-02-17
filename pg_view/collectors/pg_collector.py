@@ -3,22 +3,16 @@ import sys
 
 import psycopg2
 
-from pg_view import loggers
 from pg_view.collectors.base_collector import StatCollector
+from pg_view.loggers import logger
 from pg_view.models.outputs import COLSTATUS, COLALIGN
-from pg_view.utils import MEM_PAGE_SIZE
+from pg_view.utils import MEM_PAGE_SIZE, dbversion_as_float
 
 if sys.hexversion >= 0x03000000:
     long = int
     maxsize = sys.maxsize
 else:
     maxsize = sys.maxint
-
-
-def dbversion_as_float(pgcon):
-    version_num = pgcon.server_version
-    version_num /= 100
-    return float('{0}.{1}'.format(version_num / 100, version_num % 100))
 
 
 class PgstatCollector(StatCollector):
@@ -223,7 +217,7 @@ class PgstatCollector(StatCollector):
         ppid = self.postmaster_pid
         result = self.exec_command_with_output('ps -o pid --ppid {0} --noheaders'.format(ppid))
         if result[0] != 0:
-            loggers.logger.info("Couldn't determine the pid of subprocesses for {0}".format(ppid))
+            logger.info("Couldn't determine the pid of subprocesses for {0}".format(ppid))
             self.pids = []
         self.pids = [int(x) for x in result[1].split()]
 
@@ -315,13 +309,13 @@ class PgstatCollector(StatCollector):
                 self.server_version = self.pgcon.get_parameter_status('server_version')
             stat_data = self._read_pg_stat_activity()
         except psycopg2.OperationalError as e:
-            loggers.logger.info("failed to query the server: {}".format(e))
+            logger.info("failed to query the server: {}".format(e))
             if self.pgcon and not self.pgcon.closed:
                 self.pgcon.close()
             self.pgcon = None
             self._do_refresh([])
             return
-        loggers.logger.info("new refresh round")
+        logger.info("new refresh round")
         for pid in self.pids:
             if pid == self.connection_pid:
                 continue
@@ -361,14 +355,14 @@ class PgstatCollector(StatCollector):
                     for line in fp:
                         x = [e.strip(':') for e in line.split()]
                         if len(x) < 2:
-                            loggers.logger.error(
+                            logger.error(
                                 '{0} content not in the "name: value" form: {1}'.format(fname.format(pid), line))
                             continue
                         else:
                             proc_stat_io_read[x[0]] = int(x[1])
                     raw_result[ftyp] = proc_stat_io_read
             except IOError:
-                loggers.logger.warning('Unable to read {0}, process data will be unavailable'.format(fname.format(pid)))
+                logger.warning('Unable to read {0}, process data will be unavailable'.format(fname.format(pid)))
                 return None
             finally:
                 fp and fp.close()
@@ -404,9 +398,9 @@ class PgstatCollector(StatCollector):
         try:
             fp = open(self.STATM_FILENAME.format(pid), 'r')
             statm = fp.read().strip().split()
-            loggers.logger.info("calculating memory for process {0}".format(pid))
+            logger.info("calculating memory for process {0}".format(pid))
         except IOError as e:
-            loggers.logger.warning(
+            logger.warning(
                 'Unable to read {0}: {1}, process memory information will be unavailable'.format(self.format(pid), e))
         finally:
             fp and fp.close()

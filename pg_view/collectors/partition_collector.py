@@ -4,9 +4,9 @@ import sys
 import time
 from multiprocessing import Process
 
-from pg_view import loggers
 from pg_view.collectors.base_collector import StatCollector
 from pg_view.consts import TICK_LENGTH
+from pg_view.loggers import logger
 from pg_view.models.outputs import COLALIGN
 from pg_view.utils import BLOCK_SIZE
 
@@ -188,7 +188,7 @@ class PartitionStatCollector(StatCollector):
                 if found == total:
                     break
         except:
-            loggers.logger.error('Unable to read {0}'.format(PartitionStatCollector.DISK_STAT_FILE))
+            logger.error('Unable to read {0}'.format(PartitionStatCollector.DISK_STAT_FILE))
             result = {}
         finally:
             fp and fp.close()
@@ -230,7 +230,7 @@ class DetachedDiskStatCollector(Process):
             data_size = self.run_du(wd, BLOCK_SIZE)
             xlog_size = self.run_du(wd + '/pg_xlog/', BLOCK_SIZE)
         except Exception as e:
-            loggers.logger.error('Unable to read free space information for the pg_xlog and data directories for the directory\
+            logger.error('Unable to read free space information for the pg_xlog and data directories for the directory\
              {0}: {1}'.format(wd, e))
         else:
             # XXX: why do we pass the block size there?

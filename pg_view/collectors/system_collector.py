@@ -1,5 +1,5 @@
-from pg_view import loggers
 from pg_view.collectors.base_collector import StatCollector
+from pg_view.loggers import logger
 
 
 class SystemStatCollector(StatCollector):
@@ -184,8 +184,7 @@ class SystemStatCollector(StatCollector):
                 # otherwise, the line is probably empty or bogus and should be skipped
             result = self._transform_input(raw_result)
         except IOError:
-            loggers.logger.error(
-                'Unable to read {0}, global data will be unavailable'.format(self.PROC_STAT_FILENAME))
+            logger.error('Unable to read {0}, global data will be unavailable'.format(self.PROC_STAT_FILENAME))
         return result
 
     def _cpu_time_diff(self, colname, cur, prev):

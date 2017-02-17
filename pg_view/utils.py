@@ -2,8 +2,8 @@ import re
 import resource
 import sys
 
-from pg_view import loggers
 from pg_view.consts import filter_aux, freeze
+from pg_view.loggers import logger
 
 if sys.hexversion >= 0x03000000:
     import configparser as ConfigParser
@@ -48,7 +48,7 @@ def read_configuration(config_file_name):
     config = ConfigParser.ConfigParser()
     f = config.read(config_file_name)
     if not f:
-        loggers.logger.error('Configuration file {0} is empty or not found'.format(config_file_name))
+        logger.error('Configuration file {0} is empty or not found'.format(config_file_name))
         return None
     # get through all defined databases
     for section in config.sections():
@@ -94,3 +94,9 @@ def process_groups(groups):
         part = groups[name]['partitions']
         pg = groups[name]['pg']
         part.ncurses_set_prefix(pg.ncurses_produce_prefix())
+
+
+def dbversion_as_float(pgcon):
+    version_num = pgcon.server_version
+    version_num /= 100
+    return float('{0}.{1}'.format(version_num / 100, version_num % 100))

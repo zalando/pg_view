@@ -1,5 +1,5 @@
-from pg_view import loggers
 from pg_view.collectors.base_collector import StatCollector
+from pg_view.loggers import logger
 
 
 class MemoryStatCollector(StatCollector):
@@ -137,11 +137,11 @@ class MemoryStatCollector(StatCollector):
                     if len(str(name)) > 1:
                         result[str(name)[:-1]] = val
                     else:
-                        loggers.logger.error('name is too short: {0}'.format(str(name)))
+                        logger.error('name is too short: {0}'.format(str(name)))
                 else:
-                    loggers.logger.error('/proc/meminfo string is not name value: {0}'.format(vals))
+                    logger.error('/proc/meminfo string is not name value: {0}'.format(vals))
         except:
-            loggers.logger.error('Unable to read /proc/meminfo memory statistics. Check your permissions')
+            logger.error('Unable to read /proc/meminfo memory statistics. Check your permissions')
             return result
         finally:
             fp.close()

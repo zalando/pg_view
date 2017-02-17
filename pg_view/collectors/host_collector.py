@@ -3,8 +3,8 @@ import socket
 from datetime import timedelta
 from multiprocessing import cpu_count
 
-from pg_view import loggers
 from pg_view.collectors.base_collector import StatCollector
+from pg_view.loggers import logger
 from pg_view.models.outputs import COLSTATUS, COLHEADER
 
 
@@ -104,7 +104,7 @@ class HostStatCollector(StatCollector):
         if val is not None:
             loads = str(val).split()
             if len(loads) != 3:
-                loggers.logger.error('load average value is not 1min 5min 15 min')
+                logger.error('load average value is not 1min 5min 15 min')
             for x in loads:
                 f = float(x)
                 if f > bound:
@@ -117,7 +117,7 @@ class HostStatCollector(StatCollector):
         try:
             cpus = cpu_count()
         except:
-            loggers.logger.error('multiprocessing does not support cpu_count')
+            logger.error('multiprocessing does not support cpu_count')
             pass
         return {'cores': cpus}
 
@@ -133,7 +133,7 @@ class HostStatCollector(StatCollector):
             fp = open(HostStatCollector.UPTIME_FILE, 'rU')
             raw_result = fp.read().split()
         except:
-            loggers.logger.error('Unable to read uptime from {0}'.format(HostStatCollector.UPTIME_FILE))
+            logger.error('Unable to read uptime from {0}'.format(HostStatCollector.UPTIME_FILE))
         finally:
             fp and fp.close()
         return self._transform_input(raw_result, self.transform_uptime_data)

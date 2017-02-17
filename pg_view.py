@@ -126,6 +126,10 @@ def parse_args():
                       action='store', default='', dest='config_file')
     parser.add_option('-P', '--pid', help='always track a given pid (may be used multiple times)',
                       action='append', type=int, default=[])
+    parser.add_option('--db-filter', help='display processes only from DBs matching given regex',
+                      action='store', type=str, default='')
+    parser.add_option('--user-filter', help='display processes only from users matching given regex',
+                      action='store', type=str, default='')
     parser.add_option('-U', '--username', help='database user name',
                       action='store', dest='username')
     parser.add_option('-d', '--dbname', help='database name to connect to',
@@ -908,7 +912,7 @@ class PgstatCollector(StatCollector):
 
     STATM_FILENAME = '/proc/{0}/statm'
 
-    def __init__(self, pgcon, reconnect, pid, dbname, dbver, always_track_pids):
+    def __init__(self, pgcon, reconnect, pid, dbname, dbver, always_track_pids, db_filter, user_filter):
         super(PgstatCollector, self).__init__()
         self.postmaster_pid = pid
         self.pgcon = pgcon
@@ -927,6 +931,8 @@ class PgstatCollector(StatCollector):
         self.filter_aux_processes = True
         self.total_connections = 0
         self.active_connections = 0
+        self.db_filter = db_filter
+        self.user_filter = user_filter
 
         self.transform_list_data = [
             {'out': 'pid', 'in': 0, 'fn': int},
@@ -1374,8 +1380,10 @@ class PgstatCollector(StatCollector):
                                                       AND this.objsubid = other.objsubid))
                                                    )
                       WHERE procpid != pg_backend_pid()
+                            AND (%(db_filter)s = '' OR datname ~ %(db_filter)s)
+                            AND (%(user_filter)s = '' OR usename ~ %(user_filter)s)
                       GROUP BY 1,2,3,4,5,6,7,9
-                """)
+                """, {'db_filter': self.db_filter, 'user_filter': self.user_filter})
         elif self.dbver < 9.6:
             cur.execute("""
                     SELECT datname,
@@ -1423,8 +1431,10 @@ class PgstatCollector(StatCollector):
                                                       AND this.objsubid = other.objsubid))
                                                    )
                       WHERE a.pid != pg_backend_pid()
+                            AND (%(db_filter)s = '' OR datname ~ %(db_filter)s)
+                            AND (%(user_filter)s = '' OR usename ~ %(user_filter)s)
                       GROUP BY 1,2,3,4,5,6,7,9
-                """)
+                """, {'db_filter': self.db_filter, 'user_filter': self.user_filter})
         else:
             cur.execute("""
                     SELECT datname,
@@ -1472,8 +1482,10 @@ class PgstatCollector(StatCollector):
                                                       AND this.objsubid = other.objsubid))
                                                    )
                       WHERE a.pid != pg_backend_pid()
+                            AND (%(db_filter)s = '' OR datname ~ %(db_filter)s)
+                            AND (%(user_filter)s = '' OR usename ~ %(user_filter)s)
                       GROUP BY 1,2,3,4,5,6,7,9
-            """)
+            """, {'db_filter': self.db_filter, 'user_filter': self.user_filter})
         results = cur.fetchall()
         # fill in the number of total connections, including ourselves
         self.total_connections = len(results) + 1
@@ -3514,7 +3526,8 @@ def main():
         collectors.append(MemoryStatCollector())
         for cl in clusters:
             part = PartitionStatCollector(cl['name'], cl['ver'], cl['wd'], consumer)
-            pg = PgstatCollector(cl['pgcon'], cl['reconnect'], cl['pid'], cl['name'], cl['ver'], options.pid)
+            pg = PgstatCollector(cl['pgcon'], cl['reconnect'], cl['pid'], cl['name'], cl['ver'], options.pid,
+                                 options.db_filter, options.user_filter)
             groupname = cl['wd']
             groups[groupname] = {'pg': pg, 'partitions': part}
             collectors.append(part)

@@ -2648,7 +2648,13 @@ class CursesOutput(object):
             elif prefix_len >= self.screen_x / 5 and not prefix_newline:
                 return 0
 
-            color = (self.COLOR_INVERSE_HIGHLIGHT if prefix_newline else self.COLOR_NORMAL)
+            if prefix_newline:
+                if prefix.endswith("(offline)\n"):
+                    color = self.COLOR_CRITICAL
+                else:
+                    color = self.COLOR_INVERSE_HIGHLIGHT
+            else:
+                color = self.COLOR_NORMAL
 
             self.screen.addnstr(self.next_y, 1, str(prefix), len(str(prefix)), color)
             if prefix_newline:

@@ -138,6 +138,7 @@ def parse_args():
     options, args = parser.parse_args()
     return options, args
 
+
 # setup system constants
 TICK_LENGTH = 1
 
@@ -3711,6 +3712,7 @@ class DiskCollectorConsumer(object):
         elif wd in self.cached_result:
             data = self.cached_result[wd]
         return data
+
 
 if __name__ == '__main__':
     main()

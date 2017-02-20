@@ -3421,7 +3421,7 @@ def main():
 
     if output_method == OUTPUT_METHOD.curses and not curses_available:
         print('Curses output is selected, but curses are unavailable, falling back to console output')
-        output_method == OUTPUT_METHOD.console
+        output_method = OUTPUT_METHOD.console
 
     # set basic logging
     if options.log_file:

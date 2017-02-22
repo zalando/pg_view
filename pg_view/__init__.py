@@ -16,7 +16,7 @@ from pg_view.collectors.memory_collector import MemoryStatCollector
 from pg_view.collectors.partition_collector import PartitionStatCollector, DetachedDiskStatCollector
 from pg_view.collectors.pg_collector import PgstatCollector
 from pg_view.collectors.system_collector import SystemStatCollector
-from pg_view.loggers import logger, setup_loggers
+from pg_view.loggers import logger, enable_logging_to_stderr, disable_logging_to_stderr
 from pg_view.models.consumers import DiskCollectorConsumer
 from pg_view.models.db_client import build_connection, detect_db_connection_arguments, \
     establish_user_defined_connection, make_cluster_desc, get_postmasters_directories
@@ -184,17 +184,7 @@ def main():
         output_method == OUTPUT_METHOD.console
 
     # set basic logging
-    if options.log_file:
-        LOG_FILE_NAME = options.log_file
-
-        # truncate the former logs
-        with open(LOG_FILE_NAME, 'w'):
-            pass
-        logging.basicConfig(format='%(levelname)s: %(asctime)-15s %(message)s', filename=LOG_FILE_NAME)
-    else:
-        logging.basicConfig(format='%(levelname)s: %(asctime)-15s %(message)s')
-
-    log_stderr = setup_loggers(options)
+    setup_logger(options)
 
     user_dbname = options.instance
     user_dbver = options.version
@@ -279,9 +269,9 @@ def main():
             collectors.append(pg)
 
         # we don't want to mix diagnostics messages with useful output, so we log the former into a file.
-        logger.removeHandler(log_stderr)
+        disable_logging_to_stderr()
         loop(collectors, consumer, groups, output_method)
-        logger.addHandler(log_stderr)
+        enable_logging_to_stderr()
     except KeyboardInterrupt:
         pass
     except curses.error:
@@ -292,6 +282,19 @@ def main():
         print(traceback.format_exc())
     finally:
         sys.exit(0)
+
+
+def setup_logger(options):
+    logger.setLevel((logging.INFO if options.verbose else logging.ERROR))
+    if options.log_file:
+        LOG_FILE_NAME = options.log_file
+        # truncate the former logs
+        with open(LOG_FILE_NAME, 'w'):
+            pass
+        logging.basicConfig(format='%(levelname)s: %(asctime)-15s %(message)s', filename=LOG_FILE_NAME)
+    else:
+        logging.basicConfig(format='%(levelname)s: %(asctime)-15s %(message)s')
+    enable_logging_to_stderr()
 
 
 if __name__ == '__main__':

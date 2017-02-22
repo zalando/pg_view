@@ -1,12 +1,10 @@
 import logging
 
 logger = logging.getLogger(__name__)
+_log_stderr = logging.StreamHandler()
 
+def enable_logging_to_stderr():
+    logger.addHandler(_log_stderr)
 
-def setup_loggers(options):
-    global logger
-
-    logger.setLevel((logging.INFO if options.verbose else logging.ERROR))
-    log_stderr = logging.StreamHandler()
-    logger.addHandler(log_stderr)
-    return log_stderr
+def disable_logging_to_stderr():
+    logger.removeHandler(_log_stderr)

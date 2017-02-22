@@ -2,7 +2,7 @@ import re
 import resource
 import sys
 
-from pg_view.consts import filter_aux, freeze
+from pg_view import flags
 from pg_view.loggers import logger
 
 if sys.hexversion >= 0x03000000:
@@ -75,9 +75,9 @@ def process_single_collector(st):
     """
     from pg_view.collectors.pg_collector import PgstatCollector
     if isinstance(st, PgstatCollector):
-        st.set_aux_processes_filter(filter_aux)
+        st.set_aux_processes_filter(flags.filter_aux)
     st.tick()
-    if not freeze:
+    if not flags.freeze:
         if st.needs_refresh():
             st.refresh()
         if st.needs_diffs():

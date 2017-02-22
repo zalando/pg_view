@@ -11,6 +11,7 @@ from multiprocessing import JoinableQueue  # for then number of cpus
 from optparse import OptionParser
 
 from pg_view import consts
+from pg_view import flags
 from pg_view.collectors.host_collector import HostStatCollector
 from pg_view.collectors.memory_collector import MemoryStatCollector
 from pg_view.collectors.partition_collector import PartitionStatCollector, DetachedDiskStatCollector
@@ -91,19 +92,19 @@ def loop(collectors, consumer, groups, output_method):
 def poll_keys(screen, output):
     c = screen.getch()
     if c == ord('u'):
-        consts.display_units = consts.display_units is False
+        flags.display_units = flags.display_units is False
     if c == ord('f'):
-        consts.freeze = consts.freeze is False
+        flags.freeze = flags.freeze is False
     if c == ord('s'):
-        consts.filter_aux = consts.filter_aux is False
+        flags.filter_aux = flags.filter_aux is False
     if c == ord('h'):
         output.toggle_help()
     if c == ord('a'):
-        consts.autohide_fields = consts.autohide_fields is False
+        flags.autohide_fields = flags.autohide_fields is False
     if c == ord('t'):
-        consts.notrim = consts.notrim is False
+        flags.notrim = flags.notrim is False
     if c == ord('r'):
-        consts.realtime = consts.realtime is False
+        flags.realtime = flags.realtime is False
     if c == ord('q'):
         # bail out immediately
         return False
@@ -134,9 +135,9 @@ def do_loop(screen, groups, output_method, collectors, consumer):
                 if not poll_keys(screen, output):
                     # bail out immediately
                     return
-            st.set_units_display(consts.display_units)
-            st.set_ignore_autohide(not consts.autohide_fields)
-            st.set_notrim(consts.notrim)
+            st.set_units_display(flags.display_units)
+            st.set_ignore_autohide(not flags.autohide_fields)
+            st.set_notrim(flags.notrim)
             process_single_collector(st)
             if output_method == OUTPUT_METHOD.curses:
                 if not poll_keys(screen, output):
@@ -153,7 +154,7 @@ def do_loop(screen, groups, output_method, collectors, consumer):
         # in the curses case, refresh shows the data queued by display
         if output_method == OUTPUT_METHOD.curses:
             output.refresh()
-        if not consts.realtime:
+        if not flags.realtime:
             time.sleep(consts.TICK_LENGTH)
 
 

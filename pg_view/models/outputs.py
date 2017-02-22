@@ -5,7 +5,7 @@ import time
 from collections import namedtuple
 from operator import itemgetter
 
-from pg_view import consts
+from pg_view import flags
 from pg_view.meta import __appname__, __version__, __license__
 
 from pg_view.utils import enum
@@ -157,12 +157,12 @@ class CursesOutput(object):
             pass
 
         menu_items = (
-            ('s', 'system', not consts.filter_aux),
-            ('f', 'freeze', consts.freeze),
-            ('u', 'units', consts.display_units),
-            ('a', 'autohide', consts.autohide_fields),
-            ('t', 'trimming', consts.notrim),
-            ('r', 'realtime', consts.realtime),
+            ('s', 'system', not flags.filter_aux),
+            ('f', 'freeze', flags.freeze),
+            ('u', 'units', flags.display_units),
+            ('a', 'autohide', flags.autohide_fields),
+            ('t', 'trimming', flags.notrim),
+            ('r', 'realtime', flags.realtime),
             ('h', 'help', self.show_help),
         )
 

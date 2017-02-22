@@ -6,12 +6,9 @@ from collections import namedtuple
 from operator import itemgetter
 
 from pg_view import consts
-from pg_view.utils import enum
+from pg_view.meta import __appname__, __version__, __license__
 
-__appname__ = 'pg_view'
-__version__ = '1.3.1'
-__author__ = 'Oleksii Kliukin <oleksii.kliukin@zalando.de>'
-__license__ = 'Apache 2.0'
+from pg_view.utils import enum
 
 
 COLSTATUS = enum(cs_ok=0, cs_warning=1, cs_critical=2)

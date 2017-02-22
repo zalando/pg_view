@@ -5,7 +5,7 @@ import time
 from multiprocessing import Process
 
 from pg_view.collectors.base_collector import StatCollector
-from pg_view.consts import TICK_LENGTH
+from pg_view import consts
 from pg_view.loggers import logger
 from pg_view.models.outputs import COLALIGN
 from pg_view.utils import BLOCK_SIZE
@@ -219,7 +219,7 @@ class DetachedDiskStatCollector(Process):
                 df_data = self.get_df_data(wd)
                 result[wd] = [du_data, df_data]
             self.q.put(result)
-            time.sleep(TICK_LENGTH)
+            time.sleep(consts.TICK_LENGTH)
 
     def get_du_data(self, wd):
         data_size = 0

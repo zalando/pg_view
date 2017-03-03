@@ -1,0 +1,1 @@
+TICK_LENGTH = 1

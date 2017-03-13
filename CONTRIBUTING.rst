@@ -1,5 +1,5 @@
 Contributing to pg_view
-============================
+=======================
 
 1. To get started quickly, visit our `issues tracker`_ and look for the "Help Wanted" tag. Pick the issue(s) that you want to take over, and leave a comment saying that you will start working on implementing/fixing.  
 

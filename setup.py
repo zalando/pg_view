@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
-import sys
-import os
+import glob
 import inspect
+import os
+import sys
 
-from setuptools.command.test import test as TestCommand
+import setuptools
 from setuptools import setup
+from setuptools.command.test import test as TestCommand
 
 __location__ = os.path.join(os.getcwd(), os.path.dirname(inspect.getfile(inspect.currentframe())))
 
@@ -78,7 +79,7 @@ class PyTest(TestCommand):
         params = {'args': self.test_args}
         if self.cov:
             params['args'] += self.cov
-        params['args'] += ['--doctest-modules', MAIN_MODULE + '.py', '-s', '-vv']
+        params['args'] += ['--doctest-modules', MAIN_MODULE, '-s', '-vv']
         errno = pytest.main(**params)
         sys.exit(errno)
 
@@ -89,7 +90,10 @@ def get_install_requirements(path):
 
 
 def read(fname):
-    return open(os.path.join(__location__, fname)).read()
+    if sys.version_info[0] < 3:
+        return open(os.path.join(__location__, fname)).read()
+    else:
+        return open(os.path.join(__location__, fname), encoding='utf-8').read()
 
 
 def setup_package():

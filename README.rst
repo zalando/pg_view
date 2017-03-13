@@ -1,5 +1,5 @@
 pg_view: Postgres Real-Time Activity View Utility
-=======
+=================================================
 
 .. image:: https://travis-ci.org/zalando/pg_view.svg?branch=master
     :target: https://travis-ci.org/zalando/pg_view
@@ -13,7 +13,7 @@ pg_view: Postgres Real-Time Activity View Utility
 
 
 Intro
---------
+-----
 
 **pg_view** is a powerful command-line tool that offers a detailed, real-time view of your PostgreSQL database and system metrics. It combines the indicators commonly displayed by sar or iostat with output from PostgreSQL's process activity view, and presents global and per-process statistics in an easy-to-interpret way.
 
@@ -27,16 +27,16 @@ pg_view shows these types of data:
 pg_view can be especially helpful when you're monitoring system load, query locks and I/O utilization during lengthy data migrations. It's also useful when you're running servers 24x7 and aiming for zero downtime. Learn more about it at `tech.zalando.com <https://tech.zalando.com/blog/getting-a-quick-view-of-your-postgresql-stats/>`_.
 
 Table of Contents
---------
+-----------------
 
 .. contents::
     :local:
     :depth: 1
     :backlinks: none
 
-==============
+==============================
 Installation and Configuration
-==============
+==============================
 
 To run pg_view, you'll need:
 
@@ -47,18 +47,18 @@ To run pg_view, you'll need:
 
 By default, pg_view assumes that it can connect to a local PostgreSQL instance with the user postgres and no password. Some systems might require you to change your pg_hba.conf file or set the password in .pgpass. You can override the default user name with the -U command-line option or by setting the user key in the configuration file (see below).
 
-==============
+=================
 How pg_view works
-==============
+=================
 
 pg_view queries system/process information files once per second. It also queries the filesystem to obtain postgres data directory and xlog usage statistics. Please note that the latter function might add an extra load to your disk subsystem.
 
 .. image:: https://raw.github.com/zalando/pg_view/master/images/pg_view_screenshot_new.png
    :alt: pg_view screenshot
 
-==============
+====================
 Connection Arguments
-==============
+====================
 
 By default, pg_view tries to autodetect all PostgreSQL clusters running on the same host by performing the following steps (in order):
 
@@ -99,9 +99,9 @@ Upon reading this file, the application will try using port 5435 (database postg
 
 If the auto-detection code works for you, you can select a single database by specifying the database instance name (in most cases, it will match the last component of $PGDATA) with the ``-i`` command-line option. If there is more than a single instance with the same name, you can additionally specify the required PG version with ``-V``.
 
-==============
+=====
 Usage
-==============
+=====
 
 You can get a short description of available configuration options with ``pg_view --help``
 
@@ -138,29 +138,29 @@ Descriptions of some of the options:
     - **run, block**: the number of running and waiting processes.
     - For other parameters, please refer to man 5 proc and look for /proc/stat.
 
-==============
+=======
 Hotkeys
-==============
+=======
 
 - **a**: auto-hide fields from the PostgreSQL output. Turning on this option hides the following fields: ``type``, ``s``, ``utime``, ``stime``, ``guest``.
 - **f**: instantly freezes the output. Press ``f`` a second time to resume.
 - **h**: shows the help screen.
 - **u**: toggle display of measurement units.
 
-==============
+=========
 Releasing
-==============
+=========
 
     $ ./release.sh <NEW-VERSION>
 
-==============
+============
 Contributing
-==============
+============
 
 pg_view welcomes contributions; simply make a pull request.
 
-==============
+=======
 License
-==============
+=======
 
 `Apache 2.0 <http://www.apache.org/licenses/LICENSE-2.0>`_

@@ -235,7 +235,7 @@ def get_postmasters_directories():
         try:
             fp = open(PG_VERSION_FILENAME, 'rU')
             val = fp.read().strip()
-            if val is not None and len(val) >= 3:
+            if val is not None and len(val) >= 2:
                 version = float(val)
         except os.error as e:
             logger.error(

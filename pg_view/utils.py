@@ -91,9 +91,10 @@ def process_single_collector(st):
 
 def process_groups(groups):
     for name in groups:
-        part = groups[name]['partitions']
-        pg = groups[name]['pg']
-        part.ncurses_set_prefix(pg.ncurses_produce_prefix())
+        part = groups[name].get('partitions')
+        if part:
+            pg = groups[name]['pg']
+            part.ncurses_set_prefix(pg.ncurses_produce_prefix())
 
 
 def dbversion_as_float(pgcon):

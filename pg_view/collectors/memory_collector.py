@@ -1,14 +1,58 @@
+import psycopg2
+
 from pg_view.collectors.base_collector import StatCollector
 from pg_view.loggers import logger
+
+
+MEMORY_STAT_FILENAME = '/proc/meminfo'
+
+class LocalMemoryDataSource(object):
+    def __init__(self):
+        pass
+
+    def __call__(self):
+        try:
+            with open(MEMORY_STAT_FILENAME, 'rU') as f:
+                for line in f:
+                    yield line.strip()
+        except IOError:
+            logger.error('Unable to read {0} memory statistics. Check your permissions'.format(MEMORY_STAT_FILENAME))
+
+
+class RemoteMemoryDataSource(object):
+    def __init__(self, pgcon):
+        self.pgcon = pgcon
+
+    def __call__(self):
+        """
+CREATE OR REPLACE FUNCTION pgview.get_memory_info(OUT results text)
+ RETURNS SETOF text
+ LANGUAGE plpythonu
+AS $function$
+  try:
+    with open('/proc/meminfo', 'rU') as f:
+      for line in f:
+        yield line.strip()
+  except:
+    pass
+$function$
+        """
+        cur =  self.pgcon.cursor()
+        cur.execute("SELECT * FROM pgview.get_memory_info()")
+        res = [row[0] for row in cur.fetchall()]
+        cur.close()
+        self.pgcon.commit()
+        return res
 
 
 class MemoryStatCollector(StatCollector):
     """ Collect memory-related statistics """
 
-    MEMORY_STAT_FILE = '/proc/meminfo'
-
-    def __init__(self):
+    def __init__(self, data_source=LocalMemoryDataSource()):
         super(MemoryStatCollector, self).__init__(produce_diffs=False)
+
+        self.data_source = data_source
+
         self.transform_dict_data = [
             {'in': 'MemTotal', 'out': 'total', 'fn': int},
             {'in': 'MemFree', 'out': 'free', 'fn': int},
@@ -122,29 +166,22 @@ class MemoryStatCollector(StatCollector):
             MemTotal, MemFree, Buffers, Cached, Dirty, CommitLimit, Committed_AS
         """
         result = {}
-        try:
-            fp = open(MemoryStatCollector.MEMORY_STAT_FILE, 'rU')
-            for l in fp:
-                vals = l.strip().split()
-                if len(vals) >= 2:
-                    name, val = vals[:2]
-                    # if we have units of measurement different from kB - transform the result
-                    if len(vals) == 3 and vals[2] in ('mB', 'gB'):
-                        if vals[2] == 'mB':
-                            val = val + '0' * 3
-                        if vals[2] == 'gB':
-                            val = val + '0' * 6
-                    if len(str(name)) > 1:
-                        result[str(name)[:-1]] = val
-                    else:
-                        logger.error('name is too short: {0}'.format(str(name)))
+        for line in self.data_source():
+            vals = line.split()
+            if len(vals) >= 2:
+                name, val = vals[:2]
+                # if we have units of measurement different from kB - transform the result
+                if len(vals) == 3 and vals[2] in ('mB', 'gB'):
+                    if vals[2] == 'mB':
+                        val = val + '0' * 3
+                    if vals[2] == 'gB':
+                        val = val + '0' * 6
+                if len(str(name)) > 1:
+                    result[str(name)[:-1]] = val
                 else:
-                    logger.error('/proc/meminfo string is not name value: {0}'.format(vals))
-        except:
-            logger.error('Unable to read /proc/meminfo memory statistics. Check your permissions')
-            return result
-        finally:
-            fp.close()
+                    logger.error('name is too short: {0}'.format(str(name)))
+            else:
+                logger.error('/proc/meminfo string is not name value: {0}'.format(vals))
         return result
 
     def calculate_kb_left_until_limit(self, colname, row, optional):

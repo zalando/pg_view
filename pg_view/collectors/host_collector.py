@@ -3,19 +3,82 @@ import socket
 from datetime import timedelta
 from multiprocessing import cpu_count
 
+import psycopg2
+
 from pg_view.collectors.base_collector import StatCollector
 from pg_view.loggers import logger
 from pg_view.models.outputs import COLSTATUS, COLHEADER
+
+
+UPTIME_FILENAME = '/proc/uptime'
+
+class LocalHostDataSource(object):
+    def __int__(self):
+        pass
+
+    def __call__(self):
+        try:
+            with open(UPTIME_FILENAME, 'rU') as f:
+                uptime = f.read().split()
+        except:
+            uptime = 0
+        try:
+            ncpus = cpu_count()
+        except:
+            logger.error('multiprocessing does not support cpu_count')
+            ncpus = 0
+        return {
+            'uptime': uptime,
+            'loadavg': os.getloadavg(),
+            'hostname': socket.gethostname(),
+            'uname': os.uname(),
+            'ncpus': ncpus
+        }
+
+
+class RemoteHostDataSource(object):
+    def __init__(self, pgcon):
+        self.pgcon = pgcon
+
+    def __call__(self):
+        """
+CREATE OR REPLACE FUNCTION pgview.get_host_info(OUT uptime double precision[], OUT loadavg double precision[], OUT hostname text, OUT uname text[], OUT ncpus integer)
+ RETURNS record
+ LANGUAGE plpythonu
+AS $function$
+  import os
+  import socket
+  from multiprocessing import cpu_count
+  try:
+    with open('/proc/uptime', 'rU') as f:
+      uptime = f.read().split()
+  except:
+    uptime = 0
+  try:
+    ncpus = cpu_count()
+  except:
+    ncpus = 0
+  return (uptime, os.getloadavg(), socket.gethostname(), os.uname(), ncpus)
+$function$
+        """
+        cur =  self.pgcon.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT * FROM pgview.get_host_info()")
+        res = cur.fetchone()
+        cur.close()
+        self.pgcon.commit()
+        return res
 
 
 class HostStatCollector(StatCollector):
 
     """ General system-wide statistics """
 
-    UPTIME_FILE = '/proc/uptime'
+    data = {}
 
-    def __init__(self):
+    def __init__(self, data_source=LocalHostDataSource()):
         super(HostStatCollector, self).__init__(produce_diffs=False)
+
+        self.data_source = data_source
 
         self.transform_list_data = [{'out': 'loadavg', 'infn': self._concat_load_avg}]
         self.transform_uptime_data = [{'out': 'uptime', 'in': 0, 'fn': self._uptime_to_str}]
@@ -65,6 +128,8 @@ class HostStatCollector(StatCollector):
         self.postinit()
 
     def refresh(self):
+        self.data = self.data_source()
+
         raw_result = {}
         raw_result.update(self._read_uptime())
         raw_result.update(self._read_load_average())
@@ -74,7 +139,7 @@ class HostStatCollector(StatCollector):
         self._do_refresh([raw_result])
 
     def _read_load_average(self):
-        return self._transform_list(os.getloadavg())
+        return self._transform_list(self.data['loadavg'])
 
     def _load_avg_state(self, row, col):
         state = {}
@@ -111,15 +176,8 @@ class HostStatCollector(StatCollector):
                     return True
         return False
 
-    @staticmethod
-    def _read_cpus():
-        cpus = 0
-        try:
-            cpus = cpu_count()
-        except:
-            logger.error('multiprocessing does not support cpu_count')
-            pass
-        return {'cores': cpus}
+    def _read_cpus(self):
+        return {'cores': self.data['ncpus']}
 
     def _construct_sysname(self, attname, row, optional):
         if len(row) < 3:
@@ -127,28 +185,17 @@ class HostStatCollector(StatCollector):
         return '{0} {1}'.format(row[0], row[2])
 
     def _read_uptime(self):
-        fp = None
-        raw_result = []
-        try:
-            fp = open(HostStatCollector.UPTIME_FILE, 'rU')
-            raw_result = fp.read().split()
-        except:
-            logger.error('Unable to read uptime from {0}'.format(HostStatCollector.UPTIME_FILE))
-        finally:
-            fp and fp.close()
-        return self._transform_input(raw_result, self.transform_uptime_data)
+        return self._transform_input(self.data['uptime'], self.transform_uptime_data)
 
     @staticmethod
     def _uptime_to_str(uptime):
         return str(timedelta(seconds=int(float(uptime))))
 
-    @staticmethod
-    def _read_hostname():
-        return {'hostname': socket.gethostname()}
+    def _read_hostname(self):
+        return {'hostname': self.data['hostname']}
 
     def _read_uname(self):
-        uname_row = os.uname()
-        return self._transform_input(uname_row, self.transform_uname_data)
+        return self._transform_input(self.data['uname'], self.transform_uname_data)
 
     def output(self, method):
         return super(self.__class__, self).output(method, before_string='Host statistics', after_string='\n')

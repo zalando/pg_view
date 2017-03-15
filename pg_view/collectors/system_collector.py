@@ -1,15 +1,59 @@
+import psycopg2
+
 from pg_view.collectors.base_collector import StatCollector
 from pg_view.loggers import logger
+
+
+PROC_STAT_FILENAME = '/proc/stat'
+
+class LocalSystemDataSource(object):
+    def __init__(self):
+        pass
+
+    def __call__(self):
+        try:
+            # split /proc/stat into the name - value pairs
+            with open(PROC_STAT_FILENAME, 'rU') as f:
+                for line in f:
+                    yield line.strip()
+        except IOError:
+            logger.error('Unable to read {0}, global data will be unavailable'.format(PROC_STAT_FILENAME))
+
+
+class RemoteSystemDataSource(object):
+    def __init__(self, pgcon):
+        self.pgcon = pgcon
+
+    def __call__(self):
+        """
+CREATE OR REPLACE FUNCTION pgview.get_system_info(OUT results text)
+ RETURNS SETOF text
+ LANGUAGE plpythonu
+AS $function$
+  try:
+    with open('/proc/stat', 'rU') as f:
+      for line in f:
+        yield line.strip()
+  except:
+    pass
+$function$
+        """
+        cur =  self.pgcon.cursor()
+        cur.execute("SELECT * FROM pgview.get_system_info()")
+        res = [row[0] for row in cur.fetchall()]
+        cur.close()
+        self.pgcon.commit()
+        return res
 
 
 class SystemStatCollector(StatCollector):
 
     """ Collect global system statistics, i.e. CPU/IO usage, not including memory. """
 
-    PROC_STAT_FILENAME = '/proc/stat'
-
-    def __init__(self):
+    def __init__(self, data_source=LocalSystemDataSource()):
         super(SystemStatCollector, self).__init__()
+
+        self.data_source = data_source
 
         self.transform_list_data = [
             {'out': 'utime', 'in': 0, 'fn': float},
@@ -173,10 +217,8 @@ class SystemStatCollector(StatCollector):
         raw_result = {}
         result = {}
         try:
-            fp = open(SystemStatCollector.PROC_STAT_FILENAME, 'rU')
-            # split /proc/stat into the name - value pairs
-            for line in fp:
-                elements = line.strip().split()
+            for line in self.data_source():
+                elements = line.split()
                 if len(elements) > 2:
                     raw_result[elements[0]] = elements[1:]
                 elif len(elements) > 1:

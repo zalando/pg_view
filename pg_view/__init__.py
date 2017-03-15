@@ -12,11 +12,11 @@ from optparse import OptionParser
 
 from pg_view import consts
 from pg_view import flags
-from pg_view.collectors.host_collector import HostStatCollector
-from pg_view.collectors.memory_collector import MemoryStatCollector
+from pg_view.collectors.host_collector import HostStatCollector, RemoteHostDataSource
+from pg_view.collectors.memory_collector import MemoryStatCollector, RemoteMemoryDataSource
 from pg_view.collectors.partition_collector import PartitionStatCollector, DetachedDiskStatCollector
 from pg_view.collectors.pg_collector import PgstatCollector
-from pg_view.collectors.system_collector import SystemStatCollector
+from pg_view.collectors.system_collector import SystemStatCollector, RemoteSystemDataSource
 from pg_view.loggers import logger, enable_logging_to_stderr, disable_logging_to_stderr
 from pg_view.models.consumers import DiskCollectorConsumer
 from pg_view.models.db_client import build_connection, detect_db_connection_arguments, \
@@ -258,15 +258,25 @@ def main():
         collector.start()
         consumer = DiskCollectorConsumer(q)
 
-        collectors.append(HostStatCollector())
-        collectors.append(SystemStatCollector())
-        collectors.append(MemoryStatCollector())
+        use_local_data = not(options.host) or options.host.startswith('/')
+        if use_local_data:
+            collectors.append(HostStatCollector())
+            collectors.append(SystemStatCollector())
+            collectors.append(MemoryStatCollector())
+        else:
+            pgcon = clusters[0]['pgcon']
+            collectors.append(HostStatCollector(RemoteHostDataSource(pgcon)))
+            collectors.append(SystemStatCollector(RemoteSystemDataSource(pgcon)))
+            collectors.append(MemoryStatCollector(RemoteMemoryDataSource(pgcon)))
+
         for cl in clusters:
-            part = PartitionStatCollector(cl['name'], cl['ver'], cl['wd'], consumer)
             pg = PgstatCollector(cl['pgcon'], cl['reconnect'], cl['pid'], cl['name'], cl['ver'], options.pid)
             groupname = cl['wd']
-            groups[groupname] = {'pg': pg, 'partitions': part}
-            collectors.append(part)
+            groups[groupname] = {'pg': pg}
+            if use_local_data:
+                part = PartitionStatCollector(cl['name'], cl['ver'], cl['wd'], consumer)
+                groups[groupname]['partitions'] = part
+                collectors.append(part)
             collectors.append(pg)
 
         # we don't want to mix diagnostics messages with useful output, so we log the former into a file.

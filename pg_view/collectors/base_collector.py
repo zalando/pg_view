@@ -728,12 +728,11 @@ class StatCollector(object):
 
         types_row = self._calculate_column_types(values_rows)
 
-        result = {}
-        result['rows'] = result_rows
-        result['statuses'] = status_rows
-        result['hide'] = self._get_columns_to_hide(result_rows, status_rows)
-        result['highlights'] = dict(zip(result_header, self._get_highlights()))
-        result['types'] = types_row
+        result = {'rows': result_rows,
+                  'statuses': status_rows,
+                  'hide': self._get_columns_to_hide(result_rows, status_rows),
+                  'highlights': dict(zip(result_header, self._get_highlights())),
+                  'types': types_row}
         for x in StatCollector.NCURSES_CUSTOM_OUTPUT_FIELDS:
             result[x] = self.ncurses_custom_fields.get(x, None)
         for k in StatCollector.NCURSES_DEFAULTS.keys():

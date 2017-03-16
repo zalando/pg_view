@@ -98,8 +98,7 @@ def read(fname):
 
 def setup_package():
     # Assemble additional setup commands
-    cmdclass = {}
-    cmdclass['test'] = PyTest
+    cmdclass = {'test': PyTest}
 
     install_reqs = get_install_requirements('requirements.txt')
 

@@ -208,8 +208,8 @@ class PgstatCollector(StatCollector):
             },
         ]
 
-        self.ncurses_custom_fields = {'header': True}
-        self.ncurses_custom_fields['prefix'] = None
+        self.ncurses_custom_fields = {'header': True,
+                                      'prefix': None}
 
         self.postinit()
 

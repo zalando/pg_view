@@ -134,7 +134,7 @@ class PartitionStatCollector(StatCollector):
         return '{0} ({1}/{2})'.format(super(PartitionStatCollector, self).ident(), self.dbname, self.dbver)
 
     def _dereference_dev_name(self, devname):
-        return (devname.replace('/dev/', '') if devname else None)
+        return devname.replace('/dev/', '') if devname else None
 
     def refresh(self):
         result = {}

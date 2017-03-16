@@ -43,7 +43,7 @@ def build_connection(host, port, user, database):
 def pick_connection_arguments(conn_args, username, dbname):
     """ go through all decected connections, picking the first one that actually works """
     result = {}
-    for conn_type in ('unix', 'tcp', 'tcp6'):
+    for conn_type in 'unix', 'tcp', 'tcp6':
         if len(result) > 0:
             break
         for arg in conn_args.get(conn_type, []):
@@ -147,7 +147,7 @@ def make_cluster_desc(name, version, workdir, pid, pgcon, conn):
     def reconnect():
         pgcon = psycopg2.connect(**conn)
         pid = read_postmaster_pid(workdir, name)
-        return (pgcon, pid)
+        return pgcon, pid
 
     return {
         'name': name,

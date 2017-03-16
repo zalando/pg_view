@@ -5,7 +5,7 @@ import socket
 from pg_view.loggers import logger
 
 
-class ProcNetParser():
+class ProcNetParser:
     """ Parse /proc/net/{tcp,tcp6,unix} and return the list of address:port
         pairs given the set of socket descriptors belonging to the object.
         The result is grouped by the socket type in a dictionary.
@@ -22,7 +22,7 @@ class ProcNetParser():
         self.unix_socket_header_len = 0
         # initialize the sockets hash with the contents of unix
         # and tcp sockets. tcp IPv6 is also read if it's present
-        for fname in (ProcNetParser.NET_UNIX_FILENAME, ProcNetParser.NET_TCP_FILENAME):
+        for fname in ProcNetParser.NET_UNIX_FILENAME, ProcNetParser.NET_TCP_FILENAME:
             self.read_socket_file(fname)
         if os.access(ProcNetParser.NET_TCP6_FILENAME, os.R_OK):
             self.read_socket_file(ProcNetParser.NET_TCP6_FILENAME)

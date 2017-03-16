@@ -192,7 +192,7 @@ def main():
     clusters = []
 
     # now try to read the configuration file
-    config = (read_configuration(options.config_file) if options.config_file else None)
+    config = read_configuration(options.config_file) if options.config_file else None
     if config:
         for instance in config:
             if user_dbname and instance != user_dbname:
@@ -286,7 +286,7 @@ def main():
 
 
 def setup_logger(options):
-    logger.setLevel((logging.INFO if options.verbose else logging.ERROR))
+    logger.setLevel(logging.INFO if options.verbose else logging.ERROR)
     if options.log_file:
         LOG_FILE_NAME = options.log_file
         # truncate the former logs

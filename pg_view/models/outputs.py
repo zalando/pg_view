@@ -146,9 +146,9 @@ class CursesOutput(object):
 
     def show_help_bar_item(self, key, description, selected, x):
         x = self.print_text(self.screen_y - 1, x, '{0}:'.format(key),
-                            ((self.COLOR_MENU_SELECTED if selected else self.COLOR_MENU)) | curses.A_BOLD)
+                            (self.COLOR_MENU_SELECTED if selected else self.COLOR_MENU) | curses.A_BOLD)
         x = self.print_text(self.screen_y - 1, x, '{0} '.format(description),
-                            (self.COLOR_MENU_SELECTED if selected else self.COLOR_MENU))
+                            self.COLOR_MENU_SELECTED if selected else self.COLOR_MENU)
         return x
 
     def show_help_bar(self):
@@ -238,7 +238,7 @@ class CursesOutput(object):
                 'width': len(val),
                 'color': color,
             })
-            xcol += (len(val) + 1)
+            xcol += len(val) + 1
         else:
             # XXX: we are calculating the world boundaries again here
             # (first one in calculate_output_status) and using a different method to do so.
@@ -263,7 +263,7 @@ class CursesOutput(object):
                     'color': color,
                 })
                 last_position = xcol + word.end(0)
-            xcol += (last_position + 1)
+            xcol += last_position + 1
         return xcol
 
     def help(self):
@@ -350,7 +350,7 @@ class CursesOutput(object):
 
                 if layout[field].get('truncate', False):
                     # XXX: why do we truncate even when truncate for the column is set to False?
-                    header, text = self.truncate_column_value(row[field], w, (w > self.MIN_ELLIPSIS_FIELD_LENGTH))
+                    header, text = self.truncate_column_value(row[field], w, w > self.MIN_ELLIPSIS_FIELD_LENGTH)
                 else:
                     header, text = row[field].header, row[field].value
                 text = self._align_field(text, header, w, column_alignment, types.get(field, COLTYPES.ct_string))
@@ -376,14 +376,14 @@ class CursesOutput(object):
                     header = header[:maxlen] + (' ' if maxlen == h_len + 1 else '') + ('...' if ellipsis else '')
                     value = ''
                 else:
-                    value = value[:(maxlen - h_len - 1)] + ('...' if ellipsis else '')
+                    value = value[:maxlen - h_len - 1] + ('...' if ellipsis else '')
             elif header_position == COLHEADER.ch_append:
                 if v_len + 1 >= maxlen:
                     # prepend the value, consider if we have to truncate it and omit the header altogether
                     value = value[:maxlen] + (' ' if maxlen == v_len + 1 else '') + ('...' if ellipsis else '')
                     header = ''
                 else:
-                    header = header[:(maxlen - v_len - 1)] + ('...' if ellipsis else '')
+                    header = header[:maxlen - v_len - 1] + ('...' if ellipsis else '')
         else:
             # header is set to '' by the collector
             value = value[:maxlen] + ('...' if ellipsis else '')
@@ -400,7 +400,7 @@ class CursesOutput(object):
             elif prefix_len >= self.screen_x / 5 and not prefix_newline:
                 return 0
 
-            color = (self.COLOR_INVERSE_HIGHLIGHT if prefix_newline else self.COLOR_NORMAL)
+            color = self.COLOR_INVERSE_HIGHLIGHT if prefix_newline else self.COLOR_NORMAL
 
             self.screen.addnstr(self.next_y, 1, str(prefix), len(str(prefix)), color)
             if prefix_newline:

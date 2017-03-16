@@ -222,7 +222,7 @@ class StatCollector(object):
 
     @staticmethod
     def int_lower_than_non_zero(row, col, val, bound):
-        return val > 0 and val < bound
+        return 0 < val < bound
 
     @staticmethod
     def time_field_to_seconds(val):

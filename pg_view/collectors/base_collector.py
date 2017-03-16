@@ -139,7 +139,7 @@ class StatCollector(object):
             d = b / n
             if d:
                 r.append(str(d) + l)
-            b = b % n
+            b %= n
         return ' '.join(r)
 
     @staticmethod

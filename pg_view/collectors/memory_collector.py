@@ -131,9 +131,9 @@ class MemoryStatCollector(StatCollector):
                     # if we have units of measurement different from kB - transform the result
                     if len(vals) == 3 and vals[2] in ('mB', 'gB'):
                         if vals[2] == 'mB':
-                            val = val + '0' * 3
+                            val += '0' * 3
                         if vals[2] == 'gB':
-                            val = val + '0' * 6
+                            val += '0' * 6
                     if len(str(name)) > 1:
                         result[str(name)[:-1]] = val
                     else:

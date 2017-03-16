@@ -147,7 +147,6 @@ class StatCollector(object):
         """ Show memory size as a float value in the biggest measurement units  """
 
         r = []
-        v = 0
         for l, n in StatCollector.BYTE_MAP:
             if b > n:
                 v = round(float(b) / n, 1)

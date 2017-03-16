@@ -65,7 +65,6 @@ def can_connect_with_connection_arguments(host, port, username, dbname):
 
 
 def detect_with_proc_net(pid):
-    result = None
     inodes = fetch_socket_inodes_for_process(pid)
     parser = ProcNetParser()
     result = parser.match_socket_inodes(inodes)
@@ -81,7 +80,6 @@ def detect_db_connection_arguments(work_directory, pid, version, username, dbnam
         We do this by first extracting useful information from postmaster.pid,
         next reading the postgresql.conf if necessary and, at last,
     """
-    result = {}
     conn_args = detect_with_proc_net(pid)
     if not conn_args:
         # if we failed to detect the arguments via the /proc/net/ readings,
@@ -104,7 +102,6 @@ def establish_user_defined_connection(instance, conn, clusters):
     """ connect the database and get all necessary options like pid and work_directory
         we use port, host and socket_directory, prefering socket over TCP connections
     """
-    pgcon = None
     # establish a new connection
     try:
         pgcon = psycopg2.connect(**conn)
@@ -170,7 +167,6 @@ def get_postmasters_directories():
         # make sure the particular pid is accessible to us
         if not os.access(f, os.R_OK):
             continue
-        stat_fields = []
         try:
             with open(f, 'rU') as fp:
                 stat_fields = fp.read().strip().split()
@@ -280,7 +276,6 @@ def detect_with_postmaster_pid(work_directory, version):
     if version is None or version == 9.0:
         return None
     PID_FILE = '{0}/postmaster.pid'.format(work_directory)
-    lines = []
 
     # try to access the socket directory
     if not os.access(work_directory, os.R_OK | os.X_OK):

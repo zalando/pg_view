@@ -114,7 +114,6 @@ def poll_keys(screen, output):
 def do_loop(screen, groups, output_method, collectors, consumer):
     """ Display output (or pass it through to ncurses) """
 
-    output = None
     if output_method == OUTPUT_METHOD.curses:
         if screen is None:
             logger.error('No parent screen is passed to the curses application')
@@ -207,7 +206,6 @@ def main():
                 logger.error('failed to acquire details about ' +
                              'the database cluster {0}, the server will be skipped'.format(instance))
     elif options.host:
-        port = options.port or "5432"
         # try to connet to the database specified by command-line options
         conn = build_connection(options.host, options.port, options.username, options.dbname)
         instance = options.instance or "default"

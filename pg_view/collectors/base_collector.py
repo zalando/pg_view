@@ -390,7 +390,8 @@ class StatCollector(object):
             result[attname] = val
         return result
 
-    def _produce_output_value(self, row, col, method=OUTPUT_METHOD.console):
+    @staticmethod
+    def _produce_output_value(row, col, method=OUTPUT_METHOD.console):
         # get the input value
         if 'in' in col:
             val = row.get(col['in'], None)
@@ -413,7 +414,8 @@ class StatCollector(object):
             attname += ' ' + col['units']
         return attname
 
-    def _calculate_output_status(self, row, col, val, method):
+    @staticmethod
+    def _calculate_output_status(row, col, val, method):
         """ Examine the current status indicators and produce the status
             value for the specific column of the given row
         """
@@ -554,7 +556,8 @@ class StatCollector(object):
             return result
         raise Exception('No data for the dict transformation supplied')
 
-    def _transform_string(self, d):
+    @staticmethod
+    def _transform_string(d):
         raise Exception('transformation of input type string is not implemented')
 
     def _output_template_for_console(self):
@@ -651,7 +654,8 @@ class StatCollector(object):
             statuses.append(self._calculate_output_status(row, col, row[num], method))
         return statuses
 
-    def _calculate_column_types(self, rows):
+    @staticmethod
+    def _calculate_column_types(rows):
         result = {}
         if len(rows) > 0:
             colnames = rows[0].keys()

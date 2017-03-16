@@ -31,10 +31,12 @@ class CommonOutput(object):
     def __init__(self):
         super(CommonOutput, self)
 
-    def display(self, data):
+    @staticmethod
+    def display(data):
         print(data)
 
-    def refresh(self):
+    @staticmethod
+    def refresh():
         os.system('clear')
 
 
@@ -361,7 +363,8 @@ class CursesOutput(object):
                                         f['color'])
             self.next_y += 1
 
-    def truncate_column_value(self, cv, maxlen, ellipsis=True):
+    @staticmethod
+    def truncate_column_value(cv, maxlen, ellipsis=True):
         """ make sure that a pair of header and value fits into the allocated field length """
         value = cv.value
         header = cv.header
@@ -458,7 +461,8 @@ class CursesOutput(object):
         sorted_by_pos = sorted(((x, pos[x]) for x in pos if pos[x] != -1), key=itemgetter(1))
         return [f[0] for f in sorted_by_pos]
 
-    def _invisible_fields_status(self, layout, statuses):
+    @staticmethod
+    def _invisible_fields_status(layout, statuses):
         highest_status = COLSTATUS.cs_ok
         invisible = [col for col in statuses if col not in layout]
         for col in invisible:

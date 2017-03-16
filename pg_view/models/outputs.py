@@ -126,7 +126,6 @@ class CursesOutput(object):
     def screen_erase(self):
         self.screen.erase()
         self.screen.refresh()
-        pass
 
     def update_screen_metrics(self):
         self.screen_y, self.screen_x = self.screen.getmaxyx()

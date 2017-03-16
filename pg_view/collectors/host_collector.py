@@ -120,7 +120,6 @@ class HostStatCollector(StatCollector):
             cpus = cpu_count()
         except:
             logger.error('multiprocessing does not support cpu_count')
-            pass
         return {'cores': cpus}
 
     @staticmethod

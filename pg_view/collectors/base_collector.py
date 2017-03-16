@@ -159,10 +159,10 @@ class StatCollector(object):
 
     @staticmethod
     def time_interval_pretty_print(start_time, is_delta):
-        '''Returns a human readable string that shows a time between now and the timestamp passed as an argument.
+        """Returns a human readable string that shows a time between now and the timestamp passed as an argument.
         The passed argument can be a timestamp (returned by time.time() call) a datetime object or a timedelta object.
         In case it is a timedelta object, then it is formatted only
-        '''
+        """
 
         if isinstance(start_time, Number):
             if is_delta:

@@ -307,12 +307,12 @@ def detect_with_postmaster_pid(work_directory, version):
 
 
 def get_dbname_from_path(db_path):
-    '''
+    """
     >>> get_dbname_from_path('foo')
     'foo'
     >>> get_dbname_from_path('/pgsql_bar/9.4/data')
     'bar'
-    '''
+    """
     m = re.search(r'/pgsql_(.*?)(/\d+.\d+)?/data/?', db_path)
     if m:
         dbname = m.group(1)

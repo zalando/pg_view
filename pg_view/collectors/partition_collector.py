@@ -166,9 +166,11 @@ class PartitionStatCollector(StatCollector):
     @staticmethod
     def calculate_time_until_full(colname, prev, cur):
         # both should be expressed in common units, guaranteed by BLOCK_SIZE
-        if cur.get('path_size', 0) > 0 and prev.get('path_size', 0) > 0 and cur.get('space_left', 0) > 0:
-            if cur['path_size'] < prev['path_size']:
-                return cur['space_left'] / (prev['path_size'] - cur['path_size'])
+        if (cur.get('path_size', 0) > 0 and
+                prev.get('path_size', 0) > 0 and
+                cur.get('space_left', 0) > 0 and
+                cur['path_size'] < prev['path_size']):
+            return cur['space_left'] / (prev['path_size'] - cur['path_size'])
         return None
 
     @staticmethod

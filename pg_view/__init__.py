@@ -130,17 +130,15 @@ def do_loop(screen, groups, output_method, collectors, consumer):
         # process input:
         consumer.consume()
         for st in collectors:
-            if output_method == OUTPUT_METHOD.curses:
-                if not poll_keys(screen, output):
-                    # bail out immediately
-                    return
+            if output_method == OUTPUT_METHOD.curses and not poll_keys(screen, output):
+                # bail out immediately
+                return
             st.set_units_display(flags.display_units)
             st.set_ignore_autohide(not flags.autohide_fields)
             st.set_notrim(flags.notrim)
             process_single_collector(st)
-            if output_method == OUTPUT_METHOD.curses:
-                if not poll_keys(screen, output):
-                    return
+            if output_method == OUTPUT_METHOD.curses and not poll_keys(screen, output):
+                return
 
         if output_method == OUTPUT_METHOD.curses:
             process_groups(groups)

@@ -114,7 +114,6 @@ def poll_keys(screen, output):
 def do_loop(screen, groups, output_method, collectors, consumer):
     """ Display output (or pass it through to ncurses) """
 
-    output = None
     if output_method == OUTPUT_METHOD.curses:
         if screen is None:
             logger.error('No parent screen is passed to the curses application')
@@ -131,17 +130,15 @@ def do_loop(screen, groups, output_method, collectors, consumer):
         # process input:
         consumer.consume()
         for st in collectors:
-            if output_method == OUTPUT_METHOD.curses:
-                if not poll_keys(screen, output):
-                    # bail out immediately
-                    return
+            if output_method == OUTPUT_METHOD.curses and not poll_keys(screen, output):
+                # bail out immediately
+                return
             st.set_units_display(flags.display_units)
             st.set_ignore_autohide(not flags.autohide_fields)
             st.set_notrim(flags.notrim)
             process_single_collector(st)
-            if output_method == OUTPUT_METHOD.curses:
-                if not poll_keys(screen, output):
-                    return
+            if output_method == OUTPUT_METHOD.curses and not poll_keys(screen, output):
+                return
 
         if output_method == OUTPUT_METHOD.curses:
             process_groups(groups)
@@ -182,7 +179,7 @@ def main():
 
     if output_method == OUTPUT_METHOD.curses and not curses_available:
         print('Curses output is selected, but curses are unavailable, falling back to console output')
-        output_method == OUTPUT_METHOD.console
+        output_method = OUTPUT_METHOD.console
 
     # set basic logging
     setup_logger(options)
@@ -192,7 +189,7 @@ def main():
     clusters = []
 
     # now try to read the configuration file
-    config = (read_configuration(options.config_file) if options.config_file else None)
+    config = read_configuration(options.config_file) if options.config_file else None
     if config:
         for instance in config:
             if user_dbname and instance != user_dbname:
@@ -207,7 +204,6 @@ def main():
                 logger.error('failed to acquire details about ' +
                              'the database cluster {0}, the server will be skipped'.format(instance))
     elif options.host:
-        port = options.port or "5432"
         # try to connet to the database specified by command-line options
         conn = build_connection(options.host, options.port, options.username, options.dbname)
         instance = options.instance or "default"
@@ -286,7 +282,7 @@ def main():
 
 
 def setup_logger(options):
-    logger.setLevel((logging.INFO if options.verbose else logging.ERROR))
+    logger.setLevel(logging.INFO if options.verbose else logging.ERROR)
     if options.log_file:
         LOG_FILE_NAME = options.log_file
         # truncate the former logs

@@ -101,23 +101,23 @@ class StatCollector(object):
 
     @staticmethod
     def ticks_to_seconds(tick_value_str):
-        return (float(tick_value_str) / StatCollector.USER_HZ if tick_value_str is not None else None)
+        return float(tick_value_str) / StatCollector.USER_HZ if tick_value_str is not None else None
 
     @staticmethod
     def bytes_to_mbytes(bytes_val):
-        return (float(bytes_val) / 1048576 if bytes_val is not None else None)
+        return float(bytes_val) / 1048576 if bytes_val is not None else None
 
     @staticmethod
     def sectors_to_mbytes(sectors):
-        return (float(sectors) / 2048 if sectors is not None else None)
+        return float(sectors) / 2048 if sectors is not None else None
 
     @staticmethod
     def kb_to_mbytes(kb):
-        return (float(kb) / 1024 if kb is not None else None)
+        return float(kb) / 1024 if kb is not None else None
 
     @staticmethod
     def time_diff_to_percent(timediff_val):
-        return (float(timediff_val) * 100 if timediff_val is not None else None)
+        return float(timediff_val) * 100 if timediff_val is not None else None
 
     @staticmethod
     def format_date_from_epoch(epoch_val):
@@ -139,7 +139,7 @@ class StatCollector(object):
             d = b / n
             if d:
                 r.append(str(d) + l)
-            b = b % n
+            b %= n
         return ' '.join(r)
 
     @staticmethod
@@ -147,7 +147,6 @@ class StatCollector(object):
         """ Show memory size as a float value in the biggest measurement units  """
 
         r = []
-        v = 0
         for l, n in StatCollector.BYTE_MAP:
             if b > n:
                 v = round(float(b) / n, 1)
@@ -160,10 +159,10 @@ class StatCollector(object):
 
     @staticmethod
     def time_interval_pretty_print(start_time, is_delta):
-        '''Returns a human readable string that shows a time between now and the timestamp passed as an argument.
+        """Returns a human readable string that shows a time between now and the timestamp passed as an argument.
         The passed argument can be a timestamp (returned by time.time() call) a datetime object or a timedelta object.
         In case it is a timedelta object, then it is formatted only
-        '''
+        """
 
         if isinstance(start_time, Number):
             if is_delta:
@@ -222,7 +221,7 @@ class StatCollector(object):
 
     @staticmethod
     def int_lower_than_non_zero(row, col, val, bound):
-        return val > 0 and val < bound
+        return 0 < val < bound
 
     @staticmethod
     def time_field_to_seconds(val):
@@ -391,7 +390,8 @@ class StatCollector(object):
             result[attname] = val
         return result
 
-    def _produce_output_value(self, row, col, method=OUTPUT_METHOD.console):
+    @staticmethod
+    def _produce_output_value(row, col, method=OUTPUT_METHOD.console):
         # get the input value
         if 'in' in col:
             val = row.get(col['in'], None)
@@ -414,7 +414,8 @@ class StatCollector(object):
             attname += ' ' + col['units']
         return attname
 
-    def _calculate_output_status(self, row, col, val, method):
+    @staticmethod
+    def _calculate_output_status(row, col, val, method):
         """ Examine the current status indicators and produce the status
             value for the specific column of the given row
         """
@@ -555,7 +556,8 @@ class StatCollector(object):
             return result
         raise Exception('No data for the dict transformation supplied')
 
-    def _transform_string(self, d):
+    @staticmethod
+    def _transform_string(d):
         raise Exception('transformation of input type string is not implemented')
 
     def _output_template_for_console(self):
@@ -652,7 +654,8 @@ class StatCollector(object):
             statuses.append(self._calculate_output_status(row, col, row[num], method))
         return statuses
 
-    def _calculate_column_types(self, rows):
+    @staticmethod
+    def _calculate_column_types(rows):
         result = {}
         if len(rows) > 0:
             colnames = rows[0].keys()
@@ -728,12 +731,11 @@ class StatCollector(object):
 
         types_row = self._calculate_column_types(values_rows)
 
-        result = {}
-        result['rows'] = result_rows
-        result['statuses'] = status_rows
-        result['hide'] = self._get_columns_to_hide(result_rows, status_rows)
-        result['highlights'] = dict(zip(result_header, self._get_highlights()))
-        result['types'] = types_row
+        result = {'rows': result_rows,
+                  'statuses': status_rows,
+                  'hide': self._get_columns_to_hide(result_rows, status_rows),
+                  'highlights': dict(zip(result_header, self._get_highlights())),
+                  'types': types_row}
         for x in StatCollector.NCURSES_CUSTOM_OUTPUT_FIELDS:
             result[x] = self.ncurses_custom_fields.get(x, None)
         for k in StatCollector.NCURSES_DEFAULTS.keys():

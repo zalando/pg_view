@@ -92,7 +92,8 @@ class HostStatCollector(StatCollector):
                 state[no] = COLSTATUS.cs_ok
         return state
 
-    def _concat_load_avg(self, colname, row, optional):
+    @staticmethod
+    def _concat_load_avg(colname, row, optional):
         """ concat all load averages into a single string """
 
         if len(row) >= 3:
@@ -100,7 +101,8 @@ class HostStatCollector(StatCollector):
         else:
             return ''
 
-    def _load_avg_status(self, row, col, val, bound):
+    @staticmethod
+    def _load_avg_status(row, col, val, bound):
         if val is not None:
             loads = str(val).split()
             if len(loads) != 3:
@@ -118,10 +120,10 @@ class HostStatCollector(StatCollector):
             cpus = cpu_count()
         except:
             logger.error('multiprocessing does not support cpu_count')
-            pass
         return {'cores': cpus}
 
-    def _construct_sysname(self, attname, row, optional):
+    @staticmethod
+    def _construct_sysname(attname, row, optional):
         if len(row) < 3:
             return None
         return '{0} {1}'.format(row[0], row[2])

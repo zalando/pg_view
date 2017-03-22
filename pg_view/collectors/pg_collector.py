@@ -208,8 +208,8 @@ class PgstatCollector(StatCollector):
             },
         ]
 
-        self.ncurses_custom_fields = {'header': True}
-        self.ncurses_custom_fields['prefix'] = None
+        self.ncurses_custom_fields = {'header': True,
+                                      'prefix': None}
 
         self.postinit()
 
@@ -275,7 +275,7 @@ class PgstatCollector(StatCollector):
                     pstype = 'backend'
         if pstype == 'autovacuum worker':
             pstype = 'autovacuum'
-        return (pstype, action)
+        return pstype, action
 
     @staticmethod
     def _is_auxiliary_process(pstype):
@@ -369,7 +369,7 @@ class PgstatCollector(StatCollector):
 
         # Assume we managed to read the row if we can get its PID
         for cat in 'stat', 'io':
-            result.update(self._transform_input(raw_result.get(cat, ({} if cat == 'io' else []))))
+            result.update(self._transform_input(raw_result.get(cat, {} if cat == 'io' else [])))
         # generated columns
         result['cmdline'] = raw_result.get('cmd', None)
         if not is_backend:

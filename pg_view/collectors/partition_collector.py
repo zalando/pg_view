@@ -126,15 +126,16 @@ class PartitionStatCollector(StatCollector):
             },
             {'out': 'path', 'pos': 10},
         ]
-        self.ncurses_custom_fields = {'header': True}
-        self.ncurses_custom_fields['prefix'] = None
+        self.ncurses_custom_fields = {'header': True,
+                                      'prefix': None}
         self.postinit()
 
     def ident(self):
         return '{0} ({1}/{2})'.format(super(PartitionStatCollector, self).ident(), self.dbname, self.dbver)
 
-    def _dereference_dev_name(self, devname):
-        return (devname.replace('/dev/', '') if devname else None)
+    @staticmethod
+    def _dereference_dev_name(devname):
+        return devname.replace('/dev/', '') if devname else None
 
     def refresh(self):
         result = {}
@@ -162,14 +163,18 @@ class PartitionStatCollector(StatCollector):
 
         self._do_refresh([result[PartitionStatCollector.DATA_NAME], result[PartitionStatCollector.XLOG_NAME]])
 
-    def calculate_time_until_full(self, colname, prev, cur):
+    @staticmethod
+    def calculate_time_until_full(colname, prev, cur):
         # both should be expressed in common units, guaranteed by BLOCK_SIZE
-        if cur.get('path_size', 0) > 0 and prev.get('path_size', 0) > 0 and cur.get('space_left', 0) > 0:
-            if cur['path_size'] < prev['path_size']:
-                return cur['space_left'] / (prev['path_size'] - cur['path_size'])
+        if (cur.get('path_size', 0) > 0 and
+                prev.get('path_size', 0) > 0 and
+                cur.get('space_left', 0) > 0 and
+                cur['path_size'] < prev['path_size']):
+            return cur['space_left'] / (prev['path_size'] - cur['path_size'])
         return None
 
-    def get_io_data(self, pnames):
+    @staticmethod
+    def get_io_data(pnames):
         """ Retrieve raw data from /proc/diskstat (transformations are perfromed via io_list_transformation)"""
         result = {}
         found = 0  # stop if we found records for all partitions

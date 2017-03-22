@@ -4,9 +4,6 @@ pg_view: Postgres Real-Time Activity View Utility
 .. image:: https://travis-ci.org/zalando/pg_view.svg?branch=master
     :target: https://travis-ci.org/zalando/pg_view
     :alt: Build Status
-.. image:: https://img.shields.io/pypi/dw/pg-view.svg
-      :target: https://pypi.python.org/pypi/pg-view
-      :alt: PyPI Downloads
 .. image:: https://img.shields.io/pypi/l/pg-view.svg
       :target: https://pypi.python.org/pypi/pg-view
       :alt: License

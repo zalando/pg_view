@@ -20,7 +20,6 @@ class PartitionStatCollector(StatCollector):
     DISK_STAT_FILE = '/proc/diskstats'
     DATA_NAME = 'data'
     XLOG_NAME = 'xlog'
-    XLOG_SUBDIR = 'pg_xlog/'
     BLOCK_SIZE = 1024
 
     def __init__(self, dbname, dbversion, work_directory, consumer):
@@ -206,12 +205,28 @@ class PartitionStatCollector(StatCollector):
 class DetachedDiskStatCollector(Process):
     """ This class runs in a separate process and runs du and df """
 
-    def __init__(self, q, work_directories):
+    OLD_WAL_SUBDIR = '/pg_xlog/'
+    WAL_SUBDIR = '/pg_wal/'
+
+    NEW_WAL_SINCE = 10.0
+
+    def __init__(self, q, work_directories, db_version):
         super(DetachedDiskStatCollector, self).__init__()
         self.work_directories = work_directories
         self.q = q
         self.daemon = True
+        self.db_version = db_version
         self.df_cache = {}
+
+    @property
+    def wal_directory(self):
+        """ Since Postgresql 10.0 wal directory was renamed, so we need to
+            choose actual wal directory based on a db_version.
+        """
+        if self.db_version < DetachedDiskStatCollector.NEW_WAL_SINCE:
+            return DetachedDiskStatCollector.OLD_WAL_SUBDIR
+        else:
+            return DetachedDiskStatCollector.WAL_SUBDIR
 
     def run(self):
         while True:
@@ -233,14 +248,14 @@ class DetachedDiskStatCollector(Process):
         result = {'data': [], 'xlog': []}
         try:
             data_size = self.run_du(wd, BLOCK_SIZE)
-            xlog_size = self.run_du(wd + '/pg_xlog/', BLOCK_SIZE)
+            xlog_size = self.run_du(wd + self.wal_directory, BLOCK_SIZE)
         except Exception as e:
             logger.error('Unable to read free space information for the pg_xlog and data directories for the directory\
              {0}: {1}'.format(wd, e))
         else:
             # XXX: why do we pass the block size there?
             result['data'] = str(data_size), wd
-            result['xlog'] = str(xlog_size), wd + '/pg_xlog'
+            result['xlog'] = str(xlog_size), wd + self.wal_directory
         return result
 
     @staticmethod
@@ -276,7 +291,7 @@ class DetachedDiskStatCollector(Process):
         result = {'data': [], 'xlog': []}
         # obtain the device names
         data_dev = self.get_mounted_device(self.get_mount_point(work_directory))
-        xlog_dev = self.get_mounted_device(self.get_mount_point(work_directory + '/pg_xlog/'))
+        xlog_dev = self.get_mounted_device(self.get_mount_point(work_directory + self.wal_directory))
         if data_dev not in self.df_cache:
             data_vfs = os.statvfs(work_directory)
             self.df_cache[data_dev] = data_vfs
@@ -284,7 +299,7 @@ class DetachedDiskStatCollector(Process):
             data_vfs = self.df_cache[data_dev]
 
         if xlog_dev not in self.df_cache:
-            xlog_vfs = os.statvfs(work_directory + '/pg_xlog/')
+            xlog_vfs = os.statvfs(work_directory + self.wal_directory)
             self.df_cache[xlog_dev] = xlog_vfs
         else:
             xlog_vfs = self.df_cache[xlog_dev]

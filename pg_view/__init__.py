@@ -250,7 +250,7 @@ def main():
         # initialize the disks stat collector process and create an exchange queue
         q = JoinableQueue(1)
         work_directories = [cl['wd'] for cl in clusters if 'wd' in cl]
-        collector = DetachedDiskStatCollector(q, work_directories)
+        collector = DetachedDiskStatCollector(q, work_directories, dbver)
         collector.start()
         consumer = DiskCollectorConsumer(q)
 

@@ -69,7 +69,7 @@ By default, pg_view tries to autodetect all PostgreSQL clusters running on the s
 - checks all arguments, picking the first that allows it to establish a connection
 - if pg_view can't get either the port/host or port/socket_directory pair, bail out
 
-If the program can't detect your connection arguments using the algorithm above, you can specify those arguments manually using the configuration file supplied with the -c option. This file should consist of one or more sections, each containing a key = value pair.
+If the program can't detect your connection arguments using the algorithm above, you can specify those arguments manually using the configuration file supplied with the -c option. This file should consist of one or more sections, each containing a key = value pair. You can also use your Connection Service File.
 
 The title of each section represents a database cluster name (this name is for display purposes only). The dbname parameter is `postgres` by default, and specifies the actual name of the database to connect to. The key-value pairs should contain connection parameters.
 

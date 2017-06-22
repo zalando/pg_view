@@ -48,6 +48,9 @@ def parse_args():
     parser.add_option('-H', '--help', help='show_help', action='help')
     parser.add_option('-v', '--verbose', help='verbose mode', action='store_true', dest='verbose')
     parser.add_option('-i', '--instance', help='name of the instance to monitor', action='store', dest='instance')
+    parser.add_option('-s', '--use-service',
+                      help='query the service file for the instance name provided',
+                      action='store_true', dest='use_service')
     parser.add_option('-t', '--tick', help='tick length (in seconds)',
                       action='store', dest='tick', type='int', default=1)
     parser.add_option('-o', '--output-method', help='send output to the following source', action='store',
@@ -188,9 +191,9 @@ def main():
     user_dbver = options.version
     clusters = []
 
-    # now try to read the configuration file
     config = read_configuration(options.config_file) if options.config_file else None
     dbver = None
+    # configuration file takes priority over the rest of database connection information sources.
     if config:
         for instance in config:
             if user_dbname and instance != user_dbname:
@@ -204,15 +207,16 @@ def main():
             if not establish_user_defined_connection(instance, conn, clusters):
                 logger.error('failed to acquire details about ' +
                              'the database cluster {0}, the server will be skipped'.format(instance))
-    elif options.instance:
-        if not establish_user_defined_connection(options.instance, {'service': options.instance}, clusters):
-            logger.error("unable to continue with cluster {0}".format(options.instance))
     elif options.host:
-        # try to connet to the database specified by command-line options
+        # connect to the database using the connection string supplied from command-line
         conn = build_connection(options.host, options.port, options.username, options.dbname)
         instance = options.instance or "default"
         if not establish_user_defined_connection(instance, conn, clusters):
             logger.error("unable to continue with cluster {0}".format(instance))
+    elif options.use_service and options.instance:
+        # connect to the database using the service name
+        if not establish_user_defined_connection(options.instance, {'service': options.instance}, clusters):
+            logger.error("unable to continue with cluster {0}".format(options.instance))
     else:
         # do autodetection
         postmasters = get_postmasters_directories()

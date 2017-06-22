@@ -190,6 +190,7 @@ def main():
 
     # now try to read the configuration file
     config = read_configuration(options.config_file) if options.config_file else None
+    dbver = None
     if config:
         for instance in config:
             if user_dbname and instance != user_dbname:
@@ -250,6 +251,8 @@ def main():
         # initialize the disks stat collector process and create an exchange queue
         q = JoinableQueue(1)
         work_directories = [cl['wd'] for cl in clusters if 'wd' in cl]
+        dbver = dbver or clusters[0]['ver']
+
         collector = DetachedDiskStatCollector(q, work_directories, dbver)
         collector.start()
         consumer = DiskCollectorConsumer(q)

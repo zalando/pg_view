@@ -187,16 +187,14 @@ def main():
     # set basic logging
     setup_logger(options)
 
-    user_dbname = options.instance
-    user_dbver = options.version
     clusters = []
 
     config = read_configuration(options.config_file) if options.config_file else None
-    dbver = None
+    dbversion = None
     # configuration file takes priority over the rest of database connection information sources.
     if config:
         for instance in config:
-            if user_dbname and instance != user_dbname:
+            if options.instance and instance != options.instance:
                 continue
             # pass already aquired connections to make sure we only list unique clusters.
             host = config[instance].get('host')
@@ -223,16 +221,16 @@ def main():
 
         # get all PostgreSQL instances
         for result_work_dir, data in postmasters.items():
-            (ppid, dbver, dbname) = data
+            (ppid, dbversion, dbname) = data
             # if user requested a specific database name and version - don't try to connect to others
-            if user_dbname:
-                if dbname != user_dbname or not result_work_dir or not ppid:
+            if options.instance:
+                if dbname != options.instance or not result_work_dir or not ppid:
                     continue
-                if user_dbver is not None and dbver != user_dbver:
+                if options.version is not None and dbversion != options.version:
                     continue
             try:
                 conndata = detect_db_connection_arguments(
-                    result_work_dir, ppid, dbver, options.username, options.dbname)
+                    result_work_dir, ppid, dbversion, options.username, options.dbname)
                 if conndata is None:
                     continue
                 host = conndata['host']
@@ -243,7 +241,7 @@ def main():
                 logger.error('PostgreSQL exception {0}'.format(e))
                 pgcon = None
             if pgcon:
-                desc = make_cluster_desc(name=dbname, version=dbver, workdir=result_work_dir,
+                desc = make_cluster_desc(name=dbname, version=dbversion, workdir=result_work_dir,
                                          pid=ppid, pgcon=pgcon, conn=conn)
                 clusters.append(desc)
     collectors = []
@@ -258,9 +256,9 @@ def main():
         # initialize the disks stat collector process and create an exchange queue
         q = JoinableQueue(1)
         work_directories = [cl['wd'] for cl in clusters if 'wd' in cl]
-        dbver = dbver or clusters[0]['ver']
+        dbversion = dbversion or clusters[0]['ver']
 
-        collector = DetachedDiskStatCollector(q, work_directories, dbver)
+        collector = DetachedDiskStatCollector(q, work_directories, dbversion)
         collector.start()
         consumer = DiskCollectorConsumer(q)
 

@@ -204,6 +204,9 @@ def main():
             if not establish_user_defined_connection(instance, conn, clusters):
                 logger.error('failed to acquire details about ' +
                              'the database cluster {0}, the server will be skipped'.format(instance))
+    elif options.instance:
+        if not establish_user_defined_connection(options.instance, {'service': options.instance}, clusters):
+            logger.error("unable to continue with cluster {0}".format(options.instance))
     elif options.host:
         # try to connet to the database specified by command-line options
         conn = build_connection(options.host, options.port, options.username, options.dbname)

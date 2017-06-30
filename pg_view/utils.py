@@ -20,7 +20,6 @@ BLOCK_SIZE = 1024
 MEM_PAGE_SIZE = resource.getpagesize()
 OUTPUT_METHOD = enum(console='console', json='json', curses='curses')
 
-
 def get_valid_output_methods():
     result = []
     for key in OUTPUT_METHOD.__dict__.keys():
@@ -96,7 +95,47 @@ def process_groups(groups):
         part.ncurses_set_prefix(pg.ncurses_produce_prefix())
 
 
-def dbversion_as_float(pgcon):
-    version_num = pgcon.server_version
-    version_num /= 100
-    return float('{0}.{1}'.format(version_num / 100, version_num % 100))
+
+# The version parsing is shamelessly stolen from https://github.com/zalando/patroni/blob/master/patroni/postgresql.py
+def postgres_version_to_int(pg_version):
+    """ Convert the server_version to integer
+
+    >>> postgres_version_to_int('9.5.3')
+    90503
+    >>> postgres_version_to_int('9.3.13')
+    90313
+    >>> postgres_version_to_int('10.1')
+    100001
+    >>> postgres_version_to_int('10')
+    Traceback (most recent call last):
+        ...
+    Exception: Invalid PostgreSQL format: X.Y or X.Y.Z is accepted: 10
+    >>> postgres_version_to_int('a.b.c')
+    Traceback (most recent call last):
+        ...
+    Exception: Invalid PostgreSQL version: a.b.c
+    """
+    components = pg_version.split('.')
+
+    result = []
+    if len(components) < 2 or len(components) > 3:
+        raise Exception("Invalid PostgreSQL format: X.Y or X.Y.Z is accepted: {0}".format(pg_version))
+    if len(components) == 2:
+        # new style verion numbers, i.e. 10.1 becomes 100001
+        components.insert(1, '0')
+    try:
+        result = [c if int(c) > 10 else '0{0}'.format(c) for c in components]
+        result = int(''.join(result))
+    except ValueError:
+        raise Exception("Invalid PostgreSQL version: {0}".format(pg_version))
+    return result
+
+def postgres_major_version_to_int(pg_version):
+    """
+    >>> postgres_major_version_to_int('10')
+    100000
+    >>> postgres_major_version_to_int('9.6')
+    90600
+    """
+    return postgres_version_to_int(pg_version + '.0')
+

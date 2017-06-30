@@ -6,7 +6,7 @@ import psycopg2
 from pg_view.collectors.base_collector import StatCollector
 from pg_view.loggers import logger
 from pg_view.models.outputs import COLSTATUS, COLALIGN
-from pg_view.utils import MEM_PAGE_SIZE, dbversion_as_float
+from pg_view.utils import MEM_PAGE_SIZE
 
 if sys.hexversion >= 0x03000000:
     long = int
@@ -20,22 +20,17 @@ class PgstatCollector(StatCollector):
 
     STATM_FILENAME = '/proc/{0}/statm'
 
-    def __init__(self, pgcon, reconnect, pid, dbname, dbver, always_track_pids):
+    def __init__(self, dbname, reconnect, always_track_pids):
         super(PgstatCollector, self).__init__()
-        self.postmaster_pid = pid
-        self.pgcon = pgcon
-        self.reconnect = reconnect
+        self.reconnect_fn = reconnect
         self.pids = []
         self.rows_diff = []
         self.rows_diff_output = []
-        # figure out our backend pid
-        self.connection_pid = pgcon.get_backend_pid()
-        self.max_connections = self._get_max_connections()
+        # figure out connection invariants
+        self.connect_to_postgres()
         self.recovery_status = self._get_recovery_status()
         self.always_track_pids = always_track_pids
         self.dbname = dbname
-        self.dbver = dbver
-        self.server_version = pgcon.get_parameter_status('server_version')
         self.filter_aux_processes = True
         self.total_connections = 0
         self.active_connections = 0
@@ -240,7 +235,7 @@ class PgstatCollector(StatCollector):
         if not r:
             return text
         else:
-            if self.dbver >= 9.2:
+            if self.pgversion >= 90200:
                 return 'idle in transaction for ' + StatCollector.time_pretty_print(int(r.group(1)))
             else:
                 return 'idle in transaction ' + StatCollector.time_pretty_print(int(r.group(1))) \
@@ -256,7 +251,7 @@ class PgstatCollector(StatCollector):
         return {-1: COLSTATUS.cs_ok}
 
     def ident(self):
-        return '{0} ({1}/{2})'.format('postgres', self.dbname, self.dbver)
+        return '{0} ({1}/{2})'.format('postgres', self.dbname, self.pgversion)
 
     @staticmethod
     def _get_psinfo(cmdline):
@@ -293,6 +288,16 @@ class PgstatCollector(StatCollector):
         else:
             return False
 
+    def connect_to_postgres(self):
+        self.pgcon, self.postmaster_pid = self.reconnect_fn()
+        self._read_connection_invariants(self.pgcon)
+
+    def _read_connection_invariants(self, pgcon):
+        self.connection_pid = self.pgcon.get_backend_pid()
+        self.max_connections = self._get_max_connections(pgcon)
+        self.pgversion = int(self.pgcon.server_version)
+        self.server_version_as_string = self.pgcon.get_parameter_status('server_version')
+
     def refresh(self):
         """ Reads data from /proc and PostgreSQL stats """
         result = []
@@ -302,11 +307,7 @@ class PgstatCollector(StatCollector):
             if not self.pgcon:
                 # if we've lost the connection, try to reconnect and
                 # re-initialize all connection invariants
-                self.pgcon, self.postmaster_pid = self.reconnect()
-                self.connection_pid = self.pgcon.get_backend_pid()
-                self.max_connections = self._get_max_connections()
-                self.dbver = dbversion_as_float(self.pgcon)
-                self.server_version = self.pgcon.get_parameter_status('server_version')
+                self.connect_to_postgres()
             stat_data = self._read_pg_stat_activity()
         except psycopg2.OperationalError as e:
             logger.info("failed to query the server: {}".format(e))
@@ -408,10 +409,10 @@ class PgstatCollector(StatCollector):
             uss = (long(statm[1]) - long(statm[2])) * MEM_PAGE_SIZE
         return uss
 
-    def _get_max_connections(self):
+    def _get_max_connections(self, pgcon):
         """ Read max connections from the database """
 
-        cur = self.pgcon.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur = pgcon.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute('show max_connections')
         result = cur.fetchone()
         cur.close()
@@ -434,7 +435,7 @@ class PgstatCollector(StatCollector):
 
         # the pg_stat_activity format has been changed to 9.2, avoiding ambigiuous meanings for some columns.
         # since it makes more sense then the previous layout, we 'cast' the former versions to 9.2
-        if self.dbver < 9.2:
+        if self.pgversion < 90200:
             cur.execute("""
                     SELECT datname,
                            procpid as pid,
@@ -486,7 +487,7 @@ class PgstatCollector(StatCollector):
                       WHERE procpid != pg_backend_pid()
                       GROUP BY 1,2,3,4,5,6,7,9
                 """)
-        elif self.dbver < 9.6:
+        elif self.pgversion < 90600:
             cur.execute("""
                     SELECT datname,
                            a.pid as pid,
@@ -607,7 +608,7 @@ class PgstatCollector(StatCollector):
         if self.pgcon:
             return "{dbname} {version} {role} connections: {conns} of {max_conns} allocated, {active_conns} active\n". \
                 format(dbname=self.dbname,
-                       version=self.server_version,
+                       version=self.server_version_as_string,
                        role=self.recovery_status,
                        conns=self.total_connections,
                        max_conns=self.max_connections,
@@ -615,7 +616,7 @@ class PgstatCollector(StatCollector):
         else:
             return "{dbname} {version} (offline)\n". \
                 format(dbname=self.dbname,
-                       version=self.server_version)
+                       version=self.server_version_as_string)
 
     @staticmethod
     def process_sort_key(process):

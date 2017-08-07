@@ -401,7 +401,7 @@ class PgstatCollector(StatCollector):
             logger.info("calculating memory for process {0}".format(pid))
         except IOError as e:
             logger.warning(
-                'Unable to read {0}: {1}, process memory information will be unavailable'.format(self.format(pid), e))
+                'Unable to read {0}: {1}, process memory information will be unavailable'.format(self.STATM_FILENAME.format(pid), e))
         finally:
             fp and fp.close()
         if statm and len(statm) >= 3:

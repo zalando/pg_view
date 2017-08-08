@@ -533,7 +533,7 @@ class PgstatCollector(StatCollector):
                                 ELSE state
                            END AS query
                       FROM pg_stat_activity a
-                      WHERE a.pid != pg_backend_pid()
+                      WHERE a.pid != pg_backend_pid() AND a.datname IS NOT NULL 
                       GROUP BY 1,2,3,4,5,6,7,9
                       """)
         results = cur.fetchall()

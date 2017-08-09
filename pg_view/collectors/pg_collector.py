@@ -519,7 +519,7 @@ class PgstatCollector(StatCollector):
                            client_addr,
                            client_port,
                            round(extract(epoch from (now() - xact_start))) as age,
-                           wait_event IS NOT NULL AS waiting,
+                           wait_event_type IS NOT DISTINCT FROM 'Lock' AS waiting,
                            NULLIF(array_to_string(ARRAY(SELECT unnest(pg_blocking_pids(a.pid)) ORDER BY 1), ','), '')
                                 as locked_by,
                            CASE WHEN state = 'idle in transaction' THEN

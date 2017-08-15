@@ -4,7 +4,7 @@ from unittest import TestCase
 
 import mock
 
-from common import TEST_DIR
+from tests.common import TEST_DIR
 from pg_view.exceptions import InvalidConnectionParamError
 from pg_view.models.parsers import connection_params
 from pg_view.utils import UnitConverter, read_configuration, validate_autodetected_conn_param, \

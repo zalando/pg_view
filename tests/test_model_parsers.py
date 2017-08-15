@@ -5,7 +5,7 @@ from unittest import TestCase
 
 import mock
 
-from common import TEST_DIR
+from tests.common import TEST_DIR
 from pg_view.models.parsers import ProcNetParser, get_dbname_from_path, ProcWorker, connection_params
 
 sconn = namedtuple('sconn', ['fd', 'family', 'type', 'laddr', 'raddr', 'status', 'pid'])

@@ -7,7 +7,7 @@ import os
 # import psutil
 
 from pg_view.collectors.system_collector import SystemStatCollector
-from common import TEST_DIR
+from tests.common import TEST_DIR
 
 
 class SystemStatCollectorTest(TestCase):

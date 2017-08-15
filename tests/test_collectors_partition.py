@@ -8,7 +8,7 @@ from unittest import TestCase
 import mock
 # import psutil
 
-from common import TEST_DIR, ErrorAfter, CallableExhaustedError
+from tests.common import TEST_DIR, ErrorAfter, CallableExhaustedError
 from pg_view.collectors.partition_collector import PartitionStatCollector, DetachedDiskStatCollector, \
     DiskCollectorConsumer
 

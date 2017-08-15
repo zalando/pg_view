@@ -51,9 +51,12 @@ CONSOLE_SCRIPTS = ['pg_view = pg_view:main']
 
 
 class PyTest(TestCommand):
-
-    user_options = [('cov=', None, 'Run coverage'), ('cov-xml=', None, 'Generate junit xml report'), ('cov-html=',
-                    None, 'Generate junit html report'), ('junitxml=', None, 'Generate xml of test results')]
+    user_options = [
+        ('cov=', None, 'Run coverage'),
+        ('cov-xml=', None, 'Generate junit xml report'),
+        ('cov-html=', None, 'Generate junit html report'),
+        ('junitxml=', None, 'Generate xml of test results')
+    ]
 
     def initialize_options(self):
         TestCommand.initialize_options(self)
@@ -121,7 +124,7 @@ def setup_package():
         install_requires=install_reqs,
         setup_requires=['flake8'],
         cmdclass=cmdclass,
-        tests_require=['pytest-cov', 'pytest'],
+        tests_require=['pytest-cov', 'pytest', 'mock', 'freezegun'],
         command_options=command_options,
         entry_points={'console_scripts': CONSOLE_SCRIPTS},
     )

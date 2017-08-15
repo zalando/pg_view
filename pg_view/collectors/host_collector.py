@@ -3,23 +3,30 @@ import socket
 from datetime import timedelta
 from multiprocessing import cpu_count
 
-from pg_view.collectors.base_collector import StatCollector
+from pg_view.collectors.base_collector import BaseStatCollector
 from pg_view.loggers import logger
-from pg_view.models.outputs import COLSTATUS, COLHEADER
+from pg_view.models.formatters import StatusFormatter
+from pg_view.models.outputs import COLHEADER
 
 
-class HostStatCollector(StatCollector):
-
+class HostStatCollector(BaseStatCollector):
     """ General system-wide statistics """
-
     UPTIME_FILE = '/proc/uptime'
 
     def __init__(self):
         super(HostStatCollector, self).__init__(produce_diffs=False)
+        self.status_formatter = StatusFormatter(self)
 
-        self.transform_list_data = [{'out': 'loadavg', 'infn': self._concat_load_avg}]
-        self.transform_uptime_data = [{'out': 'uptime', 'in': 0, 'fn': self._uptime_to_str}]
-        self.transform_uname_data = [{'out': 'sysname', 'infn': self._construct_sysname}]
+        self.transform_list_data = [
+            {'out': 'loadavg', 'infn': self._concat_load_avg}
+        ]
+        self.transform_uptime_data = [
+            {'out': 'uptime', 'in': 0, 'fn': self._uptime_to_str}
+        ]
+
+        self.transform_uname_data = [
+            {'out': 'sysname', 'infn': self._construct_sysname}
+        ]
 
         self.output_transform_data = [
             {
@@ -30,7 +37,7 @@ class HostStatCollector(StatCollector):
                 'warning': 5,
                 'critical': 20,
                 'column_header': COLHEADER.ch_prepend,
-                'status_fn': self._load_avg_state,
+                'status_fn': self.status_formatter.load_avg_state,
             },
             {
                 'out': 'up',
@@ -61,7 +68,6 @@ class HostStatCollector(StatCollector):
         ]
 
         self.ncurses_custom_fields = {'header': False, 'prefix': None, 'prepend_column_headers': False}
-
         self.postinit()
 
     def refresh(self):
@@ -72,53 +78,22 @@ class HostStatCollector(StatCollector):
         raw_result.update(self._read_uname())
         raw_result.update(self._read_cpus())
         self._do_refresh([raw_result])
+        return raw_result
 
     def _read_load_average(self):
         return self._transform_list(os.getloadavg())
 
-    def _load_avg_state(self, row, col):
-        state = {}
-        load_avg_str = row[self.output_column_positions[col['out']]]
-        if not load_avg_str:
-            return {}
-        # load average consists of 3 values.
-        load_avg_vals = load_avg_str.split()
-        for no, val in enumerate(load_avg_vals):
-            if float(val) >= col['critical']:
-                state[no] = COLSTATUS.cs_critical
-            elif float(val) >= col['warning']:
-                state[no] = COLSTATUS.cs_warning
-            else:
-                state[no] = COLSTATUS.cs_ok
-        return state
-
     @staticmethod
     def _concat_load_avg(colname, row, optional):
         """ concat all load averages into a single string """
-
-        if len(row) >= 3:
-            return ' '.join(str(x) for x in row[:3])
-        else:
-            return ''
-
-    @staticmethod
-    def _load_avg_status(row, col, val, bound):
-        if val is not None:
-            loads = str(val).split()
-            if len(loads) != 3:
-                logger.error('load average value is not 1min 5min 15 min')
-            for x in loads:
-                f = float(x)
-                if f > bound:
-                    return True
-        return False
+        return ' '.join(str(x) for x in row[:3]) if len(row) >= 3 else ''
 
     @staticmethod
     def _read_cpus():
-        cpus = 0
         try:
             cpus = cpu_count()
-        except:
+        except NotImplementedError:
+            cpus = 0
             logger.error('multiprocessing does not support cpu_count')
         return {'cores': cpus}
 
@@ -149,8 +124,7 @@ class HostStatCollector(StatCollector):
         return {'hostname': socket.gethostname()}
 
     def _read_uname(self):
-        uname_row = os.uname()
-        return self._transform_input(uname_row, self.transform_uname_data)
+        return self._transform_input(os.uname(), self.transform_uname_data)
 
-    def output(self, method):
-        return super(self.__class__, self).output(method, before_string='Host statistics', after_string='\n')
+    def output(self, displayer, before_string=None, after_string=None):
+        return super(HostStatCollector, self).output(displayer, before_string='Host statistics', after_string='\n')

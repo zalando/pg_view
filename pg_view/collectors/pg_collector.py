@@ -2,11 +2,16 @@ import re
 import sys
 
 import psycopg2
+import psycopg2.extras
 
-from pg_view.collectors.base_collector import StatCollector
+from pg_view import consts
+from pg_view.collectors.base_collector import BaseStatCollector
 from pg_view.loggers import logger
-from pg_view.models.outputs import COLSTATUS, COLALIGN
-from pg_view.utils import MEM_PAGE_SIZE, dbversion_as_float
+from pg_view.models.formatters import FnFormatter, StatusFormatter
+from pg_view.models.outputs import COLALIGN
+from pg_view.sqls import SELECT_PG_IS_IN_RECOVERY, SHOW_MAX_CONNECTIONS, SELECT_PGSTAT_VERSION_LESS_THAN_92, \
+    SELECT_PGSTAT_VERSION_LESS_THAN_96, SELECT_PGSTAT_NEVER_VERSION
+from pg_view.utils import MEM_PAGE_SIZE, exec_command_with_output, dbversion_as_float
 
 if sys.hexversion >= 0x03000000:
     long = int
@@ -15,19 +20,23 @@ else:
     maxsize = sys.maxint
 
 
-class PgstatCollector(StatCollector):
-    """ Collect PostgreSQL-related statistics """
+def process_sort_key(process):
+    return process.get('age', maxsize) or maxsize
 
+
+class PgStatCollector(BaseStatCollector):
+    """ Collect PostgreSQL-related statistics """
     STATM_FILENAME = '/proc/{0}/statm'
 
     def __init__(self, pgcon, reconnect, pid, dbname, dbver, always_track_pids):
-        super(PgstatCollector, self).__init__()
+        super(PgStatCollector, self).__init__()
         self.postmaster_pid = pid
         self.pgcon = pgcon
         self.reconnect = reconnect
-        self.pids = []
         self.rows_diff = []
-        self.rows_diff_output = []
+        self.status_formatter = StatusFormatter(self)
+        self.fn_formatter = FnFormatter(self)
+
         # figure out our backend pid
         self.connection_pid = pgcon.get_backend_pid()
         self.max_connections = self._get_max_connections()
@@ -43,28 +52,20 @@ class PgstatCollector(StatCollector):
         self.transform_list_data = [
             {'out': 'pid', 'in': 0, 'fn': int},
             {'out': 'state', 'in': 2},
-            {'out': 'utime', 'in': 13, 'fn': StatCollector.ticks_to_seconds},
-            {'out': 'stime', 'in': 14, 'fn': StatCollector.ticks_to_seconds},
+            {'out': 'utime', 'in': 13, 'fn': self.unit_converter.ticks_to_seconds},
+            {'out': 'stime', 'in': 14, 'fn': self.unit_converter.ticks_to_seconds},
             {'out': 'priority', 'in': 17, 'fn': int},
             {'out': 'starttime', 'in': 21, 'fn': long},
             {'out': 'vsize', 'in': 22, 'fn': int},
             {'out': 'rss', 'in': 23, 'fn': int},
-            {
-                'out': 'delayacct_blkio_ticks',
-                'in': 41,
-                'fn': long,
-                'optional': True,
-            },
-            {
-                'out': 'guest_time',
-                'in': 42,
-                'fn': StatCollector.ticks_to_seconds,
-                'optional': True,
-            },
+            {'out': 'delayacct_blkio_ticks', 'in': 41, 'fn': long, 'optional': True},
+            {'out': 'guest_time', 'in': 42, 'fn': self.unit_converter.ticks_to_seconds, 'optional': True},
         ]
 
-        self.transform_dict_data = [{'out': 'read_bytes', 'fn': int, 'optional': True}, {'out': 'write_bytes',
-                                                                                         'fn': int, 'optional': True}]
+        self.transform_dict_data = [
+            {'out': 'read_bytes', 'fn': int, 'optional': True},
+            {'out': 'write_bytes', 'fn': int, 'optional': True}
+        ]
 
         self.diff_generator_data = [
             {'out': 'pid', 'diff': False},
@@ -105,14 +106,14 @@ class PgstatCollector(StatCollector):
                 'out': 's',
                 'in': 'state',
                 'pos': 2,
-                'status_fn': self.check_ps_state,
+                'status_fn': self.status_formatter.check_ps_state,
                 'warning': 'D',
             },
             {
                 'out': 'utime',
                 'units': '%',
-                'fn': StatCollector.time_diff_to_percent,
-                'round': StatCollector.RD,
+                'fn': self.unit_converter.time_diff_to_percent,
+                'round': consts.RD,
                 'pos': 4,
                 'warning': 90,
                 'align': COLALIGN.ca_right,
@@ -120,8 +121,8 @@ class PgstatCollector(StatCollector):
             {
                 'out': 'stime',
                 'units': '%',
-                'fn': StatCollector.time_diff_to_percent,
-                'round': StatCollector.RD,
+                'fn': self.unit_converter.time_diff_to_percent,
+                'round': consts.RD,
                 'pos': 5,
                 'warning': 5,
                 'critical': 30,
@@ -130,22 +131,22 @@ class PgstatCollector(StatCollector):
                 'out': 'guest',
                 'in': 'guest_time',
                 'units': '%',
-                'fn': StatCollector.time_diff_to_percent,
-                'round': StatCollector.RD,
+                'fn': self.unit_converter.time_diff_to_percent,
+                'round': consts.RD,
                 'pos': 6,
             },
             {
                 'out': 'delay_blkio',
                 'in': 'delayacct_blkio_ticks',
                 'units': '/s',
-                'round': StatCollector.RD,
+                'round': consts.RD,
             },
             {
                 'out': 'read',
                 'in': 'read_bytes',
                 'units': 'MB/s',
-                'fn': StatCollector.bytes_to_mbytes,
-                'round': StatCollector.RD,
+                'fn': self.unit_converter.bytes_to_mbytes,
+                'round': consts.RD,
                 'pos': 7,
                 'noautohide': True,
             },
@@ -153,8 +154,8 @@ class PgstatCollector(StatCollector):
                 'out': 'write',
                 'in': 'write_bytes',
                 'units': 'MB/s',
-                'fn': StatCollector.bytes_to_mbytes,
-                'round': StatCollector.RD,
+                'fn': self.unit_converter.bytes_to_mbytes,
+                'round': consts.RD,
                 'pos': 8,
                 'noautohide': True,
             },
@@ -162,8 +163,8 @@ class PgstatCollector(StatCollector):
                 'out': 'uss',
                 'in': 'uss',
                 'units': 'MB',
-                'fn': StatCollector.bytes_to_mbytes,
-                'round': StatCollector.RD,
+                'fn': self.unit_converter.bytes_to_mbytes,
+                'round': consts.RD,
                 'pos': 9,
                 'noautohide': True
             },
@@ -172,8 +173,8 @@ class PgstatCollector(StatCollector):
                 'in': 'age',
                 'noautohide': True,
                 'pos': 9,
-                'fn': StatCollector.time_pretty_print,
-                'status_fn': self.age_status_fn,
+                'fn': self.fn_formatter.time_pretty_print,
+                'status_fn': self.status_formatter.age_status_fn,
                 'align': COLALIGN.ca_right,
                 'warning': 300,
             },
@@ -201,112 +202,58 @@ class PgstatCollector(StatCollector):
                 'out': 'query',
                 'pos': 12,
                 'noautohide': True,
-                'fn': self.idle_format_fn,
+                'fn': self.fn_formatter.idle_format_fn,
                 'warning': 'idle in transaction',
                 'critical': 'locked',
-                'status_fn': self.query_status_fn,
+                'status_fn': self.status_formatter.query_status_fn,
             },
         ]
-
-        self.ncurses_custom_fields = {'header': True,
-                                      'prefix': None}
-
+        self.ncurses_custom_fields = {'header': True, 'prefix': None}
         self.postinit()
+
+    @classmethod
+    def from_cluster(cls, cluster, pid):
+        return cls(cluster['pgcon'], cluster['reconnect'], cluster['pid'], cluster['name'], cluster['ver'], pid)
 
     def get_subprocesses_pid(self):
         ppid = self.postmaster_pid
-        result = self.exec_command_with_output('ps -o pid --ppid {0} --noheaders'.format(ppid))
+        result = exec_command_with_output('ps -o pid --ppid {0} --noheaders'.format(ppid))
         if result[0] != 0:
             logger.info("Couldn't determine the pid of subprocesses for {0}".format(ppid))
-            self.pids = []
-        self.pids = [int(x) for x in result[1].split()]
-
-    def check_ps_state(self, row, col):
-        if row[self.output_column_positions[col['out']]] == col.get('warning', ''):
-            return {0: COLSTATUS.cs_warning}
-        return {0: COLSTATUS.cs_ok}
-
-    def age_status_fn(self, row, col):
-        age_string = row[self.output_column_positions[col['out']]]
-        age_seconds = self.time_field_to_seconds(age_string)
-        if 'critical' in col and col['critical'] < age_seconds:
-            return {-1: COLSTATUS.cs_critical}
-        if 'warning' in col and col['warning'] < age_seconds:
-            return {-1: COLSTATUS.cs_warning}
-        return {-1: COLSTATUS.cs_ok}
-
-    def idle_format_fn(self, text):
-        r = re.match(r'idle in transaction (\d+)', text)
-        if not r:
-            return text
-        else:
-            if self.dbver >= 9.2:
-                return 'idle in transaction for ' + StatCollector.time_pretty_print(int(r.group(1)))
-            else:
-                return 'idle in transaction ' + StatCollector.time_pretty_print(int(r.group(1))) \
-                       + ' since the last query start'
-
-    def query_status_fn(self, row, col):
-        if row[self.output_column_positions['w']] is True:
-            return {-1: COLSTATUS.cs_critical}
-        else:
-            val = row[self.output_column_positions[col['out']]]
-            if val and val.startswith(col.get('warning', '!')):
-                return {-1: COLSTATUS.cs_warning}
-        return {-1: COLSTATUS.cs_ok}
+            return []
+        return [int(x) for x in result[1].split()]
 
     def ident(self):
         return '{0} ({1}/{2})'.format('postgres', self.dbname, self.dbver)
 
     @staticmethod
     def _get_psinfo(cmdline):
-        """ gets PostgreSQL process type from the command-line."""
-        pstype = 'unknown'
-        action = None
-        if cmdline is not None and len(cmdline) > 0:
-            # postgres: stats collector process
-            m = re.match(r'postgres:\s+(.*)\s+process\s*(.*)$', cmdline)
-            if m:
-                pstype = m.group(1)
-                action = m.group(2)
-            else:
-                if re.match(r'postgres:.*', cmdline):
-                    # assume it's a backend process
-                    pstype = 'backend'
-        if pstype == 'autovacuum worker':
-            pstype = 'autovacuum'
-        return pstype, action
+        if not cmdline:
+            return 'unknown', None
+        m = re.match(r'postgres:\s+(.*)\s+process\s*(.*)$', cmdline)
+        if m:
+            pstype = m.group(1)
+            action = m.group(2)
+            return 'autovacuum' if pstype == 'autovacuum worker' else pstype, action
+        elif re.match(r'postgres:.*', cmdline):
+            # assume it's a backend process
+            return 'backend', None
+        return 'unknown', None
 
     @staticmethod
     def _is_auxiliary_process(pstype):
-        if pstype == 'backend' or pstype == 'autovacuum':
-            return False
-        return True
+        return pstype not in ('backend', 'autovacuum')
 
     def set_aux_processes_filter(self, newval):
         self.filter_aux_processes = newval
 
     def ncurses_filter_row(self, row):
-        if self.filter_aux_processes:
-            # type is the second column
-            return self._is_auxiliary_process(row['type'])
-        else:
-            return False
+        return self._is_auxiliary_process(row['type']) if self.filter_aux_processes else False
 
     def refresh(self):
-        """ Reads data from /proc and PostgreSQL stats """
-        result = []
-        # fetch up-to-date list of subprocess PIDs
-        self.get_subprocesses_pid()
         try:
             if not self.pgcon:
-                # if we've lost the connection, try to reconnect and
-                # re-initialize all connection invariants
-                self.pgcon, self.postmaster_pid = self.reconnect()
-                self.connection_pid = self.pgcon.get_backend_pid()
-                self.max_connections = self._get_max_connections()
-                self.dbver = dbversion_as_float(self.pgcon)
-                self.server_version = self.pgcon.get_parameter_status('server_version')
+                self._try_reconnect()
             stat_data = self._read_pg_stat_activity()
         except psycopg2.OperationalError as e:
             logger.info("failed to query the server: {}".format(e))
@@ -314,9 +261,14 @@ class PgstatCollector(StatCollector):
                 self.pgcon.close()
             self.pgcon = None
             self._do_refresh([])
-            return
+            return []
+
+        # fetch up-to-date list of subprocess PIDs
+        pids = self.get_subprocesses_pid()
         logger.info("new refresh round")
-        for pid in self.pids:
+
+        result = []
+        for pid in pids:
             if pid == self.connection_pid:
                 continue
             is_backend = pid in stat_data
@@ -334,6 +286,7 @@ class PgstatCollector(StatCollector):
                 result.append(result_row)
         # and refresh the rows with this data
         self._do_refresh(result)
+        return result
 
     def _read_proc(self, pid, is_backend, is_active):
         """ see man 5 proc for details (/proc/[pid]/stat) """
@@ -382,6 +335,14 @@ class PgstatCollector(StatCollector):
             result['uss'] = self._get_memory_usage(pid)
         return result
 
+    def _try_reconnect(self):
+        # if we've lost the connection, try to reconnect and re-initialize all connection invariants
+        self.pgcon, self.postmaster_pid = self.reconnect()
+        self.connection_pid = self.pgcon.get_backend_pid()
+        self.max_connections = self._get_max_connections()
+        self.dbver = dbversion_as_float(self.pgcon)
+        self.server_version = self.pgcon.get_parameter_status('server_version')
+
     def _get_memory_usage(self, pid):
         """ calculate usage of private memory per process """
         # compute process's own non-shared memory.
@@ -410,150 +371,53 @@ class PgstatCollector(StatCollector):
         return uss
 
     def _get_max_connections(self):
-        """ Read max connections from the database """
-
-        cur = self.pgcon.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute('show max_connections')
-        result = cur.fetchone()
-        cur.close()
+        result = self._execute_fetchone_query(SHOW_MAX_CONNECTIONS)
         return int(result.get('max_connections', 0))
 
     def _get_recovery_status(self):
-        """ Determine whether the Postgres process is in recovery """
+        result = self._execute_fetchone_query(SELECT_PG_IS_IN_RECOVERY)
+        return result.get('role', 'unknown')
 
+    def _execute_fetchone_query(self, query):
         cur = self.pgcon.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("select case when pg_is_in_recovery() then 'standby' else 'master' end as role")
+        cur.execute(query)
         result = cur.fetchone()
         cur.close()
-        return result.get('role', 'unknown')
+        return result
 
     def _read_pg_stat_activity(self):
         """ Read data from pg_stat_activity """
-
         self.recovery_status = self._get_recovery_status()
         cur = self.pgcon.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-
-        # the pg_stat_activity format has been changed to 9.2, avoiding ambigiuous meanings for some columns.
-        # since it makes more sense then the previous layout, we 'cast' the former versions to 9.2
-        if self.dbver < 9.2:
-            cur.execute("""
-                    SELECT datname,
-                           procpid as pid,
-                           usename,
-                           client_addr,
-                           client_port,
-                           round(extract(epoch from (now() - xact_start))) as age,
-                           waiting,
-                           NULLIF(array_to_string(array_agg(DISTINCT other.pid ORDER BY other.pid), ','), '')
-                                as locked_by,
-                           CASE WHEN current_query = '<IDLE> in transaction' THEN
-                                    CASE WHEN xact_start != query_start THEN
-                                             'idle in transaction ' || CAST(
-                                                 abs(round(extract(epoch from (now() - query_start)))) AS text
-                                             )
-                                         ELSE 'idle in transaction'
-                                    END
-                                WHEN current_query = '<IDLE>' THEN 'idle'
-                                ELSE current_query
-                           END AS query
-                      FROM pg_stat_activity a
-                      LEFT JOIN pg_locks  this ON (this.pid = procpid and this.granted = 'f')
-                      LEFT JOIN pg_locks other ON this.locktype = other.locktype
-                                               AND this.database IS NOT DISTINCT FROM other.database
-                                               AND this.relation IS NOT DISTINCT FROM other.relation
-                                               AND this.page IS NOT DISTINCT FROM other.page
-                                               AND this.tuple IS NOT DISTINCT FROM other.tuple
-                                               AND this.virtualxid IS NOT DISTINCT FROM other.virtualxid
-                                               AND this.transactionid IS NOT DISTINCT FROM other.transactionid
-                                               AND this.classid IS NOT DISTINCT FROM other.classid
-                                               AND this.objid IS NOT DISTINCT FROM other.objid
-                                               AND this.objsubid IS NOT DISTINCT FROM other.objsubid
-                                               AND this.pid != other.pid
-                                               AND other.granted = 't'
-                      WHERE procpid != pg_backend_pid()
-                      GROUP BY 1,2,3,4,5,6,7,9
-                      """)
-        elif self.dbver < 9.6:
-            cur.execute("""
-                    SELECT datname,
-                           a.pid as pid,
-                           usename,
-                           client_addr,
-                           client_port,
-                           round(extract(epoch from (now() - xact_start))) as age,
-                           waiting,
-                           NULLIF(array_to_string(array_agg(DISTINCT other.pid ORDER BY other.pid), ','), '')
-                                as locked_by,
-                           CASE WHEN state = 'idle in transaction' THEN
-                                    CASE WHEN xact_start != state_change THEN
-                                             'idle in transaction ' || CAST(
-                                                 abs(round(extract(epoch from (now() - state_change)))) AS text
-                                             )
-                                         ELSE 'idle in transaction'
-                                    END
-                                WHEN state = 'active' THEN query
-                                ELSE state
-                           END AS query
-                      FROM pg_stat_activity a
-                      LEFT JOIN pg_locks  this ON (this.pid = a.pid and this.granted = 'f')
-                      LEFT JOIN pg_locks other ON this.locktype = other.locktype
-                                               AND this.database IS NOT DISTINCT FROM other.database
-                                               AND this.relation IS NOT DISTINCT FROM other.relation
-                                               AND this.page IS NOT DISTINCT FROM other.page
-                                               AND this.tuple IS NOT DISTINCT FROM other.tuple
-                                               AND this.virtualxid IS NOT DISTINCT FROM other.virtualxid
-                                               AND this.transactionid IS NOT DISTINCT FROM other.transactionid
-                                               AND this.classid IS NOT DISTINCT FROM other.classid
-                                               AND this.objid IS NOT DISTINCT FROM other.objid
-                                               AND this.objsubid IS NOT DISTINCT FROM other.objsubid
-                                               AND this.pid != other.pid
-                                               AND other.granted = 't'
-                      WHERE a.pid != pg_backend_pid()
-                      GROUP BY 1,2,3,4,5,6,7,9
-                      """)
-        else:
-            cur.execute("""
-                    SELECT datname,
-                           a.pid as pid,
-                           usename,
-                           client_addr,
-                           client_port,
-                           round(extract(epoch from (now() - xact_start))) as age,
-                           wait_event_type IS NOT DISTINCT FROM 'Lock' AS waiting,
-                           NULLIF(array_to_string(ARRAY(SELECT unnest(pg_blocking_pids(a.pid)) ORDER BY 1), ','), '')
-                                as locked_by,
-                           CASE WHEN state = 'idle in transaction' THEN
-                                    CASE WHEN xact_start != state_change THEN
-                                             'idle in transaction ' || CAST(
-                                                 abs(round(extract(epoch from (now() - state_change)))) AS text
-                                             )
-                                         ELSE 'idle in transaction'
-                                    END
-                                WHEN state = 'active' THEN query
-                                ELSE state
-                           END AS query
-                      FROM pg_stat_activity a
-                      WHERE a.pid != pg_backend_pid() AND a.datname IS NOT NULL
-                      GROUP BY 1,2,3,4,5,6,7,9
-                      """)
+        cur.execute(self.get_sql_pgstat_by_version())
         results = cur.fetchall()
+
         # fill in the number of total connections, including ourselves
         self.total_connections = len(results) + 1
         self.active_connections = 0
-        ret = {}
-        for r in results:
+        formatted_results = {}
+        for result in results:
             # stick multiline queries together
-            if r.get('query', None):
-                if r['query'] != 'idle':
-                    if r['pid'] != self.connection_pid:
+            if result.get('query'):
+                if result['query'] != 'idle':
+                    if result['pid'] != self.connection_pid:
                         self.active_connections += 1
-                lines = r['query'].splitlines()
+                lines = result['query'].splitlines()
                 newlines = [re.sub('\s+', ' ', l.strip()) for l in lines]
-                r['query'] = ' '.join(newlines)
-            ret[r['pid']] = r
+                result['query'] = ' '.join(newlines)
+            formatted_results[result['pid']] = result
         self.pgcon.commit()
         cur.close()
-        return ret
+        return formatted_results
+
+    def get_sql_pgstat_by_version(self):
+        # the pg_stat_activity format has been changed to 9.2, avoiding ambigiuous meanings for some columns.
+        # since it makes more sense then the previous layout, we 'cast' the former versions to 9.2
+        if self.dbver < 9.2:
+            return SELECT_PGSTAT_VERSION_LESS_THAN_92
+        elif self.dbver < 9.6:
+            return SELECT_PGSTAT_VERSION_LESS_THAN_96
+        return SELECT_PGSTAT_NEVER_VERSION
 
     def ncurses_produce_prefix(self):
         if self.pgcon:
@@ -565,17 +429,10 @@ class PgstatCollector(StatCollector):
                        max_conns=self.max_connections,
                        active_conns=self.active_connections)
         else:
-            return "{dbname} {version} (offline)\n". \
-                format(dbname=self.dbname,
-                       version=self.server_version)
-
-    @staticmethod
-    def process_sort_key(process):
-        return process['age'] if process['age'] is not None else maxsize
+            return "{dbname} {version} (offline)\n".format(dbname=self.dbname, version=self.server_version)
 
     def diff(self):
         """ we only diff backend processes if new one is not idle and use pid to identify processes """
-
         self.rows_diff = []
         self.running_diffs = []
         self.blocked_diffs = {}
@@ -606,7 +463,7 @@ class PgstatCollector(StatCollector):
         # order the result rows by the start time value
         if len(self.blocked_diffs) == 0:
             self.rows_diff = self.running_diffs
-            self.rows_diff.sort(key=self.process_sort_key, reverse=True)
+            self.rows_diff.sort(key=process_sort_key, reverse=True)
         else:
             blocked_temp = []
             # we traverse the tree of blocked processes in a depth-first order, building a list
@@ -615,10 +472,10 @@ class PgstatCollector(StatCollector):
             # by the current one from the plain list of process information rows, that's why
             # we use a dictionary of lists of blocked processes with a blocker pid as a key
             # and effectively build a separate tree for each blocker.
-            self.running_diffs.sort(key=self.process_sort_key, reverse=True)
+            self.running_diffs.sort(key=process_sort_key, reverse=True)
             # sort elements in the blocked lists, so that they still appear in the latest to earliest order
             for key in self.blocked_diffs:
-                self.blocked_diffs[key].sort(key=self.process_sort_key)
+                self.blocked_diffs[key].sort(key=process_sort_key)
             for parent_row in self.running_diffs:
                 self.rows_diff.append(parent_row)
                 # if no processes blocked by this one - just skip to the next row
@@ -633,5 +490,5 @@ class PgstatCollector(StatCollector):
                             blocked_temp.extend(self.blocked_diffs[child_row['pid']])
                             del self.blocked_diffs[child_row['pid']]
 
-    def output(self, method):
-        return super(self.__class__, self).output(method, before_string='PostgreSQL processes:', after_string='\n')
+    def output(self, displayer, before_string=None, after_string=None):
+        return super(PgStatCollector, self).output(displayer, before_string='PostgreSQL processes:', after_string='\n')

@@ -2,27 +2,26 @@ import curses
 import os
 import re
 import time
-from collections import namedtuple
 from operator import itemgetter
 
 from pg_view import flags
 from pg_view.meta import __appname__, __version__, __license__
+from pg_view.models.displayers import ConsoleDisplayer, JsonDisplayer, CursesDisplayer, \
+    COLSTATUS, COLHEADER, COLALIGN, COLTYPES
+from pg_view.utils import OUTPUT_METHOD
 
-from pg_view.utils import enum
+OUTPUT_METHODS_TO_DISPLAYER = {
+    OUTPUT_METHOD.console: ConsoleDisplayer,
+    OUTPUT_METHOD.json: JsonDisplayer,
+    OUTPUT_METHOD.curses: CursesDisplayer
+}
 
 
-COLSTATUS = enum(cs_ok=0, cs_warning=1, cs_critical=2)
-COLALIGN = enum(ca_none=0, ca_left=1, ca_center=2, ca_right=3)
-COLTYPES = enum(ct_string=0, ct_number=1)
-COLHEADER = enum(ch_default=0, ch_prepend=1, ch_append=2)
-
-
-class ColumnType(namedtuple('ColumnType', 'value header header_position')):
-    __slots__ = ()
-
-    @property
-    def length(self):
-        return len(self.value) + (0 if not self.header_position else len(self.header) + 1)
+def get_displayer_by_class(method, collector, show_units, ignore_autohide, notrim):
+    if method not in OUTPUT_METHODS_TO_DISPLAYER:
+        raise Exception('Output method {0} is not supported'.format(method))
+    klass = OUTPUT_METHODS_TO_DISPLAYER[method]
+    return klass.from_collector(collector, show_units, ignore_autohide, notrim)
 
 
 class CommonOutput(object):
@@ -41,13 +40,8 @@ class CommonOutput(object):
 
 
 class CursesOutput(object):
-    """ Show ncurses output """
-
     CLOCK_FORMAT = '%H:%M:%S'
-
     MIN_ELLIPSIS_FIELD_LENGTH = 10
-    MIN_TRUNCATE_FIELD_LENGTH = 50  # do not try to truncate fields lower than this size
-    MIN_TRUNCATED_LEAVE = 10  # do not leave the truncated field if it's less than this size
 
     def __init__(self, screen):
         super(CursesOutput, self)
@@ -101,7 +95,6 @@ class CursesOutput(object):
 
     def refresh(self):
         """ actual data output goes here """
-
         self.next_y = 0
 
         # ncurses doesn't erase the old contents when the screen is refreshed,
@@ -122,10 +115,6 @@ class CursesOutput(object):
         self.show_help_bar()
         self.screen.refresh()
         self.output_order = []
-
-    def screen_erase(self):
-        self.screen.erase()
-        self.screen.refresh()
 
     def update_screen_metrics(self):
         self.screen_y, self.screen_x = self.screen.getmaxyx()
@@ -269,9 +258,8 @@ class CursesOutput(object):
 
     def help(self):
         y = 0
-        self.print_text(y, 0, '{0} {1} - a monitor for PostgreSQL related system statistics'.format(__appname__,
-                                                                                                    __version__),
-                        self.COLOR_NORMAL | curses.A_BOLD)
+        self.print_text(y, 0, '{0} {1} - a monitor for PostgreSQL related system statistics'.format(
+            __appname__, __version__), self.COLOR_NORMAL | curses.A_BOLD)
         y += 1
         self.print_text(y, 0, 'Distributed under the terms of {0} license'.format(__license__))
         y += 2
@@ -300,10 +288,13 @@ class CursesOutput(object):
         y += 2
         self.print_text(y, 0, "Press 'h' to exit this screen")
 
-    def show_collector_data(self, collector, clock=False):
-        if collector not in self.data or len(self.data[collector]) <= 0 or \
-                                len(self.data[collector].get('rows', ())) <= 0 and not self.data[collector]['prefix']:
-            return
+    def is_invalid_data_collector(self, collector):
+        return collector not in self.data or len(self.data[collector]) <= 0 or \
+               len(self.data[collector].get('rows', ())) <= 0 and not self.data[collector]['prefix']
+
+    def show_collector_data(self, collector):
+        if self.is_invalid_data_collector(collector):
+            return None
 
         rows = self.data[collector]['rows']
         statuses = self.data[collector]['statuses']
@@ -342,8 +333,8 @@ class CursesOutput(object):
             self.show_status_of_invisible_fields(layout, status, 0)
             for field in layout:
                 # calculate colors and alignment for the data value
-                column_alignment = (align.get(field,
-                                              COLALIGN.ca_none) if not prepend_column_headers else COLALIGN.ca_left)
+                column_alignment = (
+                    align.get(field, COLALIGN.ca_none) if not prepend_column_headers else COLALIGN.ca_left)
                 w = layout[field]['width']
                 # now check if we need to add ellipsis to indicate that the value has been truncated.
                 # we don't do this if the value is less than a certain length or when the column is marked as
@@ -358,8 +349,8 @@ class CursesOutput(object):
                 color_fields = self.color_text(status[field], highlights[field],
                                                text, header, row[field].header_position)
                 for f in color_fields:
-                    self.screen.addnstr(self.next_y, layout[field]['start'] + f['start'], f['word'], f['width'],
-                                        f['color'])
+                    self.screen.addnstr(
+                        self.next_y, layout[field]['start'] + f['start'], f['word'], f['width'], f['color'])
             self.next_y += 1
 
     @staticmethod
@@ -414,10 +405,15 @@ class CursesOutput(object):
 
     def display_header(self, layout, align, types):
         for field in layout:
-            text = self._align_field(field, '', layout[field]['width'], align.get(field, COLALIGN.ca_none),
-                                     types.get(field, COLTYPES.ct_string))
-            self.screen.addnstr(self.next_y, layout[field]['start'], text, layout[field]['width'], self.COLOR_NORMAL |
-                                curses.A_BOLD)
+            text = self._align_field(
+                field,
+                '',
+                layout[field]['width'],
+                align.get(field, COLALIGN.ca_none),
+                types.get(field, COLTYPES.ct_string)
+            )
+            self.screen.addnstr(
+                self.next_y, layout[field]['start'], text, layout[field]['width'], self.COLOR_NORMAL | curses.A_BOLD)
 
     def calculate_fields_position(self, collector, xstart):
         width = self.data[collector]['w']
@@ -477,7 +473,6 @@ class CursesOutput(object):
             can be hidden, if they are not important (determined at column defintion) and
             if we don't have enough space for them.
         """
-
         layout = {}
         # get only the columns that are not hidden
         col_remaining = [name for name in colnames if name not in colhidden]

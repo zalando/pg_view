@@ -133,8 +133,7 @@ def establish_user_defined_connection(instance, conn, clusters):
         pgcon.close()
         return True
     # now we have all components to create a cluster descriptor
-    desc = make_cluster_desc(name=instance, version=pg_version, workdir=work_directory,
-                             pid=pid, pgcon=pgcon, conn=conn)
+    desc = make_cluster_desc(name=instance, version=pg_version, workdir=work_directory, conn=conn)
     clusters.append(desc)
     return True
 

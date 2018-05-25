@@ -55,9 +55,6 @@ def parse_args():
                       action='store', dest='tick', type='int', default=1)
     parser.add_option('-o', '--output-method', help='send output to the following source', action='store',
                       default=OUTPUT_METHOD.curses, dest='output_method')
-    parser.add_option('-V', '--use-version',
-                      help='version of the instance to monitor (in case it can\'t be autodetected)',
-                      action='store', dest='version', type='float')
     parser.add_option('-l', '--log-file', help='direct log output to the file', action='store',
                       dest='log_file')
     parser.add_option('-R', '--reset-output', help='clear screen after each tick', action='store_true', default=False,
@@ -190,7 +187,6 @@ def main():
     clusters = []
 
     config = read_configuration(options.config_file) if options.config_file else None
-    dbversion = None
     # configuration file takes priority over the rest of database connection information sources.
     if config:
         for instance in config:
@@ -221,29 +217,24 @@ def main():
 
         # get all PostgreSQL instances
         for result_work_dir, data in postmasters.items():
-            (ppid, dbversion, dbname) = data
-            # if user requested a specific database name and version - don't try to connect to others
+            (ppid, version, dbname) = data
+            # if user requested a specific database don't try to connect to others
             if options.instance:
                 if dbname != options.instance or not result_work_dir or not ppid:
                     continue
-                if options.version is not None and dbversion != options.version:
-                    continue
             try:
                 conndata = detect_db_connection_arguments(
-                    result_work_dir, ppid, dbversion, options.username, options.dbname)
+                    result_work_dir, ppid, version, options.username, options.dbname)
                 if conndata is None:
                     continue
                 host = conndata['host']
                 port = conndata['port']
                 conn = build_connection(host, port, options.username, options.dbname)
-                pgcon = psycopg2.connect(**conn)
+                psycopg2.connect(**conn).close() # test if we can connect
+                desc = make_cluster_desc(name=dbname, version=version, workdir=result_work_dir, conn=conn)
+                clusters.append(desc)
             except Exception as e:
                 logger.error('PostgreSQL exception {0}'.format(e))
-                pgcon = None
-            if pgcon:
-                desc = make_cluster_desc(name=dbname, version=dbversion, workdir=result_work_dir,
-                                         pid=ppid, pgcon=pgcon, conn=conn)
-                clusters.append(desc)
     collectors = []
     groups = {}
     try:
@@ -255,10 +246,7 @@ def main():
 
         # initialize the disks stat collector process and create an exchange queue
         q = JoinableQueue(1)
-        work_directories = [cl['wd'] for cl in clusters if 'wd' in cl]
-        dbversion = dbversion or clusters[0]['ver']
-
-        collector = DetachedDiskStatCollector(q, work_directories, dbversion)
+        collector = DetachedDiskStatCollector(q, clusters)
         collector.start()
         consumer = DiskCollectorConsumer(q)
 
@@ -266,8 +254,8 @@ def main():
         collectors.append(SystemStatCollector())
         collectors.append(MemoryStatCollector())
         for cl in clusters:
-            part = PartitionStatCollector(cl['name'], cl['ver'], cl['wd'], consumer)
-            pg = PgstatCollector(cl['pgcon'], cl['reconnect'], cl['pid'], cl['name'], cl['ver'], options.pid)
+            part = PartitionStatCollector(cl['name'], cl['version'], cl['wd'], consumer)
+            pg = PgstatCollector(cl['name'], cl['reconnect'], options.pid)
             groupname = cl['wd']
             groups[groupname] = {'pg': pg, 'partitions': part}
             collectors.append(part)

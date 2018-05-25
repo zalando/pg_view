@@ -6,7 +6,7 @@ import psycopg2
 
 from pg_view.loggers import logger
 from pg_view.models.parsers import ProcNetParser
-from pg_view.utils import STAT_FIELD, dbversion_as_float
+from pg_view.utils import STAT_FIELD, postgres_major_version_to_int
 
 
 def read_postmaster_pid(work_directory, dbname):
@@ -81,10 +81,11 @@ def detect_db_connection_arguments(work_directory, pid, version, username, dbnam
         next reading the postgresql.conf if necessary and, at last,
     """
     conn_args = detect_with_proc_net(pid)
-    if not conn_args:
+    if not conn_args and version >= 90100:
         # if we failed to detect the arguments via the /proc/net/ readings,
         # perhaps we'll get better luck with just peeking into postmaster.pid.
-        conn_args = detect_with_postmaster_pid(work_directory, version)
+        # Only try for PostgreSQL 9.1 and above, earlier version doesn't contain enough data.
+        conn_args = detect_with_postmaster_pid(work_directory)
         if not conn_args:
             logger.error('unable to detect connection parameters for the PostgreSQL cluster at {0}'.format(
                 work_directory))
@@ -110,7 +111,7 @@ def establish_user_defined_connection(instance, conn, clusters):
         logger.error('PostgreSQL exception: {0}'.format(e))
         return None
     # get the database version from the pgcon properties
-    dbver = dbversion_as_float(pgcon)
+    pg_version = int(pgcon.server_version)
     cur = pgcon.cursor()
     cur.execute('show data_directory')
     work_directory = cur.fetchone()[0]
@@ -132,13 +133,12 @@ def establish_user_defined_connection(instance, conn, clusters):
         pgcon.close()
         return True
     # now we have all components to create a cluster descriptor
-    desc = make_cluster_desc(name=instance, version=dbver, workdir=work_directory,
-                             pid=pid, pgcon=pgcon, conn=conn)
+    desc = make_cluster_desc(name=instance, version=pg_version, workdir=work_directory, conn=conn)
     clusters.append(desc)
     return True
 
 
-def make_cluster_desc(name, version, workdir, pid, pgcon, conn):
+def make_cluster_desc(name, version, workdir, conn):
     """Create cluster descriptor, complete with the reconnect function."""
 
     def reconnect():
@@ -148,10 +148,8 @@ def make_cluster_desc(name, version, workdir, pid, pgcon, conn):
 
     return {
         'name': name,
-        'ver': version,
+        'version': version,
         'wd': workdir,
-        'pid': pid,
-        'pgcon': pgcon,
         'reconnect': reconnect
     }
 
@@ -231,8 +229,7 @@ def get_postmasters_directories():
         try:
             fp = open(PG_VERSION_FILENAME, 'rU')
             val = fp.read().strip()
-            if val is not None and len(val) >= 2:
-                version = float(val)
+            version = postgres_major_version_to_int(val)
         except os.error as e:
             logger.error(
                 'unable to read version number from PG_VERSION directory {0}, have to skip it'.format(pg_dir))
@@ -240,6 +237,8 @@ def get_postmasters_directories():
         except ValueError:
             logger.error('PG_VERSION doesn\'t contain a valid version number: {0}'.format(val))
             continue
+        except Exception as e:
+            logger.error("could not parse postgres version number: {0}".format(e))
         else:
             dbname = get_dbname_from_path(pg_dir)
             postmasters[pg_dir] = [pid, version, dbname]
@@ -269,12 +268,9 @@ def fetch_socket_inodes_for_process(pid):
     return inodes
 
 
-def detect_with_postmaster_pid(work_directory, version):
+def detect_with_postmaster_pid(work_directory):
 
-    # PostgreSQL 9.0 doesn't have enough data
     result = {}
-    if version is None or version == 9.0:
-        return None
     PID_FILE = '{0}/postmaster.pid'.format(work_directory)
 
     # try to access the socket directory

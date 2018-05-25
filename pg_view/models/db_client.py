@@ -111,7 +111,7 @@ def establish_user_defined_connection(instance, conn, clusters):
         logger.error('PostgreSQL exception: {0}'.format(e))
         return None
     # get the database version from the pgcon properties
-    dbver = dbversion_as_float(pgcon)
+    pg_version = int(pgcon.server_version)
     cur = pgcon.cursor()
     cur.execute('show data_directory')
     work_directory = cur.fetchone()[0]
@@ -133,7 +133,7 @@ def establish_user_defined_connection(instance, conn, clusters):
         pgcon.close()
         return True
     # now we have all components to create a cluster descriptor
-    desc = make_cluster_desc(name=instance, version=dbver, workdir=work_directory,
+    desc = make_cluster_desc(name=instance, version=pg_version, workdir=work_directory,
                              pid=pid, pgcon=pgcon, conn=conn)
     clusters.append(desc)
     return True

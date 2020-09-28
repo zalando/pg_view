@@ -125,8 +125,8 @@ class MemoryStatCollector(StatCollector):
         result = {}
         try:
             fp = open(MemoryStatCollector.MEMORY_STAT_FILE, 'rU')
-            for l in fp:
-                vals = l.strip().split()
+            for line in fp:
+                vals = line.strip().split()
                 if len(vals) >= 2:
                     name, val = vals[:2]
                     # if we have units of measurement different from kB - transform the result
@@ -141,7 +141,7 @@ class MemoryStatCollector(StatCollector):
                         logger.error('name is too short: {0}'.format(str(name)))
                 else:
                     logger.error('/proc/meminfo string is not name value: {0}'.format(vals))
-        except:
+        except Exception:
             logger.error('Unable to read /proc/meminfo memory statistics. Check your permissions')
             return result
         finally:

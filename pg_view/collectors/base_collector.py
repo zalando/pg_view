@@ -59,9 +59,9 @@ class StatCollector(object):
         self.ncurses_custom_fields = dict.fromkeys(StatCollector.NCURSES_CUSTOM_OUTPUT_FIELDS, None)
 
     def postinit(self):
-        for l in [self.transform_list_data, self.transform_dict_data, self.diff_generator_data,
+        for n in [self.transform_list_data, self.transform_dict_data, self.diff_generator_data,
                   self.output_transform_data]:
-            self.validate_list_out(l)
+            self.validate_list_out(n)
         self.output_column_positions = self._calculate_output_column_positions()
 
     def set_ignore_autohide(self, new_status):
@@ -91,12 +91,12 @@ class StatCollector(object):
         return ret, proc.stdout.read().strip()
 
     @staticmethod
-    def validate_list_out(l):
+    def validate_list_out(n):
         """ If the list element doesn't supply an out column - remove it """
 
-        for col in l:
+        for col in n:
             if 'out' not in col:
-                el = l.pop(l.index(col))
+                el = n.pop(n.index(col))
                 logger.error('Removed {0} column because it did not specify out value'.format(el))
 
     @staticmethod
@@ -135,10 +135,10 @@ class StatCollector(object):
         """ Show kb values in a human readable form. """
 
         r = []
-        for l, n in StatCollector.BYTE_MAP:
+        for unit, n in StatCollector.BYTE_MAP:
             d = b / n
             if d:
-                r.append(str(d) + l)
+                r.append(str(d) + unit)
             b %= n
         return ' '.join(r)
 
@@ -147,10 +147,10 @@ class StatCollector(object):
         """ Show memory size as a float value in the biggest measurement units  """
 
         r = []
-        for l, n in StatCollector.BYTE_MAP:
+        for unit, n in StatCollector.BYTE_MAP:
             if b > n:
                 v = round(float(b) / n, 1)
-                r.append(str(v) + l)
+                r.append(str(v) + unit)
                 break
         if len(r) == 0:
             return '{0}KB'.format(str(b))
@@ -486,7 +486,7 @@ class StatCollector(object):
     # behavior in case 'in' is not specified: the _dict version assumes the in
     # column is the same as the out one, the list emits the warning and skips
     # the column.
-    def _transform_list(self, l, custom_transformation_data=None):
+    def _transform_list(self, x, custom_transformation_data=None):
         result = {}
         # choose between the 'embedded' and external transformations
         if custom_transformation_data is not None:
@@ -494,13 +494,13 @@ class StatCollector(object):
         else:
             transformation_data = self.transform_list_data
         if transformation_data is not None:
-            total = len(l)
+            total = len(x)
             for col in transformation_data:
                 # set the output column name
                 attname = col['out']
                 if 'infn' in col:
-                    if len(l) > 0:
-                        result[attname] = col['infn'](attname, l, 'optional' in col and col['optional'])
+                    if len(x) > 0:
+                        result[attname] = col['infn'](attname, x, 'optional' in col and col['optional'])
                     else:
                         result[attname] = None
                 else:
@@ -513,10 +513,10 @@ class StatCollector(object):
                         # the result in the format we ask them to, but, on the other hand, if there is
                         # nothing at all from them - then the problem is elsewhere and there is no need
                         # to bleat here for each missing column.
-                        if not col.get('optional', False) and len(l) > 0:
+                        if not col.get('optional', False) and len(x) > 0:
                             self.warn_non_optional_column(incol)
                     else:
-                        result[attname] = l[incol]
+                        result[attname] = x[incol]
                 # if transformation function is supplied - apply it to the input data.
                 if 'fn' in col and result[attname] is not None:
                     result[attname] = col['fn'](result[attname])
@@ -524,7 +524,7 @@ class StatCollector(object):
         raise Exception('No data for the list transformation supplied')
 
     # Most of the functionality is the same as in the dict transforming function above.
-    def _transform_dict(self, l, custom_transformation_data=None):
+    def _transform_dict(self, x, custom_transformation_data=None):
         result = {}
         if custom_transformation_data is not None:
             transformation_data = custom_transformation_data
@@ -538,19 +538,19 @@ class StatCollector(object):
                 # if infn is supplied - it calculates the column value possbily using other values
                 # in the row - we don't use incoming column in this case.
                 if 'infn' in col:
-                    if len(l) > 0:
-                        result[attname] = col['infn'](attname, l, 'optional' in col and col['optional'])
+                    if len(x) > 0:
+                        result[attname] = col['infn'](attname, x, 'optional' in col and col['optional'])
                     else:
                         result[attname] = None
-                elif incol not in l:
+                elif incol not in x:
                     # if the column is marked as optional and it's not present in the output data
                     # set None instead
                     result[attname] = None
                     # see the comment at _transform_list on why we do complain here.
-                    if not col.get('optional', False) and len(l) > 0:
+                    if not col.get('optional', False) and len(x) > 0:
                         self.warn_non_optional_column(incol)
                 else:
-                    result[attname] = l[incol]
+                    result[attname] = x[incol]
                 if 'fn' in col and result[attname] is not None:
                     result[attname] = col['fn'](result[attname])
             return result

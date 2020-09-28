@@ -113,7 +113,7 @@ class ProcWorker(object):
         return None
 
     def _version_or_value_error(self, data):
-        if data is not None and len(data) >= 3:
+        if data is not None and len(data) >= 2:
             version = float(data)
         else:
             raise ValueError

@@ -98,6 +98,7 @@ def poll_keys(screen, output):
         flags.display_units = flags.display_units is False
     if c == ord('f'):
         flags.freeze = flags.freeze is False
+        output.freeze_time = time.localtime() if flags.freeze else None
     if c == ord('s'):
         flags.filter_aux = flags.filter_aux is False
     if c == ord('h'):

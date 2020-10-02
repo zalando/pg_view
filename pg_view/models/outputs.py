@@ -56,6 +56,7 @@ class CursesOutput(object):
         self.output_order = []
         self.show_help = False
         self.is_color_supported = True
+        self.freeze_time = None
 
         self._init_display()
 
@@ -119,6 +120,7 @@ class CursesOutput(object):
             self.help()
         # show clock if possible
         self.show_clock()
+        self.show_freeze_time()
         self.show_help_bar()
         self.screen.refresh()
         self.output_order = []
@@ -185,6 +187,20 @@ class CursesOutput(object):
         if clean:
             clock_str = time.strftime(self.CLOCK_FORMAT, time.localtime())
             self.screen.addnstr(0, self.screen_x - clock_str_len, clock_str, clock_str_len)
+
+    def show_freeze_time(self):
+        if not self.freeze_time:
+            return
+        freeze_time_len = len("Frozen at: ") + len(self.CLOCK_FORMAT)
+        clean = True
+        for pos in range(0, freeze_time_len):
+            x = self.screen.inch(1, self.screen_x - freeze_time_len - 1 + pos) & 255
+            if x != ord(' '):
+                clean = False
+                break
+        if clean:
+            freeze_time_str = "Frozen at: " + time.strftime(self.CLOCK_FORMAT, self.freeze_time)
+            self.screen.addnstr(1, self.screen_x - freeze_time_len, freeze_time_str, freeze_time_len)
 
     def _status_to_color(self, status, highlight):
         if status == COLSTATUS.cs_critical:

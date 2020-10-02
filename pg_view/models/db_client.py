@@ -16,7 +16,7 @@ def read_postmaster_pid(work_directory, dbname):
     try:
         fp = open('{0}/postmaster.pid'.format(work_directory))
         pid = fp.readline().strip()
-    except:
+    except Exception:
         # XXX: do not bail out in case we are collecting data for multiple PostgreSQL clusters
         logger.error('Unable to read postmaster.pid for {name} at {wd}\n HINT: \
             make sure Postgres is running'.format(name=dbname, wd=work_directory))
@@ -170,7 +170,7 @@ def get_postmasters_directories():
         try:
             with open(f, 'rU') as fp:
                 stat_fields = fp.read().strip().split()
-        except:
+        except Exception:
             logger.error('failed to read {0}'.format(f))
             continue
         # read PostgreSQL processes. Avoid zombies
@@ -233,7 +233,7 @@ def get_postmasters_directories():
             val = fp.read().strip()
             if val is not None and len(val) >= 2:
                 version = float(val)
-        except os.error as e:
+        except os.error:
             logger.error(
                 'unable to read version number from PG_VERSION directory {0}, have to skip it'.format(pg_dir))
             continue
@@ -259,7 +259,7 @@ def fetch_socket_inodes_for_process(pid):
                 continue
             try:
                 target = os.readlink(link)
-            except:
+            except Exception:
                 logger.error('coulnd\'t read link {0}'.format(link))
             else:
                 # socket:[8430]

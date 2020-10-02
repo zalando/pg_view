@@ -181,8 +181,8 @@ class PartitionStatCollector(StatCollector):
         try:
             fp = None
             fp = open(PartitionStatCollector.DISK_STAT_FILE, 'rU')
-            for l in fp:
-                elements = l.split()
+            for line in fp:
+                elements = line.split()
                 for pname in pnames:
                     if pname in elements:
                         result[pname] = elements
@@ -191,7 +191,7 @@ class PartitionStatCollector(StatCollector):
                             break
                 if found == total:
                     break
-        except:
+        except Exception:
             logger.error('Unable to read {0}'.format(PartitionStatCollector.DISK_STAT_FILE))
             result = {}
         finally:

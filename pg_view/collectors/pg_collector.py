@@ -548,7 +548,7 @@ class PgstatCollector(StatCollector):
                     if r['pid'] != self.connection_pid:
                         self.active_connections += 1
                 lines = r['query'].splitlines()
-                newlines = [re.sub('\s+', ' ', l.strip()) for l in lines]
+                newlines = [re.sub(r'\s+', ' ', line.strip()) for line in lines]
                 r['query'] = ' '.join(newlines)
             ret[r['pid']] = r
         self.pgcon.commit()

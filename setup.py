@@ -43,6 +43,10 @@ CLASSIFIERS = [
     'Programming Language :: Python',
     'Programming Language :: Python :: 2.7',
     'Programming Language :: Python :: 3.4',
+    'Programming Language :: Python :: 3.5',
+    'Programming Language :: Python :: 3.6',
+    'Programming Language :: Python :: 3.7',
+    'Programming Language :: Python :: 3.8',
     'Programming Language :: Python :: Implementation :: CPython',
     'Topic :: Database'
 ]
@@ -74,7 +78,7 @@ class PyTest(TestCommand):
     def run_tests(self):
         try:
             import pytest
-        except:
+        except Exception:
             raise RuntimeError('py.test is not installed, run: pip install pytest')
         params = {'args': self.test_args}
         if self.cov:

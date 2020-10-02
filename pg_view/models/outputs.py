@@ -65,7 +65,7 @@ class CursesOutput(object):
         if hasattr(curses, 'curs_set'):
             try:
                 curses.curs_set(0)  # make the cursor invisible
-            except:
+            except Exception:
                 pass
         self.screen.nodelay(1)  # disable delay when waiting for keyboard input
 

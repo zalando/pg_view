@@ -283,7 +283,7 @@ def main():
         print(traceback.format_exc())
         if 'SSH_CLIENT' in os.environ and 'SSH_TTY' not in os.environ:
             print('Unable to initialize curses. Make sure you supply -t option (force psedo-tty allocation) to ssh')
-    except:
+    except Exception:
         print(traceback.format_exc())
     finally:
         sys.exit(0)

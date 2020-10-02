@@ -118,7 +118,7 @@ class HostStatCollector(StatCollector):
         cpus = 0
         try:
             cpus = cpu_count()
-        except:
+        except Exception:
             logger.error('multiprocessing does not support cpu_count')
         return {'cores': cpus}
 
@@ -134,7 +134,7 @@ class HostStatCollector(StatCollector):
         try:
             fp = open(HostStatCollector.UPTIME_FILE, 'rU')
             raw_result = fp.read().split()
-        except:
+        except Exception:
             logger.error('Unable to read uptime from {0}'.format(HostStatCollector.UPTIME_FILE))
         finally:
             fp and fp.close()
